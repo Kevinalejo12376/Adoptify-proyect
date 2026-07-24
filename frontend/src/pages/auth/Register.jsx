@@ -20,7 +20,10 @@ export default function Register() {
   useEffect(() => {
     getTiposDocumento()
       .then((data) => setTiposDocumento(data))
-      .catch(() => setTiposDocumento([]));
+      .catch((err) => {
+        console.warn("[Register] No se pudieron cargar los tipos de documento:", err?.message || err);
+        setTiposDocumento([]);
+      });
   }, []);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");

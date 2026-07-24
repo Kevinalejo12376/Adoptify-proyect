@@ -35,7 +35,8 @@ export default function GestionUsuarios({ titulo, descripcion, rolCrear, rolesFi
     setError(null);
     try {
       const roles = rolesKey.split(",");
-      const data = await listarUsuarios();
+      // Pasa el primer rol como filtro al backend para reducir datos
+      const data = await listarUsuarios(roles[0]);
       const filtrados = data.filter((u) => roles.includes(u.rol));
       setItems(filtrados.map((u) => ({ ...u, estado: u.activo ? "activo" : "suspendido" })));
     } catch (e) {

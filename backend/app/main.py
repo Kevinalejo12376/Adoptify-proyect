@@ -16,8 +16,12 @@ from app.api.routers import auth, mascotas, refugios, solicitudes, productos, ca
 async def lifespan(app: FastAPI):
     # Crea las tablas (dev/SQLite) y puebla los catalogos (idempotente).
     # En Supabase las tablas ya existen via supabase_schema.sql.
-    Base.metadata.create_all(bind=engine)
-    seed_catalogos()
+    try:
+        Base.metadata.create_all(bind=engine)
+        seed_catalogos()
+    except Exception as exc:
+        print(f"[lifespan] Advertencia: no se pudieron crear/sembrar tablas: {exc}")
+        print("[lifespan] En Supabase las tablas ya existen; el servidor igual puede funcionar.")
     yield
 
 

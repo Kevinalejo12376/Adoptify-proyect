@@ -6,7 +6,8 @@ import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import StoreRoute from "./components/StoreRoute";
-import { AuthProvider } from "./context/AuthContext";
+import CompleteProfileModal from "./components/CompleteProfileModal";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { I18nProvider } from "./context/I18nContext";
 import { CartProvider } from "./context/CartContext";
@@ -93,6 +94,7 @@ import AdminConfiguracion from "./pages/Admin/Configuracion";
 
 function AppContent() {
   const location = useLocation();
+  const { showProfileModal, setShowProfileModal, markProfileCompleted } = useAuth();
   const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
   const isAdminPage = location.pathname.startsWith("/admin");
   const isStorePage = location.pathname.startsWith("/tienda");
@@ -191,6 +193,15 @@ function AppContent() {
         </Routes>
       </main>
       {!isAuthPage && !isAdminPage && !isStorePage && <Footer />}
+
+      {/* Modal global para completar perfil (solo fuera de páginas de auth) */}
+      {!isAuthPage && (
+        <CompleteProfileModal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          onComplete={markProfileCompleted}
+        />
+      )}
     </div>
   );
 }

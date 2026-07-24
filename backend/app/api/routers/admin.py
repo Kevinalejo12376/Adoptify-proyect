@@ -4,7 +4,9 @@ editar, eliminar) usuarios, administradores y refugios."""
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 # pyrefly: ignore [missing-import]
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+# pyrefly: ignore [missing-import]
+from sqlalchemy.orm import Session, joinedload
 # pyrefly: ignore [missing-import]
 from typing import Optional, List
 
@@ -22,28 +24,58 @@ from app.schemas.admin import AdminUsuarioCreate, AdminUsuarioUpdate, AdminUsuar
 router = APIRouter()
 
 
+# Caché en memoria para id_por_codigo dentro de una misma request
+_cache_ids = {}
+
+def _id_codigo_cache(db: Session, Model, valor):
+    """Idem id_por_codigo pero con caché en memoria para evitar consultas repetidas."""
+    key = (Model.__tablename__, str(valor).strip().lower())
+    if key not in _cache_ids:
+        _cache_ids[key] = id_por_codigo(db, Model, valor)
+    return _cache_ids[key]
+
+
 @router.get("/estadisticas")
 def estadisticas(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    """Conteos reales desde la base de datos para el dashboard del admin."""
-    def contar_rol(codigo: str) -> int:
-        rid = id_por_codigo(db, Rol, codigo)
-        return db.query(Usuario).filter(Usuario.rol_id == rid).count() if rid else 0
+    """Conteos reales desde la base de datos para el dashboard del admin.
+    Optimizado para minimizar viajes redondos a la BD (∼3 consultas vs ∼11)."""
+    # Limpiar caché al inicio de cada request
+    _cache_ids.clear()
 
+    # 1) Resolver IDs de catálogo (usando caché)
+    rol_usuario_id = _id_codigo_cache(db, Rol, "usuario")
+
+    # 2) Consulta única: contar usuarios por rol
+    conteo_roles = dict(
+        db.query(Usuario.rol_id, func.count(Usuario.id))
+        .group_by(Usuario.rol_id)
+        .all()
+    )
+    # 3) Consulta única: conteos de mascotas agrupados por estado
+    conteo_mascotas_estado = dict(
+        db.query(Mascota.estado_id, func.count(Mascota.id))
+        .group_by(Mascota.estado_id)
+        .all()
+    )
+
+    # 4) Total de administradores (2 roles)
     total_administradores = (
         db.query(Usuario).join(Rol, Rol.id == Usuario.rol_id)
         .filter(Rol.codigo.in_(["administrador", "administrador_principal"]))
         .count()
     )
-    adoptado_id = id_por_codigo(db, EstadoMascota, "adoptado")
-    disponible_id = id_por_codigo(db, EstadoMascota, "disponible")
+
+    # Resolver IDs de estados de mascota para las llaves del response
+    adoptado_id = _id_codigo_cache(db, EstadoMascota, "adoptado")
+    disponible_id = _id_codigo_cache(db, EstadoMascota, "disponible")
 
     return {
-        "usuarios": contar_rol("usuario"),
+        "usuarios": conteo_roles.get(rol_usuario_id, 0) if rol_usuario_id else 0,
         "refugios": db.query(Refugio).count(),
         "administradores": total_administradores,
-        "mascotas": db.query(Mascota).count(),
-        "mascotas_disponibles": db.query(Mascota).filter(Mascota.estado_id == disponible_id).count() if disponible_id else 0,
-        "mascotas_adoptadas": db.query(Mascota).filter(Mascota.estado_id == adoptado_id).count() if adoptado_id else 0,
+        "mascotas": sum(conteo_mascotas_estado.values()),
+        "mascotas_disponibles": conteo_mascotas_estado.get(disponible_id, 0) if disponible_id else 0,
+        "mascotas_adoptadas": conteo_mascotas_estado.get(adoptado_id, 0) if adoptado_id else 0,
         "solicitudes": db.query(SolicitudAdopcion).count(),
         "productos": db.query(Producto).count(),
     }
@@ -75,9 +107,20 @@ def _serialize(u: Usuario) -> dict:
 
 
 @router.get("/mascotas")
-def listar_mascotas_admin(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    """Lista TODAS las mascotas (de todos los refugios) para supervision del admin."""
-    mascotas = db.query(Mascota).order_by(Mascota.creado_en.desc()).all()
+def listar_mascotas_admin(
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+    limite: int = Query(200, ge=1, le=1000, description="Maximo de mascotas a devolver"),
+):
+    """Lista mascotas (de todos los refugios) para supervision del admin.
+    Con paginación (max 1000) y joinedload para evitar N+1 queries."""
+    mascotas = (
+        db.query(Mascota)
+        .options(joinedload(Mascota.tipo), joinedload(Mascota.estado), joinedload(Mascota.refugio))
+        .order_by(Mascota.creado_en.desc())
+        .limit(limite)
+        .all()
+    )
     return [
         {
             "id": m.id,
@@ -111,15 +154,19 @@ def eliminar_mascota_admin(
 @router.get("/usuarios", response_model=List[AdminUsuarioResponse])
 def listar_usuarios(
     rol: Optional[str] = Query(None, description="Filtrar por rol (codigo)"),
+    limite: int = Query(100, ge=1, le=500, description="Maximo de registros a devolver"),
     _admin: Usuario = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Usuario)
+    """Lista usuarios con paginación opcional por rol.
+    Devuelve hasta `limite` registros (default 100, max 500) para evitar
+    timeouts cuando hay muchos usuarios."""
+    query = db.query(Usuario).options(joinedload(Usuario.rol), joinedload(Usuario.refugio))
     if rol:
         rol_id = id_por_codigo(db, Rol, rol)
         if rol_id:
             query = query.filter(Usuario.rol_id == rol_id)
-    return [_serialize(u) for u in query.order_by(Usuario.creado_en.desc()).all()]
+    return [_serialize(u) for u in query.order_by(Usuario.creado_en.desc()).limit(limite).all()]
 
 
 @router.post("/usuarios", response_model=AdminUsuarioResponse, status_code=status.HTTP_201_CREATED)
