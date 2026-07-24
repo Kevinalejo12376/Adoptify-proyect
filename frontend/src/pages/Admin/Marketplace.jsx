@@ -1,54 +1,54 @@
-import React, { useState } from "react";
-import { Eye, EyeOff, RotateCcw, Flag, Building2 } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Trash2, Loader2 } from "lucide-react";
 import DataTable from "../../components/admin/DataTable";
-import Badge from "../../components/admin/Badge";
 import ConfirmModal from "../../components/admin/ConfirmModal";
-import { mockProductosAdmin } from "../../data/admin/mockData";
+import { listarProductos, eliminarProducto } from "../../api/admin";
 
 export default function AdminMarketplace() {
-  const [productos, setProductos] = useState(mockProductosAdmin);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [modalAction, setModalAction] = useState(null);
+  const [productos, setProductos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [aEliminar, setAEliminar] = useState(null);
 
-  const handleAction = (producto, accion) => {
-    setSelectedProduct(producto);
-    setModalAction(accion);
-    setModalOpen(true);
-  };
+  const cargar = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listarProductos();
+      setProductos(data.map((p) => ({
+        ...p,
+        precioFmt: `$${Number(p.precio).toLocaleString("es-CO")}`,
+        estado: p.activo ? "activo" : "inactivo",
+      })));
+    } catch (e) {
+      setError(e?.message || "No se pudieron cargar los productos");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const confirmAction = () => {
-    if (!selectedProduct) return;
-    setProductos((prev) =>
-      prev.map((p) =>
-        p.id === selectedProduct.id
-          ? { ...p, estado: modalAction === "hide" ? "oculto" : "visible" }
-          : p
-      )
-    );
-    setModalOpen(false);
-    setSelectedProduct(null);
-    setModalAction(null);
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const confirmarEliminar = async () => {
+    if (!aEliminar) return;
+    try {
+      await eliminarProducto(aEliminar.id);
+      await cargar();
+    } catch (e) {
+      setError(e?.message || "No se pudo eliminar el producto");
+    } finally {
+      setAEliminar(null);
+    }
   };
 
   const columnas = [
-    { key: "nombre", titulo: "Producto", tipo: "avatar", nombreAvatar: (f) => f.nombre, ordenable: true },
-    { key: "categoria", titulo: "Categoría", ordenable: true },
-    { key: "precio", titulo: "Precio", tipo: "moneda", ordenable: true },
-    { key: "refugio", titulo: "Refugio", ordenable: true },
-    { key: "stock", titulo: "Stock", ordenable: true, className: "text-center" },
+    { key: "nombre", titulo: "Producto", ordenable: true },
+    { key: "categoria", titulo: "Categoría", ordenable: true, render: (v) => v || "—" },
+    { key: "precioFmt", titulo: "Precio", ordenable: false },
+    { key: "stock", titulo: "Stock", ordenable: true },
+    { key: "vendedor", titulo: "Vendedor", ordenable: true },
+    { key: "tipo_vendedor", titulo: "Tipo", tipo: "badge", ordenable: true },
     { key: "estado", titulo: "Estado", tipo: "badge", ordenable: true },
-    {
-      key: "reportes",
-      titulo: "Reportes",
-      ordenable: true,
-      className: "text-center",
-      render: (valor) => (
-        <span className={`inline-flex items-center gap-1 text-sm font-medium ${valor > 0 ? "text-red-500" : "text-gray-500"}`}>
-          <Flag size={13} /> {valor}
-        </span>
-      ),
-    },
     {
       key: "acciones",
       titulo: "Acciones",
@@ -57,24 +57,13 @@ export default function AdminMarketplace() {
       className: "text-right",
       render: (_, fila) => (
         <div className="flex items-center justify-end gap-1">
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" title="Ver producto">
-            <Eye size={15} />
-          </button>
-          <button className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors" title="Ver refugio">
-            <Building2 size={15} />
-          </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleAction(fila, fila.estado === "oculto" ? "restore" : "hide"); }}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
-            title={fila.estado === "oculto" ? "Restaurar" : "Ocultar"}
+            onClick={(e) => { e.stopPropagation(); setAEliminar(fila); }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            title="Eliminar"
           >
-            {fila.estado === "oculto" ? <RotateCcw size={15} /> : <EyeOff size={15} />}
+            <Trash2 size={15} />
           </button>
-          {fila.reportes > 0 && (
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" title="Revisar reportes">
-              <Flag size={15} />
-            </button>
-          )}
         </div>
       ),
     },
@@ -85,30 +74,37 @@ export default function AdminMarketplace() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Marketplace</h1>
         <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-          Administra los productos publicados por los refugios
+          Supervisa los productos publicados por refugios y tiendas
         </p>
       </div>
 
-      <DataTable
-        columnas={columnas}
-        datos={productos}
-        placeholder="Buscar productos..."
-        emptyMessage="No se encontraron productos"
-      />
+      {error && (
+        <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{error}</div>
+      )}
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+          <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-2" />
+          <p>Cargando productos...</p>
+        </div>
+      ) : (
+        <DataTable
+          columnas={columnas}
+          datos={productos}
+          placeholder="Buscar productos..."
+          emptyMessage="No hay productos registrados"
+        />
+      )}
 
       <ConfirmModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onConfirm={confirmAction}
-        titulo={modalAction === "hide" ? "Ocultar Producto" : "Restaurar Producto"}
-        descripcion={
-          modalAction === "hide"
-            ? `¿Estás seguro de ocultar "${selectedProduct?.nombre}"? No estará disponible en la tienda.`
-            : `¿Estás seguro de restaurar "${selectedProduct?.nombre}"? Volverá a estar disponible.`
-        }
-        variant={modalAction === "hide" ? "warning" : "success"}
-        confirmText={modalAction === "hide" ? "Ocultar" : "Restaurar"}
-        icon={modalAction === "hide" ? EyeOff : RotateCcw}
+        isOpen={!!aEliminar}
+        onClose={() => setAEliminar(null)}
+        onConfirm={confirmarEliminar}
+        titulo="Eliminar producto"
+        descripcion={`¿Eliminar "${aEliminar?.nombre}"? Esta acción no se puede deshacer.`}
+        variant="danger"
+        confirmText="Eliminar"
+        icon={Trash2}
       />
     </div>
   );

@@ -17,7 +17,12 @@ from app.models.mascota import Mascota
 from app.models.solicitud import SolicitudAdopcion
 from app.models.producto import Producto
 from app.models.catalogos import Rol, TipoDocumento, EstadoMascota
+from app.models.soporte import Pqrs, Reporte, Auditoria
+from app.models.pedido import Pedido
+from app.models.foro import ForoPost
 from app.schemas.admin import AdminUsuarioCreate, AdminUsuarioUpdate, AdminUsuarioResponse
+from app.schemas.soporte import PqrsEstadoUpdate, ReporteEstadoUpdate
+from app.core.notificaciones import registrar_auditoria
 
 router = APIRouter()
 
@@ -72,6 +77,45 @@ def _serialize(u: Usuario) -> dict:
         "refugio_nombre": u.refugio.nombre if u.refugio else None,
         "creado_en": u.creado_en.isoformat() if u.creado_en else None,
     }
+
+
+@router.get("/productos")
+def listar_productos_admin(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Lista TODOS los productos con su vendedor (tienda o refugio)."""
+    productos = db.query(Producto).order_by(Producto.creado_en.desc()).all()
+    ref_ids = {p.refugio_id for p in productos if p.refugio_id}
+    refs = {}
+    if ref_ids:
+        refs = {r.id: r.nombre for r in db.query(Refugio).filter(Refugio.id.in_(ref_ids)).all()}
+    resultado = []
+    for p in productos:
+        vendedor = p.tienda.nombre if p.tienda else refs.get(p.refugio_id)
+        resultado.append({
+            "id": p.id,
+            "nombre": p.nombre,
+            "categoria": p.categoria.nombre if p.categoria else None,
+            "precio": float(p.precio) if p.precio is not None else 0,
+            "stock": p.stock,
+            "activo": p.activo,
+            "vendedor": vendedor or "—",
+            "tipo_vendedor": "Tienda" if p.tienda_id else ("Refugio" if p.refugio_id else "—"),
+            "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        })
+    return resultado
+
+
+@router.delete("/productos/{producto_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_producto_admin(
+    producto_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    p = db.query(Producto).filter(Producto.id == producto_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    db.delete(p)
+    db.commit()
+    return None
 
 
 @router.get("/mascotas")
@@ -167,6 +211,8 @@ def crear_usuario(
 
     db.commit()
     db.refresh(user)
+    registrar_auditoria(db, _admin.id, "crear_usuario", "usuarios", user.id, f"Rol: {rol_obj.codigo}")
+    db.commit()
     return _serialize(user)
 
 
@@ -203,3 +249,131 @@ def eliminar_usuario(
     db.delete(user)
     db.commit()
     return None
+
+
+# ============================================================
+# PQRS
+# ============================================================
+@router.get("/pqrs")
+def listar_pqrs(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    items = db.query(Pqrs).order_by(Pqrs.creado_en.desc()).all()
+    return [
+        {
+            "id": p.id, "usuario_id": p.usuario_id, "tipo": p.tipo,
+            "asunto": p.asunto, "mensaje": p.mensaje, "estado": p.estado,
+            "respuesta": p.respuesta,
+            "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        }
+        for p in items
+    ]
+
+
+@router.patch("/pqrs/{pqrs_id}")
+def actualizar_pqrs(pqrs_id: int, payload: PqrsEstadoUpdate, _admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    p = db.query(Pqrs).filter(Pqrs.id == pqrs_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="PQRS no encontrado")
+    if payload.estado is not None:
+        p.estado = payload.estado
+    if payload.respuesta is not None:
+        p.respuesta = payload.respuesta
+    db.commit()
+    return {"ok": True}
+
+
+# ============================================================
+# REPORTES
+# ============================================================
+@router.get("/reportes")
+def listar_reportes(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    items = db.query(Reporte).order_by(Reporte.creado_en.desc()).all()
+    return [
+        {
+            "id": r.id, "reportante_id": r.reportante_id, "tipo_objeto": r.tipo_objeto,
+            "objeto_id": r.objeto_id, "motivo": r.motivo, "estado": r.estado,
+            "creado_en": r.creado_en.isoformat() if r.creado_en else None,
+        }
+        for r in items
+    ]
+
+
+@router.patch("/reportes/{reporte_id}")
+def actualizar_reporte(reporte_id: int, payload: ReporteEstadoUpdate, _admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    r = db.query(Reporte).filter(Reporte.id == reporte_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+    r.estado = payload.estado
+    db.commit()
+    return {"ok": True}
+
+
+# ============================================================
+# PEDIDOS
+# ============================================================
+@router.get("/pedidos")
+def listar_pedidos(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    pedidos = db.query(Pedido).order_by(Pedido.creado_en.desc()).all()
+    return [
+        {
+            "id": p.id, "usuario_id": p.usuario_id,
+            "estado": p.estado.codigo if p.estado else None,
+            "subtotal": float(p.subtotal or 0), "costo_envio": float(p.costo_envio or 0),
+            "descuento": float(p.descuento or 0), "total": float(p.total or 0),
+            "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        }
+        for p in pedidos
+    ]
+
+
+# ============================================================
+# FORO (moderacion)
+# ============================================================
+@router.get("/foro")
+def listar_foro(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    posts = db.query(ForoPost).order_by(ForoPost.creado_en.desc()).all()
+    return [
+        {
+            "id": p.id, "titulo": p.titulo, "contenido": p.contenido,
+            "autor": (f"{p.autor.nombre} {p.autor.apellido or ''}".strip() if p.autor else "Anonimo"),
+            "categoria": p.categoria.nombre if p.categoria else None,
+            "vistas": p.vistas,
+            "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        }
+        for p in posts
+    ]
+
+
+@router.delete("/foro/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_post_foro(post_id: int, admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    p = db.query(ForoPost).filter(ForoPost.id == post_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Publicacion no encontrada")
+    registrar_auditoria(db, admin.id, "eliminar", "foro_post", post_id, f"Elimino publicacion '{p.titulo}'")
+    db.delete(p)
+    db.commit()
+    return None
+
+
+# ============================================================
+# AUDITORIA
+# ============================================================
+@router.get("/auditoria")
+def listar_auditoria(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    items = db.query(Auditoria).order_by(Auditoria.creado_en.desc()).limit(200).all()
+    # Mapea el id de usuario a su nombre
+    user_ids = {a.usuario_id for a in items if a.usuario_id}
+    nombres = {}
+    if user_ids:
+        nombres = {
+            u.id: f"{u.nombre} {u.apellido or ''}".strip()
+            for u in db.query(Usuario).filter(Usuario.id.in_(user_ids)).all()
+        }
+    return [
+        {
+            "id": a.id, "usuario": nombres.get(a.usuario_id, "Sistema"),
+            "accion": a.accion, "entidad": a.entidad, "entidad_id": a.entidad_id,
+            "detalle": a.detalle,
+            "creado_en": a.creado_en.isoformat() if a.creado_en else None,
+        }
+        for a in items
+    ]

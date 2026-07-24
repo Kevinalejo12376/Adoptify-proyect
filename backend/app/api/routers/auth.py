@@ -16,6 +16,7 @@ from app.core.security import (
     get_current_user,
 )
 from app.core.lookups import id_por_codigo
+from app.core.notificaciones import notificar_admins, registrar_auditoria
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.catalogos import Rol, TipoDocumento
@@ -84,6 +85,17 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(user)
+    # Notifica a los admins del nuevo registro
+    tipo_notif = "nuevo_refugio" if rol_obj.codigo == "refugio" else "nuevo_usuario"
+    etiqueta = "refugio" if rol_obj.codigo == "refugio" else "usuario"
+    notificar_admins(
+        db,
+        tipo=tipo_notif,
+        mensaje=f"Nuevo {etiqueta} registrado: {payload.nombre} {payload.apellido or ''}".strip(),
+        enlace=f"/admin/{etiqueta}s",
+    )
+    registrar_auditoria(db, user.id, "registro", "usuarios", user.id, f"Registro como {etiqueta}")
+    db.commit()
     return serialize_usuario(user)
 
 

@@ -23,6 +23,8 @@ class SolicitudEstadoUpdate(BaseModel):
 class SolicitudResponse(BaseModel):
     id: int
     mascota_id: int
+    mascota_nombre: Optional[str] = None
+    mascota_tipo: Optional[str] = None
     usuario_id: Optional[int] = None
     nombre_contacto: str
     email_contacto: Optional[str] = None
@@ -35,3 +37,4 @@ class SolicitudResponse(BaseModel):
     progreso: int = 0
     estado: Optional[str] = None
     estado_id: Optional[int] = None
+    creada_en: Optional[str] = None

@@ -46,6 +46,7 @@ class MascotaUpdate(BaseModel):
 class MascotaResponse(BaseModel):
     id: int
     refugio_id: Optional[int] = None
+    refugio_nombre: Optional[str] = None
     nombre: str
     raza: Optional[str] = None
     edad: Optional[str] = None

@@ -31,6 +31,10 @@ def serialize_mascota(m):
         "vacunado": m.vacunado,
         "esterilizado": m.esterilizado,
         "desparasitado": m.desparasitado,
+        "refugio_nombre": m.refugio.nombre if m.refugio else None,
+        "refugio_telefono": m.refugio.telefono if m.refugio else None,
+        "refugio_direccion": m.refugio.direccion if m.refugio else None,
+        "refugio_ubicacion": m.refugio.ubicacion if m.refugio else None,
         # Etiquetas legibles (nombre) + ids por si el frontend los necesita
         "tipo": m.tipo.nombre if m.tipo else None,
         "tamano": m.tamano.nombre if m.tamano else None,
@@ -47,6 +51,8 @@ def serialize_solicitud(s):
     return {
         "id": s.id,
         "mascota_id": s.mascota_id,
+        "mascota_nombre": s.mascota.nombre if s.mascota else None,
+        "mascota_tipo": s.mascota.tipo.nombre if s.mascota and s.mascota.tipo else None,
         "usuario_id": s.usuario_id,
         "nombre_contacto": s.nombre_contacto,
         "email_contacto": s.email_contacto,
@@ -59,6 +65,7 @@ def serialize_solicitud(s):
         "progreso": s.progreso,
         "estado": s.estado.codigo if s.estado else None,
         "estado_id": s.estado_id,
+        "creada_en": s.creada_en.isoformat() if s.creada_en else None,
     }
 
 

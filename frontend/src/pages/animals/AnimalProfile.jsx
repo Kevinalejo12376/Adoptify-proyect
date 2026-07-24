@@ -1,37 +1,64 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Heart, PawPrint, MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Star, CheckCircle, XCircle, AlertCircle, FileText, Send, X, Home } from "lucide-react";
+import { Heart, PawPrint, MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Star, CheckCircle, XCircle, AlertCircle, FileText, Send, X, Home, Loader2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { obtenerMascota } from "../../api/mascotas";
+import { crearSolicitud } from "../../api/solicitudes";
 
 export default function AnimalProfile() {
   const { id } = useParams();
-  const { addFavorite, removeFavorite, isFavorite } = useAuth();
+  const { addFavorite, removeFavorite, isFavorite, user } = useAuth();
   const [showAdoptionModal, setShowAdoptionModal] = useState(false);
   const [showCompatibilityModal, setShowCompatibilityModal] = useState(false);
   const [compatibilityScore, setCompatibilityScore] = useState(null);
-  const [adoptionStatus, setAdoptionStatus] = useState(null); // 'pending', 'approved', 'rejected', null
+  const [adoptionStatus, setAdoptionStatus] = useState(null);
+  const [adoptionError, setAdoptionError] = useState(null);
 
-  const animal = {
-    id: id,
-    name: "Max",
-    type: "Perro",
-    breed: "Golden Retriever",
-    age: "2 años",
-    size: "Grande",
-    gender: "Macho",
-    weight: "30 kg",
-    color: "Dorado",
-    shelter: "Refugio 'Hogar de huellas'",
-    shelterId: 1,
-    shelterPhone: "+57 300 123 4567",
-    shelterLocation: "Calle 123, Bogotá",
-    description: "Max es un Golden Retriever lleno de energía y amor. Es muy sociable con otros perros y niños. Le encanta jugar al aire libre y necesita una familia activa que pueda dedicarle tiempo de ejercicio y entrenamiento.",
-    personality: ["Juguetón", "Amigable", "Energético", "Leal", "Inteligente"],
-    health: "Vacunado, esterilizado, desparasitado",
-    requirements: "Espacio amplio, tiempo diario para ejercicio, experiencia con perros preferible"
-  };
+  // Datos reales desde la BD
+  const [animal, setAnimal] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Formulario de solicitud
+  const [form, setForm] = useState({ nombre: "", telefono: "", mensaje: "" });
+  const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      setLoading(true); setError(null);
+      try {
+        const m = await obtenerMascota(id);
+        if (!activo) return;
+        setAnimal({
+          id: m.id,
+          name: m.nombre,
+          type: m.tipo || "Perro",
+          breed: m.raza || "Sin raza",
+          age: m.edad || "—",
+          size: m.tamano || "—",
+          gender: m.genero || "—",
+          weight: m.peso || "—",
+          color: m.color || "—",
+          shelter: m.refugio_nombre || "Refugio",
+          shelterPhone: m.refugio_telefono || "",
+          shelterLocation: m.refugio_ubicacion || m.refugio_direccion || "",
+          description: m.descripcion || "",
+          personality: m.personalidad ? m.personalidad.split(",").map((p) => p.trim()) : [],
+          health: [m.vacunado && "Vacunado", m.esterilizado && "Esterilizado", m.desparasitado && "Desparasitado"].filter(Boolean).join(", ") || "Sin información de salud",
+          requirements: m.requisitos || "",
+        });
+      } catch (e) {
+        if (activo) setError(e?.message || "No se encontró la mascota");
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, [id]);
 
   const handleFavorite = () => {
+    if (!animal) return;
     if (isFavorite(animal.id)) {
       removeFavorite(animal.id);
     } else {
@@ -39,15 +66,24 @@ export default function AnimalProfile() {
     }
   };
 
-  const handleAdoptionRequest = () => {
-    setShowAdoptionModal(true);
-  };
-
-  const submitAdoptionRequest = () => {
-    // Simular envío de solicitud
-    setAdoptionStatus('pending');
-    setShowAdoptionModal(false);
-    // Aquí se enviaría notificación al refugio vía WhatsApp
+  const submitAdoptionRequest = async () => {
+    if (!animal) return;
+    setEnviando(true); setAdoptionError(null);
+    try {
+      await crearSolicitud({
+        mascota_id: animal.id,
+        nombre_contacto: form.nombre || (user?.nombre || user?.name || ""),
+        email_contacto: user?.email || "",
+        telefono_contacto: form.telefono,
+        mensaje: form.mensaje,
+      });
+      setAdoptionStatus("pending");
+      setShowAdoptionModal(false);
+    } catch (e) {
+      setAdoptionError(e?.message || "No se pudo enviar la solicitud");
+    } finally {
+      setEnviando(false);
+    }
   };
 
   const cancelAdoptionRequest = () => {
@@ -73,6 +109,21 @@ export default function AnimalProfile() {
           Volver a animales
         </Link>
 
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-24 text-gray-500">
+            <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+            <p>Cargando información de la mascota...</p>
+          </div>
+        )}
+
+        {error && !loading && (
+          <div className="py-12 text-center">
+            <PawPrint className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500">{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && animal && (
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
@@ -294,6 +345,7 @@ export default function AnimalProfile() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Adoption Modal */}
@@ -302,44 +354,36 @@ export default function AnimalProfile() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-900 font-display">Solicitar Adopción</h3>
-              <button
-                onClick={() => setShowAdoptionModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
+              <button onClick={() => setShowAdoptionModal(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-6 h-6" />
               </button>
             </div>
+            {adoptionError && (
+              <div className="mb-3 p-2.5 rounded-xl bg-red-50 text-red-700 text-sm">{adoptionError}</div>
+            )}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nombre completo</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nombre completo *</label>
+                <input type="text" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  placeholder="Tu nombre"
-                />
+                  placeholder="Tu nombre" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Teléfono</label>
-                <input
-                  type="tel"
+                <input type="tel" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  placeholder="+57 300 123 4567"
-                />
+                  placeholder="+57 300 123 4567" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Mensaje al refugio</label>
-                <textarea
-                  rows="3"
+                <textarea rows="3" value={form.mensaje} onChange={(e) => setForm({ ...form, mensaje: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none"
-                  placeholder="Cuéntanos por qué quieres adoptar a Max..."
-                />
+                  placeholder={`Cuéntanos por qué quieres adoptar a ${animal?.name}...`} />
               </div>
-              <button
-                onClick={submitAdoptionRequest}
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all"
-              >
+              <button onClick={submitAdoptionRequest} disabled={enviando || !form.nombre.trim()}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all disabled:opacity-60">
                 <Send className="w-4 h-4" />
-                Enviar Solicitud
+                {enviando ? "Enviando..." : "Enviar Solicitud"}
               </button>
             </div>
           </div>
