@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, Filter, PawPrint, Heart, MapPin, Calendar, ChevronDown, X } from "lucide-react";
+import { Search, Filter, PawPrint, Heart, MapPin, Calendar, ChevronDown, X, Loader2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ScrollToTop from "../../components/ScrollToTop";
+import { listarMascotas } from "../../api/mascotas";
 
 export default function Animals() {
   const { addFavorite, removeFavorite, isFavorite } = useAuth();
@@ -13,6 +14,41 @@ export default function Animals() {
   const [selectedAge, setSelectedAge] = useState("all");
   const [selectedGender, setSelectedGender] = useState("all");
 
+  const [animals, setAnimals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Trae las mascotas reales desde la base de datos.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await listarMascotas();
+        if (!activo) return;
+        setAnimals(
+          data.map((m) => ({
+            id: m.id,
+            name: m.nombre,
+            type: m.tipo || "",
+            breed: m.raza || "Sin raza",
+            age: m.edad || "—",
+            size: m.tamano || "—",
+            gender: m.genero || "—",
+            shelter: m.refugio_nombre || "Refugio",
+            image: null,
+          }))
+        );
+      } catch (e) {
+        if (activo) setError(e?.message || "No se pudieron cargar las mascotas");
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
   const toggleFavorite = (animal) => {
     if (isFavorite(animal.id)) {
       removeFavorite(animal.id);
@@ -20,17 +56,6 @@ export default function Animals() {
       addFavorite(animal);
     }
   };
-
-  const animals = [
-    { id: 1, name: "Max", type: "Perro", breed: "Golden Retriever", age: "2 años", size: "Grande", gender: "Macho", shelter: "Refugio 'Hogar de huellas'", image: null },
-    { id: 2, name: "Luna", type: "Gato", breed: "Siamés", age: "1 año", size: "Pequeño", gender: "Hembra", shelter: "Refugio 'Patitas de amor'", image: null },
-    { id: 3, name: "Thor", type: "Perro", breed: "Husky Siberiano", age: "3 años", size: "Grande", gender: "Macho", shelter: "Fundación 'Amigo fiel'", image: null },
-    { id: 4, name: "Mia", type: "Gato", breed: "Persa", age: "2 años", size: "Mediano", gender: "Hembra", shelter: "Refugio 'Nueva vida'", image: null },
-    { id: 5, name: "Rocky", type: "Perro", breed: "Bulldog", age: "4 años", size: "Mediano", gender: "Macho", shelter: "Refugio 'Hogar de huellas'", image: null },
-    { id: 6, name: "Simba", type: "Gato", breed: "Maine Coon", age: "1 año", size: "Grande", gender: "Macho", shelter: "Refugio 'Patitas de amor'", image: null },
-    { id: 7, name: "Coco", type: "Perro", breed: "Beagle", age: "6 meses", size: "Pequeño", gender: "Hembra", shelter: "Fundación 'Amigo fiel'", image: null },
-    { id: 8, name: "Nala", type: "Gato", breed: "Bengalí", age: "3 años", size: "Mediano", gender: "Hembra", shelter: "Refugio 'Nueva vida'", image: null },
-  ];
 
   const filteredAnimals = animals.filter(animal => {
     const matchesSearch = animal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -154,6 +179,18 @@ export default function Animals() {
           </div>
         )}
 
+        {loading && (
+          <div className="py-24 flex flex-col items-center justify-center text-gray-500">
+            <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+            <p>Cargando mascotas...</p>
+          </div>
+        )}
+        {error && !loading && (
+          <div className="py-6 mb-6 text-center text-red-600 bg-red-50 rounded-xl border border-red-100">{error}</div>
+        )}
+
+        {!loading && !error && (
+        <>
         {/* Results Count */}
         <div className="mb-6 flex justify-between items-center">
           <p className="text-gray-600">
@@ -233,6 +270,8 @@ export default function Animals() {
               Limpiar filtros
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
       <ScrollToTop />

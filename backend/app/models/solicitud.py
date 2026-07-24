@@ -25,6 +25,6 @@ class SolicitudAdopcion(Base):
     fecha_completada = Column(Date)
     creada_en = Column(DateTime(timezone=True), server_default=func.now())
 
-    mascota = relationship("Mascota", back_populates="solicitudes")
+    mascota = relationship("Mascota", back_populates="solicitudes", lazy="joined")
     usuario = relationship("Usuario", back_populates="solicitudes")
     estado = relationship("EstadoSolicitud", lazy="joined")

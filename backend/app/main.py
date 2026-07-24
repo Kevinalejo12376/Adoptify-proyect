@@ -9,7 +9,10 @@ from app.db.database import Base, engine
 # Importa todos los modelos para registrarlos en Base.metadata
 from app import models  # noqa: F401
 from app.db.seed import seed_catalogos
-from app.api.routers import auth, mascotas, refugios, solicitudes, productos, catalogos, admin
+from app.api.routers import (
+    auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
+    notificaciones, pqrs, reportes,
+)
 
 
 @asynccontextmanager
@@ -40,6 +43,9 @@ app.include_router(mascotas.router, prefix="/api/mascotas", tags=["Mascotas"])
 app.include_router(refugios.router, prefix="/api/refugios", tags=["Refugios"])
 app.include_router(solicitudes.router, prefix="/api/solicitudes", tags=["Solicitudes"])
 app.include_router(productos.router, prefix="/api/productos", tags=["Productos"])
+app.include_router(notificaciones.router, prefix="/api/notificaciones", tags=["Notificaciones"])
+app.include_router(pqrs.router, prefix="/api/pqrs", tags=["PQRS"])
+app.include_router(reportes.router, prefix="/api/reportes", tags=["Reportes"])
 
 
 @app.get("/")

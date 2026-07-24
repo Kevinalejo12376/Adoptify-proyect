@@ -27,6 +27,53 @@ def mi_perfil(current_user: Usuario = Depends(get_current_refugio), db: Session 
     return refugio
 
 
+@router.get("/mi-perfil/estadisticas")
+def mis_estadisticas(current_user: Usuario = Depends(get_current_refugio), db: Session = Depends(get_db)):
+    """Estadisticas reales del refugio autenticado."""
+    from app.models.mascota import Mascota
+    from app.models.solicitud import SolicitudAdopcion
+    from app.models.catalogos import EstadoMascota, EstadoSolicitud
+    from app.core.lookups import id_por_codigo
+
+    refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
+    if not refugio:
+        raise HTTPException(status_code=404, detail="Refugio no encontrado")
+
+    total_mascotas = db.query(Mascota).filter(Mascota.refugio_id == refugio.id).count()
+
+    # Solicitudes
+    total_sol = (
+        db.query(SolicitudAdopcion)
+        .join(Mascota, SolicitudAdopcion.mascota_id == Mascota.id)
+        .filter(Mascota.refugio_id == refugio.id)
+        .count()
+    )
+    pendiente_id = id_por_codigo(db, EstadoSolicitud, "pendiente")
+    pendientes = (
+        db.query(SolicitudAdopcion)
+        .join(Mascota, SolicitudAdopcion.mascota_id == Mascota.id)
+        .filter(Mascota.refugio_id == refugio.id, SolicitudAdopcion.estado_id == pendiente_id)
+        .count()
+    ) if pendiente_id else 0
+    finalizada_id = id_por_codigo(db, EstadoSolicitud, "finalizada")
+    exitosas = (
+        db.query(SolicitudAdopcion)
+        .join(Mascota, SolicitudAdopcion.mascota_id == Mascota.id)
+        .filter(Mascota.refugio_id == refugio.id, SolicitudAdopcion.estado_id == finalizada_id)
+        .count()
+    ) if finalizada_id else 0
+
+    return {
+        "mascotas": total_mascotas,
+        "solicitudes": total_sol,
+        "pendientes": pendientes,
+        "exitosas": exitosas,
+        "rescatados": refugio.total_rescatados,
+        "voluntarios": refugio.total_voluntarios,
+        "anio_fundacion": refugio.anio_fundacion,
+    }
+
+
 @router.put("/mi-perfil", response_model=RefugioResponse)
 def actualizar_perfil(
     payload: RefugioUpdate,
