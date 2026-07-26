@@ -493,13 +493,61 @@ body {
   75% { transform: rotate(3deg); }
 }
 
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 @keyframes slide-up-fade {
   0% { opacity: 0; transform: translateY(40px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes draw-line {
+  0% { stroke-dashoffset: 1000; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.9); }
+  50% { transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer-slide {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes slide-down {
+  0% { opacity: 0; transform: translateY(-8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
 .animate-fade-in-up {
   animation: fade-in-up 0.6s ease-out forwards;
+}
+
+.animate-draw-line {
+  animation: draw-line 1.5s ease-out forwards;
+}
+
+.animate-pop-in {
+  animation: pop-in 0.3s ease-out forwards;
+}
+
+.animate-shimmer-slide {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background-size: 200% 100%;
+  animation: shimmer-slide 2s infinite;
+}
+
+.animate-slide-down {
+  animation: slide-down 0.2s ease-out forwards;
 }
 
 .animate-fade-in-down {
@@ -669,6 +717,106 @@ body {
 /* Dark mode subtle border for dividers in cards */
 .dark .divide-dark-border > :not([hidden]) ~ :not([hidden]) {
   border-color: var(--color-dark-border);
+}
+
+/* ===== Admin Panel Styles ===== */
+
+/* Sidebar hover expand effect */
+.admin-sidebar-expand {
+  transition: width 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Smooth content shift when sidebar expands */
+.admin-content {
+  transition: margin-left 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Active nav indicator pulse */
+@keyframes indicator-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.admin-nav-indicator {
+  animation: indicator-pulse 2s ease-in-out infinite;
+}
+
+/* Card hover elevation */
+.admin-card-hover {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.admin-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+/* Elegant underline animation for nav links */
+.nav-underline {
+  position: relative;
+}
+.nav-underline::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(to right, #f43f5e, #f59e0b);
+  transition: all 0.3s ease;
+  transform: translateX(-50%);
+  border-radius: 1px;
+}
+.nav-underline:hover::after {
+  width: 80%;
+}
+
+/* Staggered animation delays for cards */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+.stagger-7 { animation-delay: 0.35s; }
+.stagger-8 { animation-delay: 0.4s; }
+
+/* Dark mode card hover refinements */
+.dark .admin-card-hover:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Smooth scrollbar for admin */
+.admin-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.admin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(244, 63, 94, 0.3);
+  border-radius: 10px;
+}
+.admin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(244, 63, 94, 0.5);
+}
+
+/* Notification dot pulse */
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.5; }
+}
+.dot-pulse {
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+/* Gradient border on focus for inputs */
+.input-gradient-focus:focus {
+  border-color: transparent;
+  background-image: linear-gradient(white, white),
+                    linear-gradient(135deg, #f43f5e, #f59e0b);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
 }
 
 /* Scrollbar hide utility */

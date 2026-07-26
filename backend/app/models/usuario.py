@@ -26,6 +26,7 @@ class Usuario(Base):
     twitter = Column(String(120))
     instagram = Column(String(120))
     verificado = Column(Boolean, nullable=False, default=False)
+    perfil_completo = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     rol = relationship("Rol", lazy="joined")

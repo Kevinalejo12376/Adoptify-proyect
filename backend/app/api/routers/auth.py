@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
+# pyrefly: ignore [missing-import]
+from pydantic import ValidationError
 
 from app.db.database import get_db
 from app.core.config import settings
@@ -20,7 +22,7 @@ from app.core.notificaciones import notificar_admins, registrar_auditoria
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.catalogos import Rol, TipoDocumento
-from app.schemas.usuario import UsuarioCreate, UsuarioResponse
+from app.schemas.usuario import UsuarioCreate, UsuarioResponse, ProfileUpdate, ProfileResponse
 from app.schemas.token import Token
 from app.schemas.serializers import serialize_usuario
 
@@ -152,4 +154,97 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
             data["address"] = refugio.direccion
             data["location"] = refugio.ubicacion or current_user.ubicacion
             data["settings"] = {"storeEnabled": bool(refugio.tienda_habilitada)}
+    if rol_codigo == "tienda_aliada":
+        from app.models.tienda import Tienda
+        tienda = db.query(Tienda).filter(Tienda.usuario_id == current_user.id).first()
+        if tienda:
+            data["name"] = tienda.nombre
+            data["storeId"] = tienda.id
+            data["storeName"] = tienda.nombre
+            data["storeSlug"] = tienda.slug
+            data["description"] = tienda.descripcion
+            data["location"] = tienda.ciudad or tienda.ubicacion
+            data["phone"] = tienda.telefono or current_user.telefono
+            data["settings"] = {"storeEnabled": True}
     return data
+
+
+@router.get("/profile", response_model=ProfileResponse)
+def get_profile(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Devuelve el perfil completo del usuario autenticado."""
+    tipo_doc = current_user.tipo_documento.codigo if current_user.tipo_documento else None
+    return ProfileResponse(
+        id=current_user.id,
+        nombre=current_user.nombre,
+        apellido=current_user.apellido,
+        email=current_user.email,
+        telefono=current_user.telefono,
+        tipo_documento=tipo_doc,
+        numero_documento=current_user.numero_documento,
+        ubicacion=current_user.ubicacion,
+        bio=current_user.bio,
+        website=current_user.website,
+        avatar_url=current_user.avatar_url,
+        cover_url=current_user.cover_url,
+        twitter=current_user.twitter,
+        instagram=current_user.instagram,
+        perfil_completo=current_user.perfil_completo if hasattr(current_user, "perfil_completo") else False,
+    )
+
+
+@router.put("/profile", response_model=ProfileResponse)
+def update_profile(
+    payload: ProfileUpdate,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Actualiza los datos del perfil del usuario autenticado.
+
+    Si el usuario completa todos los campos opcionales requeridos,
+    se marca automaticamente como perfil_completo = True.
+    """
+    update_data = payload.model_dump(exclude_unset=True)
+
+    # Actualizar solo los campos enviados
+    for field, value in update_data.items():
+        if value is not None:
+            setattr(current_user, field, value)
+
+    # Verificar si el perfil esta completo (campos minimos deseables)
+    # Consideramos "completo" si tiene bio, telefono, ubicacion y al menos
+    # uno de: website, twitter, instagram
+    tiene_bio = bool(current_user.bio and current_user.bio.strip())
+    tiene_telefono = bool(current_user.telefono and current_user.telefono.strip())
+    tiene_ubicacion = bool(current_user.ubicacion and current_user.ubicacion.strip())
+    tiene_social = bool(
+        (current_user.website and current_user.website.strip())
+        or (current_user.twitter and current_user.twitter.strip())
+        or (current_user.instagram and current_user.instagram.strip())
+    )
+
+    if tiene_bio and tiene_telefono and tiene_ubicacion and tiene_social:
+        current_user.perfil_completo = True
+    else:
+        current_user.perfil_completo = False
+
+    db.commit()
+    db.refresh(current_user)
+
+    tipo_doc = current_user.tipo_documento.codigo if current_user.tipo_documento else None
+    return ProfileResponse(
+        id=current_user.id,
+        nombre=current_user.nombre,
+        apellido=current_user.apellido,
+        email=current_user.email,
+        telefono=current_user.telefono,
+        tipo_documento=tipo_doc,
+        numero_documento=current_user.numero_documento,
+        ubicacion=current_user.ubicacion,
+        bio=current_user.bio,
+        website=current_user.website,
+        avatar_url=current_user.avatar_url,
+        cover_url=current_user.cover_url,
+        twitter=current_user.twitter,
+        instagram=current_user.instagram,
+        perfil_completo=current_user.perfil_completo,
+    )
