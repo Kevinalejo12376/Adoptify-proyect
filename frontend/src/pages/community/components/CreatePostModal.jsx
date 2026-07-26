@@ -338,7 +338,7 @@ function DraftsListModal({ isOpen, onClose, onSelectDraft, onDeleteDraft, drafts
 // CreatePostModal principal
 // ============================================================
 
-export default function CreatePostModal({ isOpen, onClose }) {
+export default function CreatePostModal({ isOpen, onClose, onCreate }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const isDark = theme === "dark";
@@ -592,8 +592,19 @@ export default function CreatePostModal({ isOpen, onClose }) {
     setLocationError(null);
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!title || !content || !category) return;
+    try {
+      await onCreate?.({
+        titulo: title,
+        contenido: content,
+        categoria: category,
+        tags: tags.join(","),
+      });
+    } catch (e) {
+      // si falla la creacion, se mantiene el formulario
+      return;
+    }
     if (currentDraftId) {
       const allDrafts = loadDraftsFromStorage(userId);
       const updated = allDrafts.filter((d) => d.id !== currentDraftId);

@@ -118,14 +118,14 @@ def seed_catalogos():
         # --- Super administrador por defecto (si no existe) ---
         from app.models.usuario import Usuario
         from app.core.security import get_password_hash
-        admin_email = "starAdmin@gmail.com"
+        admin_email = "adoptifyoficial@gmail.com"
         if not db.query(Usuario).filter(Usuario.email == admin_email).first():
             rol_admin = db.query(cat.Rol).filter(cat.Rol.codigo == "administrador_principal").first()
             if rol_admin:
                 db.add(Usuario(
-                    nombre="Star Admin",
+                    nombre="Adoptify Oficial",
                     email=admin_email,
-                    hashed_password=get_password_hash("Adoptify@2026!"),
+                    hashed_password=get_password_hash("Adoptify_Oficial2026"),
                     rol_id=rol_admin.id,
                 ))
                 db.commit()

@@ -11,7 +11,8 @@ from app import models  # noqa: F401
 from app.db.seed import seed_catalogos
 from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
-    notificaciones, pqrs, reportes,
+    notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
+    tienda, pedidos,
 )
 
 
@@ -50,6 +51,12 @@ app.include_router(productos.router, prefix="/api/productos", tags=["Productos"]
 app.include_router(notificaciones.router, prefix="/api/notificaciones", tags=["Notificaciones"])
 app.include_router(pqrs.router, prefix="/api/pqrs", tags=["PQRS"])
 app.include_router(reportes.router, prefix="/api/reportes", tags=["Reportes"])
+app.include_router(publico.router, prefix="/api/publico", tags=["Publico"])
+app.include_router(configuraciones.router, prefix="/api/configuraciones", tags=["Configuraciones"])
+app.include_router(favoritos.router, prefix="/api/favoritos", tags=["Favoritos"])
+app.include_router(foro.router, prefix="/api/foro", tags=["Foro"])
+app.include_router(tienda.router, prefix="/api/tienda", tags=["Tienda (self-service)"])
+app.include_router(pedidos.router, prefix="/api/pedidos", tags=["Pedidos"])
 
 
 @app.get("/")

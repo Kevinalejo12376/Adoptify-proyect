@@ -1,216 +1,124 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useTheme } from "../../context/ThemeContext";
 import ScrollToTop from "../../components/ScrollToTop";
 import {
   MessageSquare,
   Search,
   Plus,
-  ThumbsUp,
   MessageCircle,
-  Share2,
   Clock,
   Filter,
   ChevronDown,
   Heart,
-  Bookmark,
-  Send,
   X,
   Grid3X3,
   List,
   Sparkles,
-  User,
   Shield,
   Zap,
-  TrendingUp,
+  Loader2,
 } from "lucide-react";
 import ForumRightPanel from "./components/ForumRightPanel";
 import ForumPostCard from "./components/ForumPostCard";
 import CreatePostModal from "./components/CreatePostModal";
 import PostDetailModal from "./components/PostDetailModal";
+import { listarPosts, obtenerPost, crearPost, comentar, reaccionar } from "../../api/foro";
+import { estadisticasPublicas } from "../../api/refugios";
 
-// Sample data for the forum
-const samplePosts = [
-  {
-    id: 1,
-    title: "¿Cómo ayudar a mi perro con ansiedad por separación?",
-    author: "María García",
-    authorInitials: "MG",
-    accountType: "user",
-    badges: ["expert"],
-    time: "hace 2 horas",
-    category: "Cuidado",
-    content: "Mi perro Max de 2 años tiene mucha ansiedad cuando me voy a trabajar. He intentado varias cosas pero nada parece funcionar. ¿Alguien tiene consejos? He probado con juguetes interactivos, dejar la televisión encendida, y paseos largos antes de irme, pero sigue llorando y rompiendo cosas cuando me voy.",
-    tags: ["AnsiedadCanina", "CuidadoEmocional", "Consejos"],
+const EMPTY_REACCIONES = { like: 0, love: 0, celebrate: 0, support: 0, funny: 0 };
+
+// Convierte una fecha ISO en texto relativo ("hace 2 h").
+function tiempoRelativo(iso) {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "hace un momento";
+  if (min < 60) return `hace ${min} min`;
+  const horas = Math.floor(min / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.floor(horas / 24);
+  return `hace ${dias} d`;
+}
+
+// Normaliza una publicacion del backend a la forma que consumen los componentes.
+function mapPost(p) {
+  return {
+    id: p.id,
+    title: p.titulo,
+    author: p.autor,
+    accountType: p.autor_rol === "refugio" ? "shelter" : "user",
+    badges: p.autor_rol === "refugio" ? ["verified"] : [],
+    time: tiempoRelativo(p.creado_en),
+    category: p.categoria || "General",
+    content: p.contenido || "",
+    tags: p.tags || [],
     images: [],
-    reactions: { like: 45, love: 12, celebrate: 8, support: 15, funny: 2 },
-    comments: [
-      { id: 101, author: "Carlos Rodríguez", isShelter: false, isAuthor: false, content: "Mi perro tenía el mismo problema. Lo que me funcionó fue el entrenamiento con refuerzo positivo y dejarle una prenda con mi olor.", time: "hace 1 hora", likes: 12, replies: [] },
-      { id: 102, author: "Refugio Esperanza Animal", isShelter: true, isAuthor: false, content: "Te recomendamos consultar con un etólogo canino. En nuestro refugio trabajamos con profesionales que pueden ayudar.", time: "hace 45 min", likes: 8, replies: [
-        { id: 103, author: "María García", isShelter: false, isAuthor: true, content: "¡Gracias por la recomendación! Buscaré un etólogo.", time: "hace 30 min", likes: 3, replies: [] }
-      ]},
-      { id: 104, author: "Laura Sánchez", isShelter: false, isAuthor: false, content: "Has probado con música clásica? A mi perro le relaja mucho.", time: "hace 20 min", likes: 5, replies: [] },
-    ],
-    isPinned: false,
-    isSaved: false,
-  },
-  {
-    id: 2,
-    title: "🐾 ¡Gran Jornada de Adopción! 50 animales esperan un hogar",
-    author: "Refugio Esperanza Animal",
-    authorInitials: "RE",
-    accountType: "shelter",
-    badges: ["verified", "contributor"],
-    time: "hace 5 horas",
-    category: "Eventos",
-    content: "Este sábado 20 de julio los esperamos en nuestra jornada de adopción en el Parque Central. Tendremos 30 perros y 20 gatos de todas las edades buscando un hogar lleno de amor. Todos están desparasitados, vacunados y esterilizados. ¡No faltes! 🐶🐱",
-    tags: ["AdopciónResponsable", "JornadaAdopción", "Bogotá"],
-    images: [],
-    reactions: { like: 89, love: 56, celebrate: 34, support: 12, funny: 1 },
-    comments: [
-      { id: 201, author: "Ana López", isShelter: false, isAuthor: false, content: "¡Allí estaré! Estoy buscando un compañero para mi hija.", time: "hace 4 horas", likes: 7, replies: [] },
-      { id: 202, author: "Pedro Martínez", isShelter: false, isAuthor: false, content: "¿Llevo mi propia transportadora para el gato?", time: "hace 3 horas", likes: 4, replies: [
-        { id: 203, author: "Refugio Esperanza Animal", isShelter: true, isAuthor: true, content: "Sí, es recomendable traer transportadora si planeas adoptar un gato, y correa para perros.", time: "hace 2 horas", likes: 6, replies: [] }
-      ]},
-    ],
-    isPinned: true,
-    isSaved: true,
-  },
-  {
-    id: 3,
-    title: "Mi experiencia adoptando a Luna, una gata de 4 años",
-    author: "Ana López",
-    authorInitials: "AL",
-    accountType: "user",
-    badges: ["contributor"],
-    time: "hace 1 día",
-    category: "Historias",
-    content: "Hace 6 meses adopté a Luna, una gata de 4 años que había sido rescatada de una situación difícil. Al principio fue todo un reto: no quería acercarse, se escondía debajo de la cama y apenas comía. Pero con paciencia, amor y mucha dedicación, hoy es la gata más cariñosa del mundo. No se rindan, adoptar un animal adulto es una de las experiencias más gratificantes.",
-    tags: ["GatosAdorables", "AdopciónResponsable", "HistoriasDeÉxito"],
-    images: [],
-    reactions: { like: 67, love: 89, celebrate: 45, support: 23, funny: 3 },
-    comments: [
-      { id: 301, author: "Diego Torres", isShelter: false, isAuthor: false, content: "Qué hermosa historia. Yo también adopté un gato adulto y fue la mejor decisión.", time: "hace 20 horas", likes: 15, replies: [] },
-      { id: 302, author: "Refugio Patitas Felices", isShelter: true, isAuthor: false, content: "Gracias por compartir. Las adopciones de adultos son las que más nos llenan de alegría. 🐱❤️", time: "hace 18 horas", likes: 12, replies: [] },
-    ],
-    isPinned: false,
-    isSaved: false,
-  },
-  {
-    id: 4,
-    title: "Tips para entrenar a un cachorro Beagle",
-    author: "Pedro Martínez",
-    authorInitials: "PM",
-    accountType: "user",
-    badges: ["expert", "helper"],
-    time: "hace 2 días",
-    category: "Entrenamiento",
-    content: "Los Beagles son perros inteligentes pero tercos. Aquí comparto algunos tips que me funcionaron con mi Rocky: 1) Usa refuerzo positivo siempre, 2) Sesiones cortas de 5-10 minutos, 3) Mucha paciencia con el olfato (es su superpoder), 4) Socialización temprano, 5) Ejercicio diario para evitar el aburrimiento. ¡Espero que les sirva!",
-    tags: ["EntrenamientoCanino", "Beagles", "Tips"],
-    images: [],
-    reactions: { like: 89, love: 34, celebrate: 23, support: 45, funny: 12 },
-    comments: [
-      { id: 401, author: "María García", isShelter: false, isAuthor: false, content: "¡Excelentes consejos! Yo tengo un beagle de 1 año y confirmo todo.", time: "hace 1 día", likes: 8, replies: [] },
-    ],
-    isPinned: false,
-    isSaved: true,
-  },
-  {
-    id: 5,
-    title: "🆘 Caso especial: Ayuda para Max, necesita cirugía urgente",
-    author: "Refugio Patitas Felices",
-    authorInitials: "PF",
-    accountType: "shelter",
-    badges: ["verified"],
-    time: "hace 3 días",
-    category: "Campañas",
-    content: "Max es un pastor alemán de 5 años que fue rescatado de una situación de maltrato. Necesita una cirugía de cadera urgente con un costo de $2,500,000. Hemos reunido el 40% pero necesitamos su ayuda para completar el resto. Cualquier donación, por pequeña que sea, nos acerca a salvar a Max. Compartan por favor. 🐾",
-    tags: ["RescateAnimal", "Donación", "CasoUrgente"],
-    images: [],
-    reactions: { like: 156, love: 89, celebrate: 12, support: 67, funny: 0 },
-    comments: [
-      { id: 501, author: "Laura Sánchez", isShelter: false, isAuthor: false, content: "Acabo de donar. ¡Fuerza Max! 🐶❤️", time: "hace 2 días", likes: 23, replies: [] },
-      { id: 502, author: "Carlos Rodríguez", isShelter: false, isAuthor: false, content: "Compartido en mis redes. Espero que llegue a más personas.", time: "hace 2 días", likes: 12, replies: [] },
-    ],
-    isPinned: true,
-    isSaved: false,
-  },
-  {
-    id: 6,
-    title: "Signos de que tu mascota necesita ir al veterinario",
-    author: "Laura Sánchez",
-    authorInitials: "LS",
-    accountType: "user",
-    badges: ["helper"],
-    time: "hace 3 días",
-    category: "Salud",
-    content: "Como dueña responsable, he aprendido a identificar estas señales de alerta: pérdida de apetito, letargo excesivo, vómitos o diarrea persistentes, cambios en la micción, cojera, y cambios repentinos de comportamiento. Si notas alguno de estos signos, no esperes más y lleva a tu mascota al veterinario.",
-    tags: ["SaludAnimal", "CuidadosBásicos", "Prevención"],
-    images: [],
-    reactions: { like: 54, love: 23, celebrate: 8, support: 34, funny: 1 },
-    comments: [
-      { id: 601, author: "Diego Torres", isShelter: false, isAuthor: false, content: "Muy importante. La prevención es clave.", time: "hace 2 días", likes: 6, replies: [] },
-    ],
-    isPinned: false,
-    isSaved: false,
-  },
-  {
-    id: 7,
-    title: "¿Qué alimento recomiendan para Golden Retriever cachorro?",
-    author: "Carlos Rodríguez",
-    authorInitials: "CR",
-    accountType: "user",
-    badges: [],
-    time: "hace 4 días",
-    category: "Nutrición",
-    content: "Acabo de adoptar un Golden Retriever de 3 meses. Quiero darle la mejor nutrición posible para su crecimiento. He visto muchas marcas pero no sé cuál es la mejor para razas grandes. ¿Qué me recomiendan?",
-    tags: ["Alimentación", "GoldenRetriever", "Cachorros"],
-    images: [],
-    reactions: { like: 32, love: 8, celebrate: 3, support: 12, funny: 0 },
+    reactions: { ...EMPTY_REACCIONES, ...(p.reacciones || {}) },
     comments: [],
-    isPinned: false,
+    commentsCount: p.comentarios_count || 0,
+    isPinned: p.fijado,
     isSaved: false,
-  },
-  {
-    id: 8,
-    title: "📢 Campaña de Vacunación Gratuita en Medellín",
-    author: "Refugio Patitas Felices",
-    authorInitials: "PF",
-    accountType: "shelter",
-    badges: ["verified", "expert"],
-    time: "hace 5 días",
-    category: "Campañas",
-    content: "Este fin de semana estaremos realizando una jornada de vacunación gratuita para perros y gatos en la Comuna 13 de Medellín. Tendremos 500 dosis disponibles de vacuna múltiple y antirrábica. ¡No es necesario agendar! Solo lleguen con sus mascotas con correa o en transportadora.",
-    tags: ["Vacunación", "Medellín", "SaludAnimal"],
-    images: [],
-    reactions: { like: 98, love: 45, celebrate: 56, support: 34, funny: 2 },
-    comments: [
-      { id: 801, author: "Ana López", isShelter: false, isAuthor: false, content: "¡Excelente iniciativa! Allí estaremos con nuestra perrita.", time: "hace 4 días", likes: 10, replies: [] },
-    ],
-    isPinned: false,
-    isSaved: false,
-  },
-];
+  };
+}
+
+// Normaliza un comentario del backend.
+function mapComentario(c) {
+  return {
+    id: c.id,
+    author: c.autor,
+    content: c.contenido,
+    isShelter: c.autor_rol === "refugio",
+    isAuthor: false,
+    time: tiempoRelativo(c.creado_en),
+    likes: c.likes || 0,
+    replies: [],
+  };
+}
 
 export default function Forum() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
+  // Datos reales
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refugiosCount, setRefugiosCount] = useState(0);
+
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [postTypeFilter, setPostTypeFilter] = useState("all"); // story, question, tip, event, campaign, donation
-  const [sortBy, setSortBy] = useState("newest"); // newest, popular, commented
-  const [petTypeFilter, setPetTypeFilter] = useState("all"); // dog, cat, other
+  const [postTypeFilter, setPostTypeFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
+  const [petTypeFilter, setPetTypeFilter] = useState("all");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [viewMode, setViewMode] = useState("feed"); // feed, grid
+  const [viewMode, setViewMode] = useState("feed");
 
   // Modal states
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [showPostDetail, setShowPostDetail] = useState(false);
 
+  const cargarPosts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await listarPosts();
+      setPosts((data || []).map(mapPost));
+    } catch (e) {
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarPosts();
+    estadisticasPublicas()
+      .then((est) => setRefugiosCount(est?.refugios ?? 0))
+      .catch(() => {});
+  }, [cargarPosts]);
+
   // Filter and sort posts
-  const filteredPosts = samplePosts
+  const filteredPosts = posts
     .filter((post) => {
       const matchesSearch =
         post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -221,10 +129,8 @@ export default function Forum() {
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
-      // Pinned posts always first
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
-
       switch (sortBy) {
         case "popular": {
           const totalA = Object.values(a.reactions).reduce((x, y) => x + y, 0);
@@ -232,27 +138,59 @@ export default function Forum() {
           return totalB - totalA;
         }
         case "commented":
-          return (b.comments?.length || 0) - (a.comments?.length || 0);
+          return (b.commentsCount || 0) - (a.commentsCount || 0);
         default:
-          return 0; // Keep original order for "newest"
+          return 0;
       }
     });
 
-  const handlePostClick = (post) => {
+  const handlePostClick = async (post) => {
     setSelectedPost(post);
     setShowPostDetail(true);
+    try {
+      const detalle = await obtenerPost(post.id);
+      setSelectedPost({
+        ...mapPost(detalle),
+        comments: (detalle.comentarios || []).map(mapComentario),
+      });
+    } catch (e) {
+      // se mantiene el resumen basico si falla el detalle
+    }
   };
 
   const handleReactionChange = (postId, reactionId) => {
-    console.log(`Post ${postId}: ${reactionId}`);
+    reaccionar(postId, reactionId).catch(() => {});
   };
 
-  // Stats data
+  const handleCreatePost = async (payload) => {
+    await crearPost(payload);
+    await cargarPosts();
+  };
+
+  const handleAddComment = async (postId, text) => {
+    await comentar(postId, { contenido: text });
+    const detalle = await obtenerPost(postId);
+    setSelectedPost({
+      ...mapPost(detalle),
+      comments: (detalle.comentarios || []).map(mapComentario),
+    });
+    // Actualiza el conteo en el feed
+    setPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
+    );
+  };
+
+  // Stats data (reales)
+  const totalComentarios = posts.reduce((acc, p) => acc + (p.commentsCount || 0), 0);
+  const totalReacciones = posts.reduce(
+    (acc, p) => acc + Object.values(p.reactions).reduce((x, y) => x + y, 0),
+    0
+  );
   const forumStats = [
-    { label: "Publicaciones", value: "1,234", icon: MessageSquare, gradient: "from-rose-500 to-pink-500", bgLight: "bg-rose-50", textLight: "text-rose-600" },
-    { label: "Comentarios", value: "8,567", icon: MessageCircle, gradient: "from-blue-500 to-cyan-500", bgLight: "bg-blue-50", textLight: "text-blue-600" },
-    { label: "Refugios", value: "456", icon: Shield, gradient: "from-emerald-500 to-teal-500", bgLight: "bg-emerald-50", textLight: "text-emerald-600" },
-    { label: "Reacciones", value: "12.3K", icon: Heart, gradient: "from-violet-500 to-fuchsia-500", bgLight: "bg-violet-50", textLight: "text-violet-600" },
+    { label: "Publicaciones", value: posts.length, icon: MessageSquare, gradient: "from-rose-500 to-pink-500" },
+    { label: "Comentarios", value: totalComentarios, icon: MessageCircle, gradient: "from-blue-500 to-cyan-500" },
+    { label: "Refugios", value: refugiosCount, icon: Shield, gradient: "from-emerald-500 to-teal-500" },
+    { label: "Reacciones", value: totalReacciones, icon: Heart, gradient: "from-violet-500 to-fuchsia-500" },
   ];
 
   return (
@@ -313,7 +251,7 @@ export default function Forum() {
               >
                 {/* Gradient Decoration */}
                 <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${stat.gradient} opacity-10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:opacity-20 transition-opacity`}></div>
-                
+
                 <div className="relative z-10 flex items-start justify-between">
                   <div>
                     <p className={`text-3xl sm:text-4xl font-bold font-display tracking-tight ${
@@ -332,20 +270,6 @@ export default function Forum() {
                   }`}>
                     <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                   </div>
-                </div>
-
-                {/* Trend indicator */}
-                <div className={`flex items-center gap-1.5 mt-3 pt-3 border-t ${
-                  isDark ? "border-dark-border" : "border-gray-100"
-                }`}>
-                  <TrendingUp className={`w-4 h-4 ${
-                    isDark ? "text-emerald-400" : "text-emerald-500"
-                  }`} />
-                  <span className={`text-xs font-medium ${
-                    isDark ? "text-emerald-400" : "text-emerald-600"
-                  }`}>
-                    +12% este mes
-                  </span>
                 </div>
               </div>
             );
@@ -371,7 +295,6 @@ export default function Forum() {
             />
             {/* Search Meta + Filter Button */}
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-              {/* Results count when searching */}
               {searchTerm && (
                 <>
                   <span className={`text-xs hidden sm:inline ${
@@ -391,7 +314,6 @@ export default function Forum() {
                   </button>
                 </>
               )}
-              {/* Filter Toggle Button */}
               <button
                 onClick={() => setShowMobileFilters(!showMobileFilters)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
@@ -686,39 +608,17 @@ export default function Forum() {
               </div>
             </div>
 
-            {/* Posts Feed */}
-            {viewMode === "feed" ? (
-              <div className="space-y-4">
-                {/* AI Welcome Banner - AI Ready */}
-                {filteredPosts.length > 0 && (
-                  <div className={`p-4 rounded-2xl ${
-                    isDark
-                      ? "bg-gradient-to-r from-violet-500/10 via-fuchsia-500/10 to-rose-500/10 border border-violet-500/20"
-                      : "bg-gradient-to-r from-violet-50 via-fuchsia-50 to-rose-50 border border-violet-100"
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
-                        <Sparkles className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <p className={`text-sm font-semibold ${isDark ? "text-violet-200" : "text-violet-800"}`}>
-                          Descubre contenido relevante para ti
-                        </p>
-                        <p className={`text-xs ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
-                          Basado en tus intereses y actividad reciente
-                        </p>
-                      </div>
-                      <button className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${
-                        isDark
-                          ? "bg-violet-500/20 text-violet-200 hover:bg-violet-500/30"
-                          : "bg-violet-100 text-violet-700 hover:bg-violet-200"
-                      }`}>
-                        Personalizar
-                      </button>
-                    </div>
-                  </div>
-                )}
+            {/* Loading */}
+            {loading && (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-500 dark:text-dark-text-secondary">
+                <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+                <p>Cargando publicaciones...</p>
+              </div>
+            )}
 
+            {/* Posts Feed */}
+            {!loading && (viewMode === "feed" ? (
+              <div className="space-y-4">
                 {filteredPosts.map((post) => (
                   <ForumPostCard
                     key={post.id}
@@ -740,10 +640,10 @@ export default function Forum() {
                   />
                 ))}
               </div>
-            )}
+            ))}
 
             {/* No Results */}
-            {filteredPosts.length === 0 && (
+            {!loading && filteredPosts.length === 0 && (
               <div className={`text-center py-16 rounded-2xl ${
                 isDark ? "bg-dark-card border border-dark-border" : "bg-white shadow-md"
               }`}>
@@ -753,12 +653,12 @@ export default function Forum() {
                 <h3 className={`text-xl font-semibold mb-2 ${
                   isDark ? "text-dark-text" : "text-gray-900"
                 }`}>
-                  No se encontraron publicaciones
+                  No hay publicaciones aún
                 </h3>
                 <p className={`text-sm mb-6 ${
                   isDark ? "text-dark-text-secondary" : "text-gray-600"
                 }`}>
-                  Intenta con otros filtros o términos de búsqueda
+                  Sé el primero en compartir algo con la comunidad
                 </p>
                 <div className="flex items-center justify-center gap-3">
                   <button
@@ -785,21 +685,6 @@ export default function Forum() {
                 </div>
               </div>
             )}
-
-            {/* Load More */}
-            {filteredPosts.length > 0 && (
-              <div className="mt-6 text-center">
-                <button
-                  className={`px-8 py-3 rounded-xl text-sm font-semibold transition-all ${
-                    isDark
-                      ? "bg-white/5 text-dark-text-secondary hover:bg-white/10 hover:text-dark-text"
-                      : "bg-white text-gray-600 hover:bg-gray-50 shadow-sm"
-                  }`}
-                >
-                  Cargar más publicaciones
-                </button>
-              </div>
-            )}
           </div>
 
           {/* ===== Right Sidebar (Hidden on tablet/mobile) ===== */}
@@ -813,6 +698,7 @@ export default function Forum() {
       <CreatePostModal
         isOpen={showCreatePost}
         onClose={() => setShowCreatePost(false)}
+        onCreate={handleCreatePost}
       />
 
       {/* ===== Post Detail Modal ===== */}
@@ -823,6 +709,8 @@ export default function Forum() {
           setShowPostDetail(false);
           setSelectedPost(null);
         }}
+        onComment={handleAddComment}
+        onReact={handleReactionChange}
       />
       <ScrollToTop />
     </div>

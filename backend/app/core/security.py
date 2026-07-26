@@ -94,3 +94,13 @@ def get_current_admin(current_user: Usuario = Depends(get_current_user)) -> Usua
             detail="Requiere una cuenta de administrador",
         )
     return current_user
+
+
+def get_current_tienda(current_user: Usuario = Depends(get_current_user)) -> Usuario:
+    """Exige que el usuario autenticado sea una tienda aliada."""
+    if current_user.rol_codigo != "tienda_aliada":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Requiere una cuenta de tienda aliada",
+        )
+    return current_user

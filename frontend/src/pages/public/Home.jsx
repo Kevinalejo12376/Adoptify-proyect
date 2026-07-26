@@ -4,12 +4,19 @@ import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as Hom
 import ScrollToTop from "../../components/ScrollToTop";
 import AnimatedSection from "../../components/AnimatedSection";
 import { useAuth } from "../../context/AuthContext";
+import { estadisticasPublicas } from "../../api/refugios";
 import mascotaImg from "../../assets/Mascotas.jpg";
 import daycareImg from "../../assets/daycare.png";
 
 export default function Home() {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState("");
+  // Estadisticas reales de la plataforma
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    estadisticasPublicas().then(setStats).catch(() => setStats(null));
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -76,23 +83,23 @@ export default function Home() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <PawPrint className="w-5 h-5 text-rose-500" />
-                    <div className="text-2xl font-bold text-gray-900 font-display">1,245</div>
+                    <div className="text-2xl font-bold text-gray-900 font-display">{stats ? stats.mascotas_disponibles : "—"}</div>
                   </div>
-                  <div className="text-sm text-gray-600">Mascotas adoptadas</div>
+                  <div className="text-sm text-gray-600">Mascotas disponibles</div>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <Heart className="w-5 h-5 text-amber-500" />
-                    <div className="text-2xl font-bold text-gray-900 font-display">3,982</div>
+                    <div className="text-2xl font-bold text-gray-900 font-display">{stats ? stats.adopciones_exitosas : "—"}</div>
                   </div>
-                  <div className="text-sm text-gray-600">Familias felices</div>
+                  <div className="text-sm text-gray-600">Adopciones exitosas</div>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <Users className="w-5 h-5 text-rose-500" />
-                    <div className="text-2xl font-bold text-gray-900 font-display">5,210</div>
+                    <HomeIcon className="w-5 h-5 text-rose-500" />
+                    <div className="text-2xl font-bold text-gray-900 font-display">{stats ? stats.refugios : "—"}</div>
                   </div>
-                  <div className="text-sm text-gray-600">Miembros</div>
+                  <div className="text-sm text-gray-600">Refugios aliados</div>
                 </div>
               </div>
             </div>

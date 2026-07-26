@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import ScrollToTop from "../../components/ScrollToTop";
+import { listarProductos } from "../../api/productos";
 import {
   ShoppingBag,
   Search,
@@ -28,23 +29,32 @@ import {
   RotateCcw,
   Building2,
   Store as StoreIcon2,
+  Loader2,
 } from "lucide-react";
 import { useCart } from "../../context/CartContext";
 import { useFavorites } from "../../context/FavoritesContext";
 import {
-  products as allProducts,
   categoryIcons,
   categoryColors,
   categories,
-  shelters,
-  stores,
   getShelterById,
   getStoreById,
-  getProductsByShelter,
-  getProductsByStore,
-  getProductsBySellerType,
-  getSellerInfo,
 } from "../../data/products";
+
+// Normaliza un producto del backend a la forma que consume esta vista.
+const normalizeProducto = (p) => ({
+  ...p,
+  name: p.nombre,
+  category: p.categoria,
+  price: Number(p.precio) || 0,
+  rating: Number(p.rating) || 0,
+  reviews: p.ventas || 0,
+  description: p.descripcion || "",
+  stock: p.stock ?? 0,
+  color: categoryColors[p.categoria] || "from-gray-400 to-gray-500",
+  shelterId: p.refugio_id,
+  storeId: p.tienda_id,
+});
 
 export default function Store() {
   const { shelterId, storeId } = useParams();
@@ -59,15 +69,35 @@ export default function Store() {
   const { addToCart, cartCount } = useCart();
   const { storeFavorites, toggleStoreFavorite, isStoreFavorite } = useFavorites();
 
+  const [allProducts, setAllProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  // Carga los productos reales desde la base de datos.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const data = await listarProductos();
+        if (!activo) return;
+        setAllProducts((data || []).map(normalizeProducto));
+      } catch (e) {
+        // lista vacia si falla
+      } finally {
+        if (activo) setLoadingProducts(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
   const shelter = shelterId ? getShelterById(shelterId) : null;
   const store = storeId ? getStoreById(storeId) : null;
 
   // Base products: if shelterId or storeId is present, filter by that seller
   const baseProducts = useMemo(() => {
-    if (shelter) return getProductsByShelter(shelterId);
-    if (store) return getProductsByStore(storeId);
+    if (shelter) return allProducts.filter((p) => p.shelterId === shelter.id);
+    if (store) return allProducts.filter((p) => p.storeId === store.id);
     return allProducts;
-  }, [shelter, store, shelterId, storeId]);
+  }, [allProducts, shelter, store]);
 
   const filteredProducts = useMemo(() => {
     let result = [...baseProducts];
@@ -89,8 +119,8 @@ export default function Store() {
 
     // Seller type filter (only in general store view)
     if (!shelter && !store && sellerType !== "all") {
-      result = getProductsBySellerType(sellerType).filter((p) =>
-        result.some((rp) => rp.id === p.id)
+      result = result.filter((p) =>
+        sellerType === "shelter" ? p.shelterId != null : p.storeId != null
       );
     }
 
@@ -187,7 +217,7 @@ export default function Store() {
                     </div>
                     <div className="flex items-center gap-1.5 text-gray-500 dark:text-dark-text-secondary">
                       <Package className="w-4 h-4 text-emerald-400" />
-                      <span>{getProductsByShelter(shelter.id).length} productos</span>
+                      <span>{baseProducts.length} productos</span>
                     </div>
                   </div>
 
@@ -241,7 +271,7 @@ export default function Store() {
                     </div>
                     <div className="flex items-center gap-1.5 text-gray-500 dark:text-dark-text-secondary">
                       <Package className="w-4 h-4 text-emerald-400" />
-                      <span>{getProductsByStore(store.id).length} productos</span>
+                      <span>{baseProducts.length} productos</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-gray-500 dark:text-dark-text-secondary">
                       <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
@@ -578,14 +608,23 @@ export default function Store() {
           </div>
         </div>
 
+        {/* Loading */}
+        {loadingProducts && (
+          <div className="flex flex-col items-center justify-center py-24 text-gray-500 dark:text-dark-text-secondary">
+            <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+            <p>Cargando productos...</p>
+          </div>
+        )}
+
         {/* Products Grid */}
+        {!loadingProducts && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.map((product) => {
             const CatIcon = categoryIcons[product.category] || Package;
             const catColor = categoryColors[product.category] || "from-gray-400 to-gray-500";
             const isFav = isStoreFavorite(product.id);
             const justAdded = addedToCart[product.id];
-            const productSellerInfo = getSellerInfo(product);
+            const productSellerInfo = { type: product.shelterId ? "shelter" : product.storeId ? "store" : null };
 
             return (
               <div
@@ -759,8 +798,10 @@ export default function Store() {
           })}
         </div>
 
+        )}
+
         {/* No Results */}
-        {filteredProducts.length === 0 && (
+        {!loadingProducts && filteredProducts.length === 0 && (
           <div className="text-center py-20">
             <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-900/30 dark:to-amber-900/30 rounded-full flex items-center justify-center">
               <ShoppingBag className="w-10 h-10 text-rose-400 dark:text-rose-500" />
