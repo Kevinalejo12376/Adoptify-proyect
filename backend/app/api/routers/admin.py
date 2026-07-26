@@ -1,10 +1,14 @@
 """Endpoints del panel de administracion. Solo para usuarios con rol
 'administrador' o 'administrador_principal'. Permite gestionar (crear, listar,
-editar, eliminar) usuarios, administradores y refugios."""
+editar, eliminar) usuarios, administradores, refugios y tiendas aliadas."""
+# pyrefly: ignore [missing-import]
+from datetime import datetime, timezone
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 # pyrefly: ignore [missing-import]
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+# pyrefly: ignore [missing-import]
+from sqlalchemy.orm import Session, joinedload
 # pyrefly: ignore [missing-import]
 from typing import Optional, List
 
@@ -16,39 +20,68 @@ from app.models.refugio import Refugio
 from app.models.mascota import Mascota
 from app.models.solicitud import SolicitudAdopcion
 from app.models.producto import Producto
+from app.models.tienda import Tienda
 from app.models.catalogos import Rol, TipoDocumento, EstadoMascota
-from app.models.soporte import Pqrs, Reporte, Auditoria
-from app.models.pedido import Pedido
-from app.models.foro import ForoPost
-from app.schemas.admin import AdminUsuarioCreate, AdminUsuarioUpdate, AdminUsuarioResponse
-from app.schemas.soporte import PqrsEstadoUpdate, ReporteEstadoUpdate
-from app.core.notificaciones import registrar_auditoria
+from app.schemas.admin import (
+    AdminUsuarioCreate, AdminUsuarioUpdate, AdminUsuarioResponse,
+    TiendaCreate, TiendaUpdate, TiendaEstadoUpdate, TiendaResponse, TiendaResumen,
+)
 
 router = APIRouter()
 
 
+# Caché en memoria para id_por_codigo dentro de una misma request
+_cache_ids = {}
+
+def _id_codigo_cache(db: Session, Model, valor):
+    """Idem id_por_codigo pero con caché en memoria para evitar consultas repetidas."""
+    key = (Model.__tablename__, str(valor).strip().lower())
+    if key not in _cache_ids:
+        _cache_ids[key] = id_por_codigo(db, Model, valor)
+    return _cache_ids[key]
+
+
 @router.get("/estadisticas")
 def estadisticas(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    """Conteos reales desde la base de datos para el dashboard del admin."""
-    def contar_rol(codigo: str) -> int:
-        rid = id_por_codigo(db, Rol, codigo)
-        return db.query(Usuario).filter(Usuario.rol_id == rid).count() if rid else 0
+    """Conteos reales desde la base de datos para el dashboard del admin.
+    Optimizado para minimizar viajes redondos a la BD (∼3 consultas vs ∼11)."""
+    # Limpiar caché al inicio de cada request
+    _cache_ids.clear()
 
+    # 1) Resolver IDs de catálogo (usando caché)
+    rol_usuario_id = _id_codigo_cache(db, Rol, "usuario")
+
+    # 2) Consulta única: contar usuarios por rol
+    conteo_roles = dict(
+        db.query(Usuario.rol_id, func.count(Usuario.id))
+        .group_by(Usuario.rol_id)
+        .all()
+    )
+    # 3) Consulta única: conteos de mascotas agrupados por estado
+    conteo_mascotas_estado = dict(
+        db.query(Mascota.estado_id, func.count(Mascota.id))
+        .group_by(Mascota.estado_id)
+        .all()
+    )
+
+    # 4) Total de administradores (2 roles)
     total_administradores = (
         db.query(Usuario).join(Rol, Rol.id == Usuario.rol_id)
         .filter(Rol.codigo.in_(["administrador", "administrador_principal"]))
         .count()
     )
-    adoptado_id = id_por_codigo(db, EstadoMascota, "adoptado")
-    disponible_id = id_por_codigo(db, EstadoMascota, "disponible")
+
+    # Resolver IDs de estados de mascota para las llaves del response
+    adoptado_id = _id_codigo_cache(db, EstadoMascota, "adoptado")
+    disponible_id = _id_codigo_cache(db, EstadoMascota, "disponible")
 
     return {
-        "usuarios": contar_rol("usuario"),
+        "usuarios": conteo_roles.get(rol_usuario_id, 0) if rol_usuario_id else 0,
         "refugios": db.query(Refugio).count(),
         "administradores": total_administradores,
-        "mascotas": db.query(Mascota).count(),
-        "mascotas_disponibles": db.query(Mascota).filter(Mascota.estado_id == disponible_id).count() if disponible_id else 0,
-        "mascotas_adoptadas": db.query(Mascota).filter(Mascota.estado_id == adoptado_id).count() if adoptado_id else 0,
+        "mascotas": sum(conteo_mascotas_estado.values()),
+        "mascotas_disponibles": conteo_mascotas_estado.get(disponible_id, 0) if disponible_id else 0,
+        "mascotas_adoptadas": conteo_mascotas_estado.get(adoptado_id, 0) if adoptado_id else 0,
         "solicitudes": db.query(SolicitudAdopcion).count(),
         "productos": db.query(Producto).count(),
     }
@@ -119,9 +152,20 @@ def eliminar_producto_admin(
 
 
 @router.get("/mascotas")
-def listar_mascotas_admin(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    """Lista TODAS las mascotas (de todos los refugios) para supervision del admin."""
-    mascotas = db.query(Mascota).order_by(Mascota.creado_en.desc()).all()
+def listar_mascotas_admin(
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+    limite: int = Query(200, ge=1, le=1000, description="Maximo de mascotas a devolver"),
+):
+    """Lista mascotas (de todos los refugios) para supervision del admin.
+    Con paginación (max 1000) y joinedload para evitar N+1 queries."""
+    mascotas = (
+        db.query(Mascota)
+        .options(joinedload(Mascota.tipo), joinedload(Mascota.estado), joinedload(Mascota.refugio))
+        .order_by(Mascota.creado_en.desc())
+        .limit(limite)
+        .all()
+    )
     return [
         {
             "id": m.id,
@@ -155,15 +199,19 @@ def eliminar_mascota_admin(
 @router.get("/usuarios", response_model=List[AdminUsuarioResponse])
 def listar_usuarios(
     rol: Optional[str] = Query(None, description="Filtrar por rol (codigo)"),
+    limite: int = Query(100, ge=1, le=500, description="Maximo de registros a devolver"),
     _admin: Usuario = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Usuario)
+    """Lista usuarios con paginación opcional por rol.
+    Devuelve hasta `limite` registros (default 100, max 500) para evitar
+    timeouts cuando hay muchos usuarios."""
+    query = db.query(Usuario).options(joinedload(Usuario.rol), joinedload(Usuario.refugio))
     if rol:
         rol_id = id_por_codigo(db, Rol, rol)
         if rol_id:
             query = query.filter(Usuario.rol_id == rol_id)
-    return [_serialize(u) for u in query.order_by(Usuario.creado_en.desc()).all()]
+    return [_serialize(u) for u in query.order_by(Usuario.creado_en.desc()).limit(limite).all()]
 
 
 @router.post("/usuarios", response_model=AdminUsuarioResponse, status_code=status.HTTP_201_CREATED)
@@ -226,8 +274,25 @@ def actualizar_usuario(
     user = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    for campo, valor in payload.model_dump(exclude_unset=True).items():
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    # Si viene password, aplicar hash antes de guardar
+    if "password" in update_data:
+        update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
+
+    for campo, valor in update_data.items():
         setattr(user, campo, valor)
+
+    # Si se actualiza el email, verificar que no esté duplicado
+    if "email" in update_data and update_data["email"] != user.email:
+        existe = db.query(Usuario).filter(
+            Usuario.email == update_data["email"],
+            Usuario.id != usuario_id
+        ).first()
+        if existe:
+            raise HTTPException(status_code=400, detail="El correo electrónico ya está registrado")
+
     db.commit()
     db.refresh(user)
     return _serialize(user)
@@ -252,128 +317,335 @@ def eliminar_usuario(
 
 
 # ============================================================
-# PQRS
+# ENDPOINTS PARA GESTION DE TIENDAS ALIADAS
 # ============================================================
-@router.get("/pqrs")
-def listar_pqrs(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    items = db.query(Pqrs).order_by(Pqrs.creado_en.desc()).all()
+
+
+def _serialize_tienda(t: Tienda) -> dict:
+    """Serializa una tienda con datos del usuario asociado."""
+    user = t.usuario
+    return {
+        "id": t.id,
+        "usuario_id": t.usuario_id,
+        "nombre": t.nombre,
+        "slug": t.slug,
+        "descripcion": t.descripcion,
+        "ubicacion": t.ubicacion,
+        "telefono": t.telefono,
+        "email": t.email,
+        "website": t.website,
+        "facebook": t.facebook,
+        "instagram": t.instagram,
+        "rating": float(t.rating) if t.rating is not None else 0,
+        "creado_en": t.creado_en.isoformat() if t.creado_en else None,
+        # Datos del usuario (responsable)
+        "usuario_email": user.email if user else None,
+        "usuario_nombre": f"{user.nombre} {user.apellido or ''}".strip() if user else None,
+        "usuario_telefono": user.telefono if user else None,
+        "usuario_activo": user.activo if user else True,
+        "usuario_rol": user.rol_codigo if user else None,
+    }
+
+
+@router.get("/tiendas/resumen", response_model=TiendaResumen)
+def resumen_tiendas(
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Resumen estadístico de tiendas aliadas."""
+    total = db.query(Tienda).count()
+    # Estado basado en usuario.activo
+    from app.models.usuario import Usuario
+    activas = db.query(Tienda).join(Usuario).filter(Usuario.activo == True).count()
+    suspendidas = db.query(Tienda).join(Usuario).filter(Usuario.activo == False).count()
+    pendientes = 0
+    total_productos = db.query(func.count()).select_from(Tienda).join(Tienda.productos).filter(Tienda.id == Producto.tienda_id).scalar() or 0
+    total_ventas = db.query(func.sum(Producto.ventas)).filter(Producto.tienda_id.isnot(None)).scalar() or 0
+    return {
+        "total": total,
+        "activas": activas,
+        "suspendidas": suspendidas,
+        "pendientes": pendientes,
+        "total_productos": total_productos,
+        "total_ventas": total_ventas,
+    }
+
+
+@router.get("/tiendas", response_model=List[TiendaResponse])
+def listar_tiendas(
+    estado: Optional[str] = Query(None, description="Filtrar por estado: activa, suspendida, pendiente"),
+    busqueda: Optional[str] = Query(None, description="Buscar por nombre, email, ciudad o responsable"),
+    ciudad: Optional[str] = Query(None, description="Filtrar por ciudad"),
+    ordenar: Optional[str] = Query("recientes", description="recientes, antiguas, nombre_asc, nombre_desc"),
+    pagina: int = Query(1, ge=1, description="Numero de pagina"),
+    por_pagina: int = Query(10, ge=1, le=50, description="Registros por pagina"),
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Lista tiendas aliadas con filtros, búsqueda, ordenamiento y paginación."""
+    query = db.query(Tienda).options(joinedload(Tienda.usuario))
+
+    # Búsqueda por texto (solo columnas existentes)
+    if busqueda:
+        termino = f"%{busqueda}%"
+        query = query.filter(
+            Tienda.nombre.ilike(termino)
+            | Tienda.email.ilike(termino)
+            | Tienda.ubicacion.ilike(termino)
+        )
+
+    # Filtro por ciudad (usa ubicacion)
+    if ciudad:
+        query = query.filter(Tienda.ubicacion.ilike(f"%{ciudad}%"))
+
+    # Ordenamiento
+    if ordenar == "antiguas":
+        query = query.order_by(Tienda.creado_en.asc())
+    elif ordenar == "nombre_asc":
+        query = query.order_by(Tienda.nombre.asc())
+    elif ordenar == "nombre_desc":
+        query = query.order_by(Tienda.nombre.desc())
+    else:
+        query = query.order_by(Tienda.creado_en.desc())
+
+    total = query.count()
+    tiendas = query.offset((pagina - 1) * por_pagina).limit(por_pagina).all()
+
     return [
-        {
-            "id": p.id, "usuario_id": p.usuario_id, "tipo": p.tipo,
-            "asunto": p.asunto, "mensaje": p.mensaje, "estado": p.estado,
-            "respuesta": p.respuesta,
-            "creado_en": p.creado_en.isoformat() if p.creado_en else None,
-        }
-        for p in items
+        {**_serialize_tienda(t), "total_registros": total}
+        for t in tiendas
     ]
 
 
-@router.patch("/pqrs/{pqrs_id}")
-def actualizar_pqrs(pqrs_id: int, payload: PqrsEstadoUpdate, _admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    p = db.query(Pqrs).filter(Pqrs.id == pqrs_id).first()
-    if not p:
-        raise HTTPException(status_code=404, detail="PQRS no encontrado")
-    if payload.estado is not None:
-        p.estado = payload.estado
-    if payload.respuesta is not None:
-        p.respuesta = payload.respuesta
+@router.get("/tiendas/{tienda_id}", response_model=TiendaResponse)
+def obtener_tienda(
+    tienda_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Obtiene una tienda aliada por su ID."""
+    tienda = db.query(Tienda).options(joinedload(Tienda.usuario)).filter(Tienda.id == tienda_id).first()
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+    return _serialize_tienda(tienda)
+
+
+@router.post("/tiendas", response_model=TiendaResponse, status_code=status.HTTP_201_CREATED)
+def crear_tienda(
+    payload: TiendaCreate,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Crea una tienda aliada y su usuario de acceso con rol tienda_aliada."""
+    if payload.password != payload.confirmar_password:
+        raise HTTPException(status_code=400, detail="Las contraseñas no coinciden")
+
+    if db.query(Usuario).filter(Usuario.email == payload.email_acceso).first():
+        raise HTTPException(status_code=400, detail="El correo de acceso ya está registrado")
+
+    rol_tienda = db.query(Rol).filter(Rol.codigo == "tienda_aliada").first()
+    if not rol_tienda:
+        raise HTTPException(status_code=500, detail="Rol tienda_aliada no encontrado en catálogo")
+
+    # 1. Crear usuario (los datos del responsable van aquí)
+    nombre_usuario = payload.responsable_nombre or payload.nombre
+    user = Usuario(
+        nombre=nombre_usuario,
+        email=payload.email_acceso,
+        hashed_password=get_password_hash(payload.password),
+        rol_id=rol_tienda.id,
+        telefono=payload.responsable_telefono or payload.telefono,
+        ubicacion=payload.ciudad,
+        activo=True,
+    )
+    db.add(user)
+    db.flush()
+
+    # 2. Slug único
+    slug = _slugify(payload.nombre)
+    if db.query(Tienda).filter(Tienda.slug == slug).first():
+        slug = f"{slug}-{user.id}"
+
+    # 3. Crear tienda (solo columnas que existen en Supabase)
+    tienda = Tienda(
+        usuario_id=user.id,
+        nombre=payload.nombre,
+        slug=slug,
+        descripcion=payload.descripcion,
+        email=payload.email,
+        telefono=payload.telefono,
+        ubicacion=payload.ciudad,
+        website=payload.website,
+        facebook=payload.facebook,
+        instagram=payload.instagram,
+    )
+    db.add(tienda)
     db.commit()
-    return {"ok": True}
+    db.refresh(tienda)
+
+    return _serialize_tienda(tienda)
 
 
-# ============================================================
-# REPORTES
-# ============================================================
-@router.get("/reportes")
-def listar_reportes(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    items = db.query(Reporte).order_by(Reporte.creado_en.desc()).all()
-    return [
-        {
-            "id": r.id, "reportante_id": r.reportante_id, "tipo_objeto": r.tipo_objeto,
-            "objeto_id": r.objeto_id, "motivo": r.motivo, "estado": r.estado,
-            "creado_en": r.creado_en.isoformat() if r.creado_en else None,
-        }
-        for r in items
-    ]
+@router.put("/tiendas/{tienda_id}", response_model=TiendaResponse)
+def actualizar_tienda(
+    tienda_id: int,
+    payload: TiendaUpdate,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Actualiza los datos de una tienda aliada."""
+    tienda = db.query(Tienda).options(joinedload(Tienda.usuario)).filter(Tienda.id == tienda_id).first()
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
 
+    update_data = payload.model_dump(exclude_unset=True)
 
-@router.patch("/reportes/{reporte_id}")
-def actualizar_reporte(reporte_id: int, payload: ReporteEstadoUpdate, _admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    r = db.query(Reporte).filter(Reporte.id == reporte_id).first()
-    if not r:
-        raise HTTPException(status_code=404, detail="Reporte no encontrado")
-    r.estado = payload.estado
+    for campo, valor in update_data.items():
+        if hasattr(tienda, campo):
+            setattr(tienda, campo, valor)
+
     db.commit()
-    return {"ok": True}
+    db.refresh(tienda)
+    return _serialize_tienda(tienda)
 
 
-# ============================================================
-# PEDIDOS
-# ============================================================
-@router.get("/pedidos")
-def listar_pedidos(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    pedidos = db.query(Pedido).order_by(Pedido.creado_en.desc()).all()
-    return [
-        {
-            "id": p.id, "usuario_id": p.usuario_id,
-            "estado": p.estado.codigo if p.estado else None,
-            "subtotal": float(p.subtotal or 0), "costo_envio": float(p.costo_envio or 0),
-            "descuento": float(p.descuento or 0), "total": float(p.total or 0),
-            "creado_en": p.creado_en.isoformat() if p.creado_en else None,
-        }
-        for p in pedidos
-    ]
+@router.patch("/tiendas/{tienda_id}/estado", response_model=TiendaResponse)
+def cambiar_estado_tienda(
+    tienda_id: int,
+    payload: TiendaEstadoUpdate,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Cambia el estado activo/inactivo del usuario de la tienda."""
+    if payload.estado not in ("activa", "suspendida", "pendiente"):
+        raise HTTPException(status_code=400, detail="Estado inválido")
+
+    tienda = db.query(Tienda).options(joinedload(Tienda.usuario)).filter(Tienda.id == tienda_id).first()
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+
+    # El estado se maneja mediante activo del usuario
+    if tienda.usuario:
+        tienda.usuario.activo = (payload.estado == "activa")
+
+    db.commit()
+    db.refresh(tienda)
+    return _serialize_tienda(tienda)
 
 
-# ============================================================
-# FORO (moderacion)
-# ============================================================
-@router.get("/foro")
-def listar_foro(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    posts = db.query(ForoPost).order_by(ForoPost.creado_en.desc()).all()
-    return [
-        {
-            "id": p.id, "titulo": p.titulo, "contenido": p.contenido,
-            "autor": (f"{p.autor.nombre} {p.autor.apellido or ''}".strip() if p.autor else "Anonimo"),
-            "categoria": p.categoria.nombre if p.categoria else None,
-            "vistas": p.vistas,
-            "creado_en": p.creado_en.isoformat() if p.creado_en else None,
-        }
-        for p in posts
-    ]
+@router.post("/tiendas/{tienda_id}/restablecer-password")
+def restablecer_password_tienda(
+    tienda_id: int,
+    nueva_password: str = Query(..., min_length=6, description="Nueva contraseña"),
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Restablece la contraseña del usuario de una tienda aliada."""
+    tienda = db.query(Tienda).filter(Tienda.id == tienda_id).first()
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+    if not tienda.usuario_id:
+        raise HTTPException(status_code=400, detail="La tienda no tiene usuario asociado")
+
+    user = db.query(Usuario).filter(Usuario.id == tienda.usuario_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario de tienda no encontrado")
+
+    user.hashed_password = get_password_hash(nueva_password)
+    db.commit()
+
+    return {"mensaje": "Contraseña restablecida exitosamente"}
 
 
-@router.delete("/foro/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_post_foro(post_id: int, admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    p = db.query(ForoPost).filter(ForoPost.id == post_id).first()
-    if not p:
-        raise HTTPException(status_code=404, detail="Publicacion no encontrada")
-    registrar_auditoria(db, admin.id, "eliminar", "foro_post", post_id, f"Elimino publicacion '{p.titulo}'")
-    db.delete(p)
+@router.delete("/tiendas/{tienda_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_tienda(
+    tienda_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Elimina una tienda aliada y su usuario de acceso."""
+    tienda = db.query(Tienda).filter(Tienda.id == tienda_id).first()
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+
+    # Eliminar usuario asociado si existe
+    if tienda.usuario_id:
+        user = db.query(Usuario).filter(Usuario.id == tienda.usuario_id).first()
+        if user:
+            db.delete(user)
+
+    db.delete(tienda)
     db.commit()
     return None
 
 
-# ============================================================
-# AUDITORIA
-# ============================================================
-@router.get("/auditoria")
-def listar_auditoria(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
-    items = db.query(Auditoria).order_by(Auditoria.creado_en.desc()).limit(200).all()
-    # Mapea el id de usuario a su nombre
-    user_ids = {a.usuario_id for a in items if a.usuario_id}
-    nombres = {}
-    if user_ids:
-        nombres = {
-            u.id: f"{u.nombre} {u.apellido or ''}".strip()
-            for u in db.query(Usuario).filter(Usuario.id.in_(user_ids)).all()
-        }
+@router.get("/tiendas/{tienda_id}/productos")
+def listar_productos_tienda(
+    tienda_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Lista los productos de una tienda aliada (para administración)."""
+    tienda = db.query(Tienda).filter(Tienda.id == tienda_id).first()
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+
+    productos = (
+        db.query(Producto)
+        .filter(Producto.tienda_id == tienda_id)
+        .order_by(Producto.creado_en.desc())
+        .all()
+    )
     return [
         {
-            "id": a.id, "usuario": nombres.get(a.usuario_id, "Sistema"),
-            "accion": a.accion, "entidad": a.entidad, "entidad_id": a.entidad_id,
-            "detalle": a.detalle,
-            "creado_en": a.creado_en.isoformat() if a.creado_en else None,
+            "id": p.id,
+            "nombre": p.nombre,
+            "precio": float(p.precio) if p.precio else 0,
+            "stock": p.stock,
+            "activo": p.activo,
+            "ventas": p.ventas,
+            "categoria": p.categoria.nombre if p.categoria else None,
+            "creado_en": p.creado_en.isoformat() if p.creado_en else None,
         }
-        for a in items
+        for p in productos
     ]
+
+
+@router.patch("/tiendas/{tienda_id}/productos/{producto_id}/ocultar")
+def ocultar_producto_tienda(
+    tienda_id: int,
+    producto_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Oculta (desactiva) un producto de una tienda."""
+    producto = db.query(Producto).filter(
+        Producto.id == producto_id,
+        Producto.tienda_id == tienda_id,
+    ).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en esta tienda")
+
+    producto.activo = not producto.activo  # toggle
+    db.commit()
+    return {"mensaje": "Producto actualizado", "activo": producto.activo}
+
+
+@router.delete("/tiendas/{tienda_id}/productos/{producto_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_producto_tienda(
+    tienda_id: int,
+    producto_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Elimina un producto de una tienda."""
+    producto = db.query(Producto).filter(
+        Producto.id == producto_id,
+        Producto.tienda_id == tienda_id,
+    ).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado en esta tienda")
+
+    db.delete(producto)
+    db.commit()
+    return None

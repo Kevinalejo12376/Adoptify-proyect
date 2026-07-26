@@ -25,6 +25,16 @@ export async function fetchMe() {
   return apiFetch("/api/auth/me", { method: "GET" });
 }
 
+/** Obtiene el perfil completo del usuario autenticado. */
+export async function fetchProfile() {
+  return apiFetch("/api/auth/profile", { method: "GET" });
+}
+
+/** Actualiza los datos del perfil del usuario autenticado. */
+export async function updateProfile(payload) {
+  return apiFetch("/api/auth/profile", { method: "PUT", body: payload });
+}
+
 /** Cierra sesion (limpia el token local). */
 export function logoutRequest() {
   clearToken();

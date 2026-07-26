@@ -12,6 +12,7 @@ def serialize_usuario(u):
         "ubicacion": u.ubicacion,
         "rol": u.rol.codigo if u.rol else None,
         "tipo_documento": u.tipo_documento.codigo if u.tipo_documento else None,
+        "perfil_completo": u.perfil_completo if hasattr(u, "perfil_completo") else False,
     }
 
 

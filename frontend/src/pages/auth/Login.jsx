@@ -8,13 +8,19 @@ import { useAuth } from "../../context/AuthContext";
 import logo from "../../assets/logo.png";
 import loginDog from "../../assets/loginDog.jpg";
 
+const REMEMBER_KEY = "adoptify_remembered_email";
+
 export default function Login() {
   const navigate = useNavigate();
   const { apiLogin, storeLogin } = useAuth();
-  const [email, setEmail] = useState("");
+
+  // Recuperar email guardado de "Recordarme"
+  const savedEmail = localStorage.getItem(REMEMBER_KEY) || "";
+
+  const [email, setEmail] = useState(savedEmail);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(!!savedEmail);
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -95,6 +101,13 @@ export default function Login() {
 
     setIsLoading(true);
 
+    // Guardar o limpiar email según "Recordarme"
+    if (rememberMe) {
+      localStorage.setItem(REMEMBER_KEY, email);
+    } else {
+      localStorage.removeItem(REMEMBER_KEY);
+    }
+
     // Login REAL contra el backend: maneja usuario, refugio y administrador.
     try {
       const loggedUser = await apiLogin(email, password);
@@ -106,6 +119,8 @@ export default function Login() {
           navigate("/admin/dashboard");
         } else if (role === "refugio") {
           navigate("/refugio/dashboard");
+        } else if (role === "tienda_aliada") {
+          navigate("/tienda/dashboard");
         } else {
           navigate("/dashboard");
         }
@@ -117,6 +132,10 @@ export default function Login() {
       if (storeResult.success) {
         setIsLoading(false);
         setSuccess(true);
+        // Guardar también para tiendas
+        if (rememberMe) {
+          localStorage.setItem(REMEMBER_KEY, email);
+        }
         setTimeout(() => navigate("/tienda/dashboard"), 1500);
         return;
       }

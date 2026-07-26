@@ -216,6 +216,7 @@ CREATE TABLE usuarios (
     twitter            VARCHAR(120),
     instagram          VARCHAR(120),
     verificado         BOOLEAN NOT NULL DEFAULT false,
+    perfil_completo    BOOLEAN NOT NULL DEFAULT false,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_usuarios_rol ON usuarios(rol_id);

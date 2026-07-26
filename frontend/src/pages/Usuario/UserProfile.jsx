@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
 import {
   User, Mail, Phone, MapPin, Calendar, Edit, Camera, Save, X,
@@ -311,6 +312,8 @@ export default function UserProfile() {
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState(MOCK_USER);
   const [editedUser, setEditedUser] = useState({ ...MOCK_USER });
+  // Acceso al modal de completar perfil desde AuthContext
+  const { profileCompleted, openProfileModal } = useAuth();
 
   // Scroll to top button visibility
   useEffect(() => {
@@ -469,6 +472,35 @@ export default function UserProfile() {
             </div>
           </div>
         </div>
+
+        {/* ─── Banner de perfil incompleto ─── */}
+        {!profileCompleted && (
+          <div className="bg-gradient-to-r from-rose-500 to-amber-500 rounded-2xl shadow-lg p-5 sm:p-6 mb-8 animate-fadeIn relative overflow-hidden group">
+            <div className="absolute inset-0 bg-black/10" />
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full" />
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/5 rounded-full" />
+            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <User className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white font-display">Completa tu perfil</h3>
+                  <p className="text-sm text-rose-100">
+                    Agrega información adicional para que los refugios te conozcan mejor
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={openProfileModal}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-white text-rose-600 font-semibold rounded-xl hover:bg-rose-50 transition-all duration-300 hover:shadow-lg whitespace-nowrap flex-shrink-0 active:scale-95"
+              >
+                <Sparkles className="w-4 h-4" />
+                Completar ahora
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ─── Stats Grid ─── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">

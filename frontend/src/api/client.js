@@ -28,10 +28,11 @@ export async function apiFetch(path, { method = "GET", body, auth = true, form =
     payload = JSON.stringify(body);
   }
 
-  // Timeout de 20s: evita que la UI se quede "cargando" para siempre si el
-  // servidor no responde.
+  // Timeout de 60s: evita que la UI se quede "cargando" para siempre si el
+  // servidor no responde. Se aumentó de 20s→60s porque Supabase (BD remota)
+  // puede tener latencia que hace que consultas complejas tomen más tiempo.
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   let res;
   try {

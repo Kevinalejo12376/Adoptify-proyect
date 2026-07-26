@@ -6,7 +6,8 @@ import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import StoreRoute from "./components/StoreRoute";
-import { AuthProvider } from "./context/AuthContext";
+import CompleteProfileModal from "./components/CompleteProfileModal";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { I18nProvider } from "./context/I18nContext";
 import { CartProvider } from "./context/CartContext";
@@ -90,9 +91,11 @@ import AdminAdministradores from "./pages/Admin/Administradores";
 import AdminEstadisticas from "./pages/Admin/Estadisticas";
 import AdminAuditoria from "./pages/Admin/Auditoria";
 import AdminConfiguracion from "./pages/Admin/Configuracion";
+import AdminTiendas from "./pages/Admin/GestionTiendas";
 
 function AppContent() {
   const location = useLocation();
+  const { showProfileModal, setShowProfileModal, markProfileCompleted } = useAuth();
   const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
   const isAdminPage = location.pathname.startsWith("/admin");
   const isStorePage = location.pathname.startsWith("/tienda");
@@ -117,7 +120,9 @@ function AppContent() {
             <Route path="usuarios" element={<AdminUsuarios />} />
             <Route path="refugios" element={<AdminRefugios />} />
             <Route path="mascotas" element={<AdminMascotas />} />
+            <Route path="tiendas" element={<AdminTiendas />} />
             <Route path="marketplace" element={<AdminMarketplace />} />
+            <Route path="marketplace/estadisticas" element={<AdminMarketplace />} />
             <Route path="pedidos" element={<AdminPedidos />} />
             <Route path="foro" element={<AdminForo />} />
             <Route path="reportes" element={<AdminReportes />} />
@@ -191,6 +196,15 @@ function AppContent() {
         </Routes>
       </main>
       {!isAuthPage && !isAdminPage && !isStorePage && <Footer />}
+
+      {/* Modal global para completar perfil (solo fuera de páginas de auth) */}
+      {!isAuthPage && (
+        <CompleteProfileModal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          onComplete={markProfileCompleted}
+        />
+      )}
     </div>
   );
 }

@@ -1,9 +1,9 @@
-import React, { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import React, { useState, useRef, useEffect } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, Users, Building2, PawPrint, Store, ShoppingCart,
-  MessageSquare, Flag, HelpCircle, Shield, BarChart3, ClipboardList,
-  Settings, ChevronLeft, ChevronRight, LogOut, PawPrint as LogoIcon,
+  LayoutDashboard, Users, Building2, PawPrint, Store,
+  ClipboardList, ChevronLeft, ShoppingBag, Package,
+  BarChart3, ChevronDown, LogOut,
 } from "lucide-react";
 
 const menuItems = [
@@ -11,155 +11,332 @@ const menuItems = [
   { icon: Users, label: "Usuarios", path: "/admin/usuarios" },
   { icon: Building2, label: "Refugios", path: "/admin/refugios" },
   { icon: PawPrint, label: "Mascotas", path: "/admin/mascotas" },
-  { icon: Store, label: "Marketplace", path: "/admin/marketplace" },
-  { icon: ShoppingCart, label: "Pedidos", path: "/admin/pedidos" },
-  { icon: MessageSquare, label: "Foro", path: "/admin/foro" },
-  { icon: Flag, label: "Reportes", path: "/admin/reportes" },
-  { icon: HelpCircle, label: "PQRS", path: "/admin/pqrs" },
-  { icon: Shield, label: "Administradores", path: "/admin/administradores" },
-  { icon: BarChart3, label: "Estadísticas", path: "/admin/estadisticas" },
-  { icon: ClipboardList, label: "Auditoría", path: "/admin/auditoria" },
-  { icon: Settings, label: "Configuración", path: "/admin/configuracion" },
+  {
+    icon: Store,
+    label: "Marketplace",
+    path: "/admin/marketplace",
+    submenu: [
+      { icon: Package, label: "Productos", path: "/admin/marketplace" },
+      { icon: ShoppingBag, label: "Tiendas Aliadas", path: "/admin/tiendas" },
+      { icon: BarChart3, label: "Estadísticas", path: "/admin/marketplace/estadisticas" },
+    ],
+  },
+  { icon: ClipboardList, label: "Reportes", path: "/admin/reportes" },
 ];
 
-export default function AdminSidebar({ collapsed, onToggle, adminNombre, onLogout }) {
+export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, onLogout }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [isHovered, setIsHovered] = useState(false);
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+  const sidebarRef = useRef(null);
+  const hoverTimeoutRef = useRef(null);
+
+  const isExpanded = isHovered;
+  const isMarketplaceActive = location.pathname.startsWith("/admin/marketplace") || location.pathname === "/admin/tiendas";
+
+  // Auto-open marketplace submenu if we're on a marketplace page
+  useEffect(() => {
+    if (isMarketplaceActive && isExpanded) {
+      setMarketplaceOpen(true);
+    }
+  }, [isMarketplaceActive, isExpanded]);
+
+  const handleMouseEnter = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHovered(false);
+      if (!isMarketplaceActive) setMarketplaceOpen(false);
+    }, 50);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    };
+  }, []);
+
+  const handleNavClick = () => {
+    if (onMobileClose) onMobileClose();
+    setIsHovered(false);
+  };
+
+  const NavItem = ({ item, isMobile = false }) => {
+    const isActive = location.pathname === item.path;
+    const hasSubmenu = item.submenu && item.submenu.length > 0;
+    const subActive = hasSubmenu && isMarketplaceActive;
+
+    if (isMobile) {
+      return (
+        <div>
+          <button
+            onClick={() => {
+              if (hasSubmenu) {
+                setMarketplaceOpen(!marketplaceOpen);
+              } else {
+                navigate(item.path);
+                handleNavClick();
+              }
+            }}
+            className={`w-full group flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 relative ${
+              isActive || subActive
+                ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
+                : "text-gray-500 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-700 dark:hover:text-dark-text"
+            }`}
+          >
+            {isActive && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 rounded-r-full bg-white/80" />
+            )}
+            <item.icon size={22} strokeWidth={isActive || subActive ? 2.5 : 1.5} className="flex-shrink-0" />
+            <span className="flex-1 text-left text-base font-medium">{item.label}</span>
+            {hasSubmenu && (
+              <ChevronDown size={16} className={`transition-transform duration-200 ${marketplaceOpen ? "rotate-180" : ""}`} />
+            )}
+          </button>
+          {hasSubmenu && marketplaceOpen && (
+            <div className="ml-6 mt-1 space-y-0.5 border-l-2 border-gray-100 dark:border-dark-border pl-3">
+              {item.submenu.map((sub) => {
+                const isSubActive = location.pathname === sub.path;
+                return (
+                  <NavLink
+                    key={sub.path}
+                    to={sub.path}
+                    onClick={handleNavClick}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      isSubActive
+                        ? "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"
+                        : "text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text hover:bg-gray-50 dark:hover:bg-dark-border"
+                    }`}
+                  >
+                    <sub.icon size={16} strokeWidth={isSubActive ? 2.5 : 1.5} />
+                    {sub.label}
+                  </NavLink>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Desktop version
+    return (
+      <div>
+        <NavLink
+          to={hasSubmenu ? undefined : item.path}
+          onClick={(e) => {
+            if (hasSubmenu) {
+              e.preventDefault();
+              if (isExpanded) {
+                setMarketplaceOpen(!marketplaceOpen);
+              } else {
+                setIsHovered(true);
+                setTimeout(() => setMarketplaceOpen(true), 280);
+              }
+            } else {
+              handleNavClick();
+            }
+          }}
+          className={`
+            group flex items-center gap-3 rounded-xl transition-all duration-200 relative overflow-hidden cursor-pointer
+            ${isExpanded ? "px-3 py-3" : "px-0 py-3 justify-center mx-auto w-[56px]"}
+            ${isActive || subActive
+              ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
+              : "text-gray-500 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-700 dark:hover:text-dark-text"
+            }
+          `}
+          title={!isExpanded ? item.label : undefined}
+        >
+          {isActive && isExpanded && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-7 rounded-r-full bg-white/80" />
+          )}
+          {isActive && !isExpanded && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-amber-400" />
+          )}
+
+          <item.icon
+            size={22}
+            strokeWidth={isActive || subActive ? 2.5 : 1.5}
+            className={`flex-shrink-0 transition-all duration-200 ${
+              isActive || subActive ? "text-white" : "group-hover:text-gray-700 dark:group-hover:text-dark-text"
+            }`}
+          />
+          <span className={`
+            text-base font-medium transition-all duration-[280ms] ease-out whitespace-nowrap flex-1
+            ${isExpanded ? "opacity-100 max-w-[200px]" : "opacity-0 max-w-0 overflow-hidden"}
+            ${isActive || subActive ? "text-white" : ""}
+          `}>
+            {item.label}
+          </span>
+          {hasSubmenu && isExpanded && (
+            <ChevronDown size={16} className={`transition-transform duration-200 flex-shrink-0 ${
+              marketplaceOpen ? "rotate-180" : ""
+            } ${isActive || subActive ? "text-white/80" : "text-gray-400"}`} />
+          )}
+        </NavLink>
+
+        {/* Submenu */}
+        {hasSubmenu && isExpanded && marketplaceOpen && (
+          <div className="ml-3 mt-1 space-y-0.5 border-l-2 border-rose-200 dark:border-rose-500/30 pl-3 animate-slide-down">
+            {item.submenu.map((sub) => {
+              const isSubActive = location.pathname === sub.path;
+              return (
+                <NavLink
+                  key={sub.path}
+                  to={sub.path}
+                  onClick={handleNavClick}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    isSubActive
+                      ? "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"
+                      : "text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text hover:bg-gray-50 dark:hover:bg-dark-border"
+                  }`}
+                >
+                  <sub.icon size={16} strokeWidth={isSubActive ? 2.5 : 1.5} />
+                  {sub.label}
+                </NavLink>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
       {/* Sidebar Desktop */}
       <aside
+        ref={sidebarRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={`
           fixed left-0 top-0 h-full z-50
           bg-white dark:bg-dark-card
           border-r border-gray-100 dark:border-dark-border
-          transition-all duration-300 ease-in-out
           hidden lg:flex flex-col
-          ${collapsed ? "w-[72px]" : "w-[260px]"}
+          transition-all duration-[280ms] ease-out
+          ${isExpanded ? "w-[280px]" : "w-[80px]"}
         `}
       >
         {/* Logo */}
-        <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} px-4 h-16 border-b border-gray-100 dark:border-dark-border`}>
-          <NavLink to="/admin/dashboard" className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0">
-              <LogoIcon size={16} className="text-white" />
+        <div className={`
+          flex items-center h-16 border-b border-gray-100 dark:border-dark-border
+          ${isExpanded ? "px-4 justify-between" : "px-0 justify-center"}
+          transition-all duration-[280ms] ease-out
+        `}>
+          <NavLink
+            to="/admin/dashboard"
+            onClick={handleNavClick}
+            className={`
+              flex items-center min-w-0
+              ${isExpanded ? "gap-2.5" : "gap-0 justify-center"}
+              transition-all duration-[280ms] ease-out
+            `}
+          >
+            <img src="/FaviconNav.png" alt="Adoptify" className="w-11 h-11 object-contain flex-shrink-0" />
+            <div className={`
+              min-w-0 overflow-hidden
+              transition-all duration-[280ms] ease-out
+              ${isExpanded ? "opacity-100 max-w-[200px]" : "opacity-0 max-w-0"}
+            `}>
+              <p className="text-base font-bold text-gray-900 dark:text-dark-text truncate">Adoptify</p>
+              <p className="text-xs font-medium text-gray-400 dark:text-dark-text-secondary truncate leading-tight">
+                Panel de Administración
+              </p>
             </div>
-            {!collapsed && (
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">
-                  Adoptify
-                </p>
-                <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary truncate leading-tight">
-                  Panel Admin
-                </p>
-              </div>
-            )}
           </NavLink>
-          {!collapsed && (
-            <button
-              onClick={onToggle}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors"
-            >
-              <ChevronLeft size={14} />
-            </button>
-          )}
         </div>
 
-        {/* Menú */}
-        <nav className="flex-1 overflow-y-auto scrollbar-hide py-3 px-2 space-y-0.5">
-          {menuItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={`
-                  group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative
-                  ${collapsed ? "justify-center" : ""}
-                  ${
-                    isActive
-                      ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
-                      : "text-gray-500 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-700 dark:hover:text-dark-text"
-                  }
-                `}
-                title={collapsed ? item.label : undefined}
-              >
-                <item.icon
-                  size={18}
-                  strokeWidth={isActive ? 2.5 : 1.5}
-                  className={`flex-shrink-0 transition-all ${isActive ? "text-white" : ""}`}
-                />
-                {!collapsed && (
-                  <span className={`text-sm font-medium transition-all ${isActive ? "text-white" : ""}`}>
-                    {item.label}
-                  </span>
-                )}
-                {isActive && !collapsed && (
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-full bg-white/70" />
-                )}
-              </NavLink>
-            );
-          })}
+        {/* Menú principal */}
+        <nav className="flex-1 overflow-y-auto scrollbar-hide py-4 px-2 space-y-1">
+          {menuItems.map((item) => (
+            <NavItem key={item.path} item={item} />
+          ))}
         </nav>
 
-        {/* Info Admin + Cerrar sesión */}
+        {/* Cerrar Sesión */}
         <div className="border-t border-gray-100 dark:border-dark-border p-3">
-          {!collapsed ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2.5 px-3 py-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400 flex-shrink-0">
-                  {adminNombre?.[0] || "A"}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-dark-text truncate">
-                    {adminNombre || "Admin"}
-                  </p>
-                  <p className="text-[10px] text-gray-400 dark:text-dark-text-secondary truncate">
-                    Administrador
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={onLogout}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-              >
-                <LogOut size={16} />
-                Cerrar sesión
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={onToggle}
-              className="w-full flex items-center justify-center px-3 py-2.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors"
-              title="Expandir"
-            >
-              <ChevronRight size={16} />
-            </button>
-          )}
+          <button
+            onClick={() => { onMobileClose?.(); onLogout?.(); }}
+            className={`
+              flex items-center rounded-xl transition-all duration-200 group cursor-pointer w-full
+              ${isExpanded ? "gap-3 px-3 py-3" : "gap-0 justify-center px-0 py-3 mx-auto w-[56px]"}
+            `}
+            title={!isExpanded ? "Cerrar sesión" : undefined}
+          >
+            <LogOut size={20} className="flex-shrink-0 text-gray-400 group-hover:text-red-500 transition-colors" />
+            <span className={`
+              text-sm font-medium text-gray-500 dark:text-dark-text-secondary group-hover:text-red-500 transition-colors
+              transition-all duration-[280ms] ease-out whitespace-nowrap
+              ${isExpanded ? "opacity-100 max-w-[200px]" : "opacity-0 max-w-0 overflow-hidden"}
+            `}>
+              Cerrar sesión
+            </span>
+          </button>
         </div>
       </aside>
 
+      {/* Overlay móvil */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden animate-modal-overlay"
+          onClick={onMobileClose}
+        />
+      )}
+
       {/* Sidebar Mobile */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-dark-card border-t border-gray-100 dark:border-dark-border safe-area-bottom">
-        <div className="flex overflow-x-auto scrollbar-hide px-1 py-1">
-          {menuItems.slice(0, 5).map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={`
-                  flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg min-w-[60px] transition-colors
-                  ${isActive ? "text-rose-500" : "text-gray-400 dark:text-dark-text-secondary"}
-                `}
-              >
-                <item.icon size={18} strokeWidth={isActive ? 2.5 : 1.5} />
-                <span className="text-[10px] font-medium truncate w-full text-center">{item.label}</span>
-              </NavLink>
-            );
-          })}
+      <aside
+        className={`
+          fixed left-0 top-0 h-full z-50
+          bg-white dark:bg-dark-card
+          border-r border-gray-100 dark:border-dark-border
+          lg:hidden flex flex-col
+          transition-all duration-300 ease-out
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
+          w-[260px]
+        `}
+      >
+        {/* Logo Mobile */}
+        <div className="flex items-center justify-between px-4 h-16 border-b border-gray-100 dark:border-dark-border">
+          <NavLink to="/admin/dashboard" onClick={handleNavClick} className="flex items-center gap-2.5">
+            <img src="/FaviconNav.png" alt="Adoptify" className="w-11 h-11 object-contain flex-shrink-0" />
+            <div>
+              <p className="text-base font-bold text-gray-900 dark:text-dark-text">Adoptify</p>
+              <p className="text-xs font-medium text-gray-400 dark:text-dark-text-secondary leading-tight">
+                Panel de Administración
+              </p>
+            </div>
+          </NavLink>
+          <button
+            onClick={onMobileClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors"
+          >
+            <ChevronLeft size={16} />
+          </button>
         </div>
-      </nav>
+
+        {/* Menú Mobile */}
+        <nav className="flex-1 overflow-y-auto scrollbar-hide py-3 px-2 space-y-1">
+          {menuItems.map((item) => (
+            <NavItem key={item.path} item={item} isMobile />
+          ))}
+        </nav>
+
+        {/* Cerrar Sesión Mobile */}
+        <div className="border-t border-gray-100 dark:border-dark-border p-3">
+          <button
+            onClick={() => { onMobileClose?.(); onLogout?.(); }}
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-500 dark:text-dark-text-secondary hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+          >
+            <LogOut size={18} />
+            Cerrar sesión
+          </button>
+        </div>
+      </aside>
     </>
   );
 }
