@@ -112,6 +112,45 @@ def _serialize(u: Usuario) -> dict:
     }
 
 
+@router.get("/productos")
+def listar_productos_admin(_admin: Usuario = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Lista TODOS los productos con su vendedor (tienda o refugio)."""
+    productos = db.query(Producto).order_by(Producto.creado_en.desc()).all()
+    ref_ids = {p.refugio_id for p in productos if p.refugio_id}
+    refs = {}
+    if ref_ids:
+        refs = {r.id: r.nombre for r in db.query(Refugio).filter(Refugio.id.in_(ref_ids)).all()}
+    resultado = []
+    for p in productos:
+        vendedor = p.tienda.nombre if p.tienda else refs.get(p.refugio_id)
+        resultado.append({
+            "id": p.id,
+            "nombre": p.nombre,
+            "categoria": p.categoria.nombre if p.categoria else None,
+            "precio": float(p.precio) if p.precio is not None else 0,
+            "stock": p.stock,
+            "activo": p.activo,
+            "vendedor": vendedor or "—",
+            "tipo_vendedor": "Tienda" if p.tienda_id else ("Refugio" if p.refugio_id else "—"),
+            "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        })
+    return resultado
+
+
+@router.delete("/productos/{producto_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_producto_admin(
+    producto_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    p = db.query(Producto).filter(Producto.id == producto_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    db.delete(p)
+    db.commit()
+    return None
+
+
 @router.get("/mascotas")
 def listar_mascotas_admin(
     _admin: Usuario = Depends(get_current_admin),
@@ -220,6 +259,8 @@ def crear_usuario(
 
     db.commit()
     db.refresh(user)
+    registrar_auditoria(db, _admin.id, "crear_usuario", "usuarios", user.id, f"Rol: {rol_obj.codigo}")
+    db.commit()
     return _serialize(user)
 
 

@@ -8,6 +8,7 @@ from typing import Optional, List
 from app.db.database import get_db
 from app.core.security import get_current_user, get_current_refugio
 from app.core.lookups import id_por_codigo
+from app.core.notificaciones import notificar_admins, registrar_auditoria
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.mascota import Mascota
@@ -88,6 +89,15 @@ def crear_mascota(
     db.add(mascota)
     db.commit()
     db.refresh(mascota)
+    # Notifica a los admins de la nueva mascota
+    notificar_admins(
+        db,
+        tipo="nueva_mascota",
+        mensaje=f"Nueva mascota publicada: {mascota.nombre} ({refugio.nombre})",
+        enlace="/admin/mascotas",
+    )
+    registrar_auditoria(db, current_user.id, "crear", "mascotas", mascota.id, f"Registro mascota {mascota.nombre}")
+    db.commit()
     return serialize_mascota(mascota)
 
 

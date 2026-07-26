@@ -1,12 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
-  ClipboardList, Search, Filter, Calendar, Clock, User, Dog, Cat,
+  ClipboardList, Search, Calendar, Clock, User, Dog, Cat,
   ChevronDown, Eye, MessageSquare, CheckCircle, XCircle, AlertCircle,
-  ArrowUp, ChevronRight, Phone, Mail, MapPin, Heart, ArrowLeft,
-  Shield, Star, Home, Users, Activity, X, RefreshCw, Sparkles
+  ChevronRight, Phone, Mail, MapPin, Heart, ArrowLeft,
+  Shield, Star, Home, Users, Activity, X, RefreshCw, Sparkles, Loader2
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import ConfirmModal from "../../components/ConfirmModal";
+import { solicitudesRecibidas, actualizarEstado } from "../../api/solicitudes";
 
 const statuses = ["todas", "pendiente", "en revisión", "contactado", "finalizada", "cerrada"];
 
@@ -58,15 +59,38 @@ export default function ShelterRequests() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState({ isOpen: false, requestId: null, newStatus: null });
 
-  // Datos de ejemplo de solicitudes
-  const [requests, setRequests] = useState([
-    { id: 1, user: "Ana López", email: "ana@email.com", phone: "+57 300 111 2233", pet: "Max", petType: "Perro", status: "pendiente", date: "14 Jul 2026", time: "10:30 AM", message: "Hola, me encantaría adoptar a Max. Tengo experiencia con perros grandes y un jardín amplio donde puede correr.", location: "Bogotá", hasFamily: true, hasExperience: true },
-    { id: 2, user: "Carlos Ruiz", email: "carlos@email.com", phone: "+57 310 444 5566", pet: "Luna", petType: "Gato", status: "en revisión", date: "13 Jul 2026", time: "3:45 PM", message: "Estoy interesado en adoptar a Luna. Vivo en apartamento pero es suficientemente amplio para un gato.", location: "Medellín", hasFamily: false, hasExperience: true },
-    { id: 3, user: "María Fernández", email: "maria@email.com", phone: "+57 320 777 8899", pet: "Rocky", petType: "Perro", status: "contactado", date: "12 Jul 2026", time: "9:15 AM", message: "Quiero darle un hogar a Rocky. Soy veterinaria y tengo mucha experiencia con perros de raza grande.", location: "Cali", hasFamily: true, hasExperience: true },
-    { id: 4, user: "Pedro Martínez", email: "pedro@email.com", phone: "+57 301 222 3344", pet: "Mimi", petType: "Gato", status: "finalizada", date: "10 Jul 2026", time: "2:00 PM", message: "Adopté a Mimi y está feliz en su nuevo hogar. Muchas gracias por todo.", location: "Bogotá", hasFamily: true, hasExperience: false },
-    { id: 5, user: "Laura Gómez", email: "laura@email.com", phone: "+57 315 666 7788", pet: "Thor", petType: "Perro", status: "cerrada", date: "8 Jul 2026", time: "11:30 AM", message: "Lamento informar que ya no puedo adoptar a Thor debido a un cambio de situación laboral.", location: "Barranquilla", hasFamily: false, hasExperience: false },
-    { id: 6, user: "Roberto Sánchez", email: "roberto@email.com", phone: "+57 311 888 9900", pet: "Thor", petType: "Perro", status: "pendiente", date: "15 Jul 2026", time: "8:00 AM", message: "Estoy muy interesado en adoptar a Thor. Tengo casa con jardín y otro perro para que tenga compañía.", location: "Bogotá", hasFamily: true, hasExperience: true },
-  ]);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const cargar = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const data = await solicitudesRecibidas();
+      setRequests(data.map((s) => ({
+        id: s.id,
+        user: s.nombre_contacto,
+        email: s.email_contacto || "",
+        phone: s.telefono_contacto || "",
+        pet: s.mascota_nombre || `Mascota #${s.mascota_id}`,
+        petType: s.mascota_tipo || "Perro",
+        status: (s.estado || "pendiente").replace("_", " "),
+        date: s.creada_en ? new Date(s.creada_en).toLocaleDateString("es-CO") : "",
+        time: s.creada_en ? new Date(s.creada_en).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "",
+        message: s.mensaje || "",
+        location: s.ubicacion || "",
+        hasFamily: s.tiene_familia,
+        hasExperience: s.tiene_experiencia,
+        notas: s.notas || "",
+      })));
+    } catch (e) {
+      setError(e?.message || "No se pudieron cargar las solicitudes");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
 
   const filteredRequests = requests.filter(req => {
     const matchesSearch = req.user.toLowerCase().includes(searchTerm.toLowerCase()) || req.pet.toLowerCase().includes(searchTerm.toLowerCase());
@@ -74,10 +98,17 @@ export default function ShelterRequests() {
     return matchesSearch && matchesStatus;
   });
 
-  const updateStatus = (id, newStatus) => {
-    setRequests(requests.map(req => req.id === id ? { ...req, status: newStatus } : req));
-    if (selectedRequest?.id === id) {
-      setSelectedRequest({ ...selectedRequest, status: newStatus });
+  const updateStatus = async (id, newStatus) => {
+    // Normaliza el estado para el backend (quita espacios, usa guion bajo)
+    const estadoBackend = newStatus.replace(" ", "_");
+    try {
+      await actualizarEstado(id, estadoBackend);
+      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: newStatus } : r));
+      if (selectedRequest?.id === id) {
+        setSelectedRequest((prev) => ({ ...prev, status: newStatus }));
+      }
+    } catch (e) {
+      setError(e?.message || "No se pudo actualizar el estado");
     }
   };
 
@@ -214,7 +245,15 @@ export default function ShelterRequests() {
 
       {/* Requests List */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {filteredRequests.length === 0 ? (
+        {error && (
+          <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{error}</div>
+        )}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+            <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+            <p>Cargando solicitudes...</p>
+          </div>
+        ) : filteredRequests.length === 0 ? (
           <div className="text-center py-20 animate-fade-in-up">
             <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
               <ClipboardList className="w-10 h-10 text-rose-400 dark:text-rose-400/60" />
