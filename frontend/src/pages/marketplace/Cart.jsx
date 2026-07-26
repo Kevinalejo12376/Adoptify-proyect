@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { listarProductos } from "../../api/productos";
+import { crearPedido } from "../../api/pedidos";
+import { useAuth } from "../../context/AuthContext";
 import {
   ShoppingCart,
   Trash2,
@@ -8,20 +10,16 @@ import {
   Minus,
   ArrowLeft,
   ShoppingBag,
-  Package,
   Truck,
   CreditCard,
   ShieldCheck,
   Sparkles,
-  Heart,
-  Star,
   X,
-  MinusIcon,
-  PlusIcon,
   ChevronRight,
-  Tag,
   Clock,
   MapPin,
+  CheckCircle,
+  Loader2,
 } from "lucide-react";
 import { useCart } from "../../context/CartContext";
 
@@ -47,6 +45,12 @@ export default function Cart() {
   const [promoCode, setPromoCode] = useState("");
   const [promoApplied, setPromoApplied] = useState(false);
   const [promoError, setPromoError] = useState("");
+
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
+  const [orderResult, setOrderResult] = useState(null);
 
   const shipping = cartTotal >= 50 ? 0 : 9.99;
   const discount = promoApplied ? cartTotal * 0.1 : 0;
@@ -94,6 +98,30 @@ export default function Cart() {
     return () => { activo = false; };
   }, []);
 
+  const handleCheckout = async () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    setCheckingOut(true);
+    setCheckoutError("");
+    try {
+      const pedido = await crearPedido({
+        items: cart.map((i) => ({ producto_id: i.id, cantidad: i.quantity })),
+        costo_envio: shipping,
+        descuento: discount,
+        codigo_promocion: promoApplied ? promoCode : null,
+        metodo_pago: "Contra entrega",
+      });
+      clearCart();
+      setOrderResult(pedido);
+    } catch (e) {
+      setCheckoutError(e?.message || "No se pudo completar el pedido. Intenta de nuevo.");
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
   const handleAddSuggested = (product) => {
     addToCart(product);
     setAddedSuggested((prev) => ({ ...prev, [product.id]: true }));
@@ -101,6 +129,36 @@ export default function Cart() {
       setAddedSuggested((prev) => ({ ...prev, [product.id]: false }));
     }, 1500);
   };
+
+  // Pantalla de confirmacion tras el checkout
+  if (orderResult) {
+    return (
+      <div className="min-h-screen pt-24 pb-16 bg-gradient-to-br from-rose-50 via-white to-amber-50 dark:from-dark-bg dark:via-dark-card dark:to-dark-bg">
+        <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 text-center py-16">
+          <div className="w-24 h-24 mx-auto mb-6 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center">
+            <CheckCircle className="w-12 h-12 text-emerald-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text font-display mb-2">
+            ¡Pedido realizado!
+          </h1>
+          <p className="text-gray-500 dark:text-dark-text-secondary mb-2">
+            Tu pedido <span className="font-bold text-gray-900 dark:text-dark-text">{orderResult.numero}</span> fue registrado con éxito.
+          </p>
+          <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 font-display mb-8">
+            Total: ${Number(orderResult.total).toFixed(2)}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link to="/store" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all">
+              <ShoppingBag className="w-5 h-5" /> Seguir comprando
+            </Link>
+            <button onClick={() => setOrderResult(null)} className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-700 dark:text-dark-text font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-dark-border transition-all">
+              Volver al carrito
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (cart.length === 0) {
     return (
@@ -415,9 +473,16 @@ export default function Cart() {
               </div>
 
               {/* Checkout Button */}
-              <button className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg shadow-rose-200/50 dark:shadow-rose-500/20 text-lg mb-4">
-                <CreditCard className="w-5 h-5" />
-                Proceder al pago
+              {checkoutError && (
+                <p className="text-sm text-red-500 mb-3 text-center">{checkoutError}</p>
+              )}
+              <button
+                onClick={handleCheckout}
+                disabled={checkingOut}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg shadow-rose-200/50 dark:shadow-rose-500/20 text-lg mb-4 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {checkingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : <CreditCard className="w-5 h-5" />}
+                {checkingOut ? "Procesando..." : user ? "Proceder al pago" : "Inicia sesión para comprar"}
               </button>
 
               {/* Payment methods */}

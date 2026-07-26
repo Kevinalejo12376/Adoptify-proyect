@@ -1,6 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { STORE_CREDENTIALS, mockStoreData } from "../data/store/mockStoreData";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { loginRequest, registerRequest, fetchMe, logoutRequest, fetchProfile } from "../api/auth";
 import { getToken } from "../api/client";
 import {
@@ -140,17 +139,6 @@ export const AuthProvider = ({ children }) => {
     window.location.href = "/";
   };
 
-  // --- Store (Tienda Aliada) Login (mock) ---
-  const storeLogin = (email, password) => {
-    if (email === STORE_CREDENTIALS.email && password === STORE_CREDENTIALS.password) {
-      const storeData = { ...mockStoreData, ultimoAcceso: new Date().toISOString() };
-      setUser(storeData);
-      localStorage.setItem("user", JSON.stringify(storeData));
-      return { success: true, user: storeData };
-    }
-    return { success: false, error: "Credenciales incorrectas" };
-  };
-
   const isAdmin = () => {
     const r = user?.role || user?.rol;
     return r === "administrador_principal" || r === "administrador";
@@ -180,7 +168,7 @@ export const AuthProvider = ({ children }) => {
         profileCompleted,
         apiLogin, apiRegister,       // reales (usuario/refugio)
         login, register, logout,     // mock setters
-        storeLogin, isAdmin, isStore,
+        isAdmin, isStore,
         addFavorite, removeFavorite, isFavorite,
         checkProfileStatus, markProfileCompleted, openProfileModal,
       }}

@@ -583,7 +583,7 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
     nombre: "", descripcion: "", logo_url: "", email: "", telefono: "",
     ciudad: "", direccion: "", website: "", facebook: "", instagram: "",
     responsable_nombre: "", responsable_email: "", responsable_telefono: "",
-    email_acceso: "", password: "", confirmar_password: "", estado: "pendiente",
+    password: "", estado: "activa",
   });
   const [fieldErrors, setFieldErrors] = useState({});
   const [touched, setTouched] = useState({});
@@ -607,17 +607,16 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
       case "website":
         if (v && !/^https?:\/\/.+/.test(v)) return "Debe iniciar con http:// o https://";
         return "";
-      case "email_acceso":
-        if (!v) return "El correo de acceso es obligatorio";
+      case "responsable_nombre":
+        if (!v) return "El nombre del responsable es obligatorio";
+        return "";
+      case "responsable_email":
+        if (!v) return "El correo del responsable es obligatorio";
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Formato de correo inválido";
         return "";
       case "password":
         if (!v) return "La contraseña es obligatoria";
         if (v.length < 6) return "Debe tener al menos 6 caracteres";
-        return "";
-      case "confirmar_password":
-        if (!v) return "Debes confirmar la contraseña";
-        if (v !== formData.password) return "Las contraseñas no coinciden";
         return "";
       default:
         return "";
@@ -640,7 +639,7 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
 
   const validateAll = () => {
     const errors = {};
-    const fields = ["nombre", "email", "email_acceso", "password", "confirmar_password", "telefono", "website"];
+    const fields = ["nombre", "email", "responsable_nombre", "responsable_email", "password", "telefono", "website"];
     const newTouched = { ...touched };
     let hasError = false;
     fields.forEach((f) => {
@@ -687,21 +686,21 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
 
   const regenerarPassword = () => {
     const pwd = generarPasswordAuto();
-    setFormData((prev) => ({ ...prev, password: pwd, confirmar_password: pwd }));
-    if (touched.password) setFieldErrors((prev) => ({ ...prev, password: "", confirmar_password: "" }));
+    setFormData((prev) => ({ ...prev, password: pwd }));
+    if (touched.password) setFieldErrors((prev) => ({ ...prev, password: "" }));
   };
 
   useEffect(() => {
     if (isOpen && generarPassword) {
       const pwd = generarPasswordAuto();
-      setFormData((prev) => ({ ...prev, password: pwd, confirmar_password: pwd }));
+      setFormData((prev) => ({ ...prev, password: pwd }));
     }
     if (!isOpen) {
       setFormData({
         nombre: "", descripcion: "", logo_url: "", email: "", telefono: "",
         ciudad: "", direccion: "", website: "", facebook: "", instagram: "",
         responsable_nombre: "", responsable_email: "", responsable_telefono: "",
-        email_acceso: "", password: "", confirmar_password: "", estado: "pendiente",
+        password: "", estado: "activa",
       });
       setFieldErrors({});
       setTouched({});
@@ -752,13 +751,16 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
 
         {/* Sección: Responsable */}
         <div className="border-t border-gray-100 dark:border-dark-border pt-5">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-1 flex items-center gap-2">
             <User size={16} className="text-amber-500" />
             Datos del Responsable
           </h3>
+          <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-3">
+            El correo del responsable es el que usará para <span className="font-semibold">iniciar sesión</span>. El correo de la tienda es solo de contacto.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ValidatedInput label="Nombre completo" name="responsable_nombre" value={formData.responsable_nombre} onChange={handleChange} placeholder="Nombre del encargado" />
-            <ValidatedInput label="Correo electrónico" name="responsable_email" type="email" value={formData.responsable_email} onChange={handleChange} placeholder="responsable@ejemplo.com" />
+            <ValidatedInput label="Nombre completo" name="responsable_nombre" value={formData.responsable_nombre} onChange={handleChange} onBlur={handleBlur} error={fieldErrors.responsable_nombre} touched={touched.responsable_nombre} placeholder="Nombre del encargado" required />
+            <ValidatedInput label="Correo (inicio de sesión)" name="responsable_email" type="email" value={formData.responsable_email} onChange={handleChange} onBlur={handleBlur} error={fieldErrors.responsable_email} touched={touched.responsable_email} placeholder="responsable@ejemplo.com" required />
             <ValidatedInput label="Teléfono" name="responsable_telefono" value={formData.responsable_telefono} onChange={handleChange} placeholder="+57 300 123 4567" />
           </div>
         </div>
@@ -769,8 +771,14 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
             <Shield size={16} className="text-emerald-500" />
             Credenciales de Acceso
           </h3>
+          <div className="p-3 mb-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <MailIcon size={15} className="flex-shrink-0" />
+            <span className="min-w-0 truncate">
+              Iniciará sesión con:{" "}
+              <span className="font-semibold">{formData.responsable_email || "correo del responsable"}</span>
+            </span>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ValidatedInput label="Correo de inicio de sesión" name="email_acceso" type="email" value={formData.email_acceso} onChange={handleChange} onBlur={handleBlur} error={fieldErrors.email_acceso} touched={touched.email_acceso} placeholder="acceso@ejemplo.com" required />
             <div>
               <label className="block text-xs font-semibold text-gray-600 dark:text-dark-text-secondary mb-1.5">Contraseña temporal *</label>
               <div className="flex gap-2">
@@ -792,11 +800,13 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
                   <RefreshCw size={16} />
                 </button>
               </div>
+              <p className="mt-1 text-[11px] text-gray-400 dark:text-dark-text-secondary">
+                Se genera automáticamente. Compártela con el responsable.
+              </p>
               {touched.password && fieldErrors.password && (
                 <p className="flex items-center gap-1 mt-1 text-xs text-red-500">{fieldErrors.password}</p>
               )}
             </div>
-            <ValidatedInput label="Confirmar contraseña" name="confirmar_password" type="text" value={formData.confirmar_password} onChange={handleChange} onBlur={handleBlur} error={fieldErrors.confirmar_password} touched={touched.confirmar_password} placeholder="Repite la contraseña" required />
             <div>
               <label className="block text-xs font-semibold text-gray-600 dark:text-dark-text-secondary mb-1.5">Estado inicial</label>
               <select name="estado" value={formData.estado} onChange={handleChange}

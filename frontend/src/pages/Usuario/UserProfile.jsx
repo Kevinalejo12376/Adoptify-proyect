@@ -9,7 +9,6 @@ import {
   Image, Globe, Plus,
   Search, Users, Share2, ArrowUp, Quote, Sparkles, Loader2
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
 import { misSolicitudes } from "../../api/solicitudes";
 import { idsMascotasFavoritas } from "../../api/favoritos";
 

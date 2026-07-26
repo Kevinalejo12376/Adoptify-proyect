@@ -70,6 +70,46 @@ def serialize_solicitud(s):
     }
 
 
+def serialize_pedido(p, solo_tienda_id=None):
+    """Serializa un pedido con sus items. Si solo_tienda_id se indica, filtra
+    los items a los de esa tienda y recalcula el subtotal desde la vista de la tienda."""
+    items = p.items or []
+    if solo_tienda_id is not None:
+        items = [it for it in items if it.producto and it.producto.tienda_id == solo_tienda_id]
+    items_data = [
+        {
+            "id": it.id,
+            "producto_id": it.producto_id,
+            "nombre_producto": it.nombre_producto,
+            "precio_unitario": float(it.precio_unitario) if it.precio_unitario is not None else 0,
+            "cantidad": it.cantidad,
+            "subtotal": float(it.subtotal) if it.subtotal is not None else 0,
+            "tienda_id": it.producto.tienda_id if it.producto else None,
+        }
+        for it in items
+    ]
+    subtotal_vista = sum(i["subtotal"] for i in items_data) if solo_tienda_id is not None else (float(p.subtotal) if p.subtotal is not None else 0)
+    return {
+        "id": p.id,
+        "numero": f"PED-{p.id:05d}",
+        "usuario_id": p.usuario_id,
+        "estado": p.estado.codigo if p.estado else None,
+        "estado_nombre": p.estado.nombre if p.estado else None,
+        "subtotal": subtotal_vista,
+        "costo_envio": float(p.costo_envio) if p.costo_envio is not None else 0,
+        "descuento": float(p.descuento) if p.descuento is not None else 0,
+        "total": (subtotal_vista if solo_tienda_id is not None else (float(p.total) if p.total is not None else 0)),
+        "codigo_promocion": p.codigo_promocion,
+        "nombre_contacto": p.nombre_contacto,
+        "telefono_contacto": p.telefono_contacto,
+        "direccion_envio": p.direccion_envio,
+        "metodo_pago": p.metodo_pago,
+        "notas": p.notas,
+        "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        "items": items_data,
+    }
+
+
 def serialize_producto(p):
     return {
         "id": p.id,
@@ -90,4 +130,5 @@ def serialize_producto(p):
         "categoria_id": p.categoria_id,
         "refugio_id": p.refugio_id,
         "tienda_id": p.tienda_id,
+        "creado_en": p.creado_en.isoformat() if p.creado_en else None,
     }

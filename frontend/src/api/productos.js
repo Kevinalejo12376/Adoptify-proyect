@@ -27,3 +27,21 @@ export const actualizarProducto = (id, payload) =>
 
 /** Elimina un producto. */
 export const eliminarProducto = (id) => apiFetch(`${base}/${id}`, { method: "DELETE" });
+
+// ===== Reseñas / valoraciones =====
+
+/** Lista publica de reseñas de un producto. */
+export const listarResenas = (productoId) =>
+  apiFetch(`${base}/${productoId}/resenas`, { auth: false });
+
+/** Crea o actualiza la reseña del usuario para un producto. */
+export const crearResena = (productoId, payload) =>
+  apiFetch(`${base}/${productoId}/resenas`, { method: "POST", body: payload });
+
+/** Edita una reseña propia. */
+export const actualizarResena = (productoId, resenaId, payload) =>
+  apiFetch(`${base}/${productoId}/resenas/${resenaId}`, { method: "PUT", body: payload });
+
+/** Elimina una reseña propia. */
+export const eliminarResena = (productoId, resenaId) =>
+  apiFetch(`${base}/${productoId}/resenas/${resenaId}`, { method: "DELETE" });

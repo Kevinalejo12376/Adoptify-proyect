@@ -12,7 +12,7 @@ const REMEMBER_KEY = "adoptify_remembered_email";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { apiLogin, storeLogin } = useAuth();
+  const { apiLogin } = useAuth();
 
   // Recuperar email guardado de "Recordarme"
   const savedEmail = localStorage.getItem(REMEMBER_KEY) || "";
@@ -127,18 +127,6 @@ export default function Login() {
       }, 1500);
       return;
     } catch (err) {
-      // Fallback: Tienda aliada (cuenta demo mock, aun no esta en el backend)
-      const storeResult = storeLogin(email, password);
-      if (storeResult.success) {
-        setIsLoading(false);
-        setSuccess(true);
-        // Guardar también para tiendas
-        if (rememberMe) {
-          localStorage.setItem(REMEMBER_KEY, email);
-        }
-        setTimeout(() => navigate("/tienda/dashboard"), 1500);
-        return;
-      }
       setIsLoading(false);
       setErrors((prev) => ({
         ...prev,

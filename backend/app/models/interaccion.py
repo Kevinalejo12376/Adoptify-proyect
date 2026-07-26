@@ -62,3 +62,18 @@ class ForoReaccion(Base):
     post_id = Column(Integer, ForeignKey("foro_posts.id", ondelete="CASCADE"), nullable=False)
     usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
     tipo_reaccion_id = Column(Integer, ForeignKey("tipos_reaccion.id"), nullable=False)
+
+
+class Resena(Base):
+    """Reseña/valoración de un producto hecha por un usuario."""
+    __tablename__ = "resenas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"))
+    calificacion = Column(Integer, nullable=False)
+    comentario = Column(Text)
+    creada_en = Column(DateTime(timezone=True), server_default=func.now())
+    editada_en = Column(DateTime(timezone=True))
+
+    usuario = relationship("Usuario", lazy="joined")

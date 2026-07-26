@@ -1,31 +1,23 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
 import {
-  BarChart3, TrendingUp, TrendingDown, DollarSign, ShoppingCart, Users,
-  Star, Package, ArrowUpRight, ArrowDownRight,
+  DollarSign, ShoppingCart, Users, Star, Package, TrendingUp, Loader2,
 } from "lucide-react";
-import {
-  mockStoreSalesByMonth,
-  mockStoreTopProducts,
-  mockStoreProducts,
-  mockStoreOrders,
-  mockStoreFrequentClients,
-  mockStoreReviews,
-} from "../../data/store/mockStoreData";
+import { estadisticasTienda, misProductosTienda } from "../../api/tienda";
 
-// --- Simple Bar Chart ---
-function BarChart({ data, labels, color = "from-rose-500 to-amber-500", height = 200 }) {
-  const max = Math.max(...data, 1);
+// Grafica de barras simple con datos reales.
+function BarChart({ items, height = 200, color = "from-rose-500 to-amber-500" }) {
+  const max = Math.max(...items.map((i) => i.value), 1);
+  if (items.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-8">Sin datos suficientes</p>;
+  }
   return (
     <div className="flex items-end justify-between gap-2" style={{ height: `${height}px` }}>
-      {data.map((value, index) => (
-        <div key={index} className="flex flex-col items-center gap-1.5 flex-1">
-          <span className="text-[10px] font-medium text-gray-400">{value}</span>
-          <div
-            className="w-full rounded-lg bg-gradient-to-t ${color} transition-all duration-500 min-h-[4px]"
-            style={{ height: `${(value / max) * 100}%` }}
-          />
-          <span className="text-[10px] font-medium text-gray-400">{labels[index]}</span>
+      {items.map((it, index) => (
+        <div key={index} className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+          <span className="text-[10px] font-medium text-gray-400">{it.value}</span>
+          <div className={`w-full rounded-lg bg-gradient-to-t ${color} transition-all duration-500 min-h-[4px]`}
+            style={{ height: `${(it.value / max) * 100}%` }} />
+          <span className="text-[10px] font-medium text-gray-400 truncate w-full text-center" title={it.label}>{it.label}</span>
         </div>
       ))}
     </div>
@@ -33,20 +25,48 @@ function BarChart({ data, labels, color = "from-rose-500 to-amber-500", height =
 }
 
 export default function StoreStatistics() {
-  const salesData = mockStoreSalesByMonth;
-  const topProducts = mockStoreTopProducts;
-  const allProducts = mockStoreProducts;
-  const orders = mockStoreOrders;
-  const clients = mockStoreFrequentClients;
-  const reviews = mockStoreReviews;
+  const [stats, setStats] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Productos menos vendidos (orden inverso)
-  const leastSold = [...allProducts]
-    .sort((a, b) => a.vendidos - b.vendidos)
-    .slice(0, 5);
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const [est, prods] = await Promise.all([
+          estadisticasTienda().catch(() => null),
+          misProductosTienda().catch(() => []),
+        ]);
+        if (!activo) return;
+        setStats(est);
+        setProducts(prods || []);
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
 
-  const totalIngresos = salesData.ingresos.reduce((a, b) => a + b, 0);
-  const totalVentas = salesData.ventas.reduce((a, b) => a + b, 0);
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-gray-500 dark:text-dark-text-secondary">
+        <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+        <p>Cargando estadísticas...</p>
+      </div>
+    );
+  }
+
+  const s = stats || {};
+  const top = s.top_productos || [];
+  const leastSold = [...products].sort((a, b) => (a.ventas || 0) - (b.ventas || 0)).slice(0, 5);
+
+  const summary = [
+    { icon: DollarSign, color: "text-emerald-500", label: "Ingresos", value: `$${Number(s.ingresos ?? 0).toLocaleString("es-CO")}` },
+    { icon: Package, color: "text-rose-500", label: "Productos", value: s.total_productos ?? 0 },
+    { icon: TrendingUp, color: "text-purple-500", label: "Ventas acumuladas", value: s.total_ventas ?? 0 },
+    { icon: ShoppingCart, color: "text-blue-500", label: "Pedidos", value: s.total_pedidos ?? 0 },
+    { icon: Star, color: "text-yellow-500", label: "Calificación prom.", value: s.rating_promedio ?? 0 },
+  ];
 
   return (
     <div className="space-y-6">
@@ -54,95 +74,30 @@ export default function StoreStatistics() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text font-display">Estadísticas</h1>
         <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-          Analiza el rendimiento de tu tienda con datos detallados.
+          Rendimiento de tu tienda con datos reales.
         </p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-4 border border-gray-100 dark:border-dark-border">
-          <div className="flex items-center justify-between mb-2">
-            <DollarSign size={18} className="text-emerald-500" />
-            <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600">
-              <TrendingUp size={12} /> +16.7%
-            </span>
+        {summary.map((c) => (
+          <div key={c.label} className="bg-white dark:bg-dark-card rounded-2xl p-4 border border-gray-100 dark:border-dark-border">
+            <c.icon size={18} className={`${c.color} mb-2`} />
+            <p className="text-lg font-bold text-gray-900 dark:text-dark-text">{c.value}</p>
+            <p className="text-[10px] text-gray-400">{c.label}</p>
           </div>
-          <p className="text-lg font-bold text-gray-900 dark:text-dark-text">${totalIngresos.toLocaleString("es-CO")}</p>
-          <p className="text-[10px] text-gray-400">Ingresos totales</p>
-        </div>
-
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-4 border border-gray-100 dark:border-dark-border">
-          <div className="flex items-center justify-between mb-2">
-            <ShoppingCart size={18} className="text-blue-500" />
-            <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600">
-              <TrendingUp size={12} /> +14.3%
-            </span>
-          </div>
-          <p className="text-lg font-bold text-gray-900 dark:text-dark-text">{totalVentas}</p>
-          <p className="text-[10px] text-gray-400">Total ventas</p>
-        </div>
-
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-4 border border-gray-100 dark:border-dark-border">
-          <div className="flex items-center justify-between mb-2">
-            <ShoppingCart size={18} className="text-purple-500" />
-            <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600">
-              <TrendingUp size={12} /> +18.2%
-            </span>
-          </div>
-          <p className="text-lg font-bold text-gray-900 dark:text-dark-text">{orders.length}</p>
-          <p className="text-[10px] text-gray-400">Pedidos totales</p>
-        </div>
-
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-4 border border-gray-100 dark:border-dark-border">
-          <div className="flex items-center justify-between mb-2">
-            <Users size={18} className="text-amber-500" />
-            <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600">
-              <TrendingUp size={12} /> +12.5%
-            </span>
-          </div>
-          <p className="text-lg font-bold text-gray-900 dark:text-dark-text">{clients.length}</p>
-          <p className="text-[10px] text-gray-400">Clientes frecuentes</p>
-        </div>
-
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-4 border border-gray-100 dark:border-dark-border">
-          <div className="flex items-center justify-between mb-2">
-            <Star size={18} className="text-yellow-500" />
-            <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600">
-              <TrendingUp size={12} /> +2.3%
-            </span>
-          </div>
-          <p className="text-lg font-bold text-gray-900 dark:text-dark-text">{reviews.length}</p>
-          <p className="text-[10px] text-gray-400">Calificaciones</p>
-        </div>
+        ))}
       </div>
 
-      {/* Charts Row */}
+      {/* Charts Row (reales) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Ventas por mes */}
         <div className="bg-white dark:bg-dark-card rounded-2xl p-5 border border-gray-100 dark:border-dark-border">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Ventas por Mes</h3>
-          <BarChart data={salesData.ventas} labels={salesData.labels} />
+          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Top productos por ventas</h3>
+          <BarChart items={top.map((p) => ({ label: p.nombre?.slice(0, 8) || "-", value: p.ventas || 0 }))} />
         </div>
-
-        {/* Ingresos por mes */}
         <div className="bg-white dark:bg-dark-card rounded-2xl p-5 border border-gray-100 dark:border-dark-border">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Ingresos por Mes</h3>
-          <BarChart data={salesData.ingresos.map((v) => Math.round(v / 10000))} labels={salesData.labels} color="from-emerald-500 to-teal-500" />
-          <div className="flex justify-between mt-2">
-            <span className="text-xs text-gray-400">Valores en decenas de miles</span>
-          </div>
-        </div>
-
-        {/* Pedidos por mes */}
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-5 border border-gray-100 dark:border-dark-border">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Pedidos por Mes</h3>
-          <BarChart data={salesData.pedidos} labels={salesData.labels} color="from-blue-500 to-indigo-500" />
-        </div>
-
-        {/* Clientes por mes */}
-        <div className="bg-white dark:bg-dark-card rounded-2xl p-5 border border-gray-100 dark:border-dark-border">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Clientes por Mes</h3>
-          <BarChart data={salesData.clientes} labels={salesData.labels} color="from-purple-500 to-pink-500" />
+          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Top productos por stock</h3>
+          <BarChart items={[...products].sort((a, b) => (b.stock || 0) - (a.stock || 0)).slice(0, 6).map((p) => ({ label: p.nombre?.slice(0, 8) || "-", value: p.stock || 0 }))} color="from-blue-500 to-indigo-500" />
         </div>
       </div>
 
@@ -150,37 +105,34 @@ export default function StoreStatistics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Productos más vendidos */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border overflow-hidden">
-          <div className="p-4 border-b border-gray-100 dark:border-dark-border flex items-center justify-between">
+          <div className="p-4 border-b border-gray-100 dark:border-dark-border">
             <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Productos más vendidos</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-dark-border bg-gray-50/50">
+                <tr className="border-b border-gray-100 dark:border-dark-border bg-gray-50/50 dark:bg-dark-bg/50">
                   <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">#</th>
                   <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Producto</th>
                   <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Vendidos</th>
-                  <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Ingresos</th>
+                  <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Precio</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
-                {topProducts.map((product, index) => (
+                {top.length > 0 ? top.map((product, index) => (
                   <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-dark-border">
                     <td className="px-4 py-2.5">
                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${
-                        index === 0 ? "bg-amber-100 text-amber-600" :
-                        index === 1 ? "bg-gray-100 text-gray-500" :
-                        index === 2 ? "bg-orange-100 text-orange-600" :
-                        "bg-gray-50 text-gray-400"
+                        index === 0 ? "bg-amber-100 text-amber-600" : index === 1 ? "bg-gray-100 text-gray-500" : index === 2 ? "bg-orange-100 text-orange-600" : "bg-gray-50 text-gray-400"
                       }`}>{index + 1}</div>
                     </td>
                     <td className="px-4 py-2.5 text-sm font-semibold text-gray-900 dark:text-dark-text">{product.nombre}</td>
-                    <td className="px-4 py-2.5 text-right text-sm text-gray-600">{product.vendidos}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-semibold text-gray-900 dark:text-dark-text">
-                      ${product.ingresos.toLocaleString("es-CO")}
-                    </td>
+                    <td className="px-4 py-2.5 text-right text-sm text-gray-600 dark:text-dark-text-secondary">{product.ventas}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-semibold text-gray-900 dark:text-dark-text">${Number(product.precio).toLocaleString("es-CO")}</td>
                   </tr>
-                ))}
+                )) : (
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-400">Aún no hay ventas registradas</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -188,102 +140,56 @@ export default function StoreStatistics() {
 
         {/* Productos menos vendidos */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border overflow-hidden">
-          <div className="p-4 border-b border-gray-100 dark:border-dark-border flex items-center justify-between">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Productos menos vendidos</h3>
+          <div className="p-4 border-b border-gray-100 dark:border-dark-border">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Productos con menos ventas</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-dark-border bg-gray-50/50">
+                <tr className="border-b border-gray-100 dark:border-dark-border bg-gray-50/50 dark:bg-dark-bg/50">
                   <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Producto</th>
                   <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Vendidos</th>
                   <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Stock</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
-                {leastSold.map((product) => (
+                {leastSold.length > 0 ? leastSold.map((product) => (
                   <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-dark-border">
                     <td className="px-4 py-2.5 text-sm font-semibold text-gray-900 dark:text-dark-text">{product.nombre}</td>
-                    <td className="px-4 py-2.5 text-right text-sm text-gray-600">{product.vendidos}</td>
+                    <td className="px-4 py-2.5 text-right text-sm text-gray-600 dark:text-dark-text-secondary">{product.ventas || 0}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <span className={`text-sm font-medium ${product.stock === 0 ? "text-red-500" : product.stock <= product.stockMinimo ? "text-amber-500" : "text-gray-600"}`}>
-                        {product.stock}
+                      <span className={`text-sm font-medium ${(product.stock || 0) === 0 ? "text-red-500" : (product.stock || 0) <= 5 ? "text-amber-500" : "text-gray-600 dark:text-dark-text-secondary"}`}>
+                        {product.stock || 0}
                       </span>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr><td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-400">Sin productos</td></tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Clientes frecuentes */}
+        {/* Clientes frecuentes (aún no disponible) */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border overflow-hidden">
-          <div className="p-4 border-b border-gray-100 dark:border-dark-border flex items-center justify-between">
+          <div className="p-4 border-b border-gray-100 dark:border-dark-border">
             <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Clientes Frecuentes</h3>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-dark-border bg-gray-50/50">
-                  <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Cliente</th>
-                  <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Compras</th>
-                  <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Total gastado</th>
-                  <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Última compra</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
-                {clients.map((client, index) => (
-                  <tr key={index} className="hover:bg-gray-50 dark:hover:bg-dark-border">
-                    <td className="px-4 py-2.5 text-sm font-semibold text-gray-900 dark:text-dark-text">{client.nombre}</td>
-                    <td className="px-4 py-2.5 text-right text-sm text-gray-600">{client.compras}</td>
-                    <td className="px-4 py-2.5 text-right text-sm font-semibold text-gray-900 dark:text-dark-text">
-                      ${client.totalGastado.toLocaleString("es-CO")}
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-sm text-gray-500">
-                      {new Date(client.ultimaCompra).toLocaleDateString("es-CO")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="text-center py-10">
+            <Users size={26} className="mx-auto text-gray-300 dark:text-dark-border mb-2" />
+            <p className="text-sm text-gray-400">Aún no hay datos de clientes</p>
           </div>
         </div>
 
-        {/* Calificaciones */}
+        {/* Calificaciones (aún no disponible) */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border overflow-hidden">
-          <div className="p-4 border-b border-gray-100 dark:border-dark-border flex items-center justify-between">
+          <div className="p-4 border-b border-gray-100 dark:border-dark-border">
             <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Calificaciones Recientes</h3>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-dark-border bg-gray-50/50">
-                  <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Usuario</th>
-                  <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Producto</th>
-                  <th className="text-center px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Calificación</th>
-                  <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Fecha</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
-                {reviews.slice(0, 5).map((review) => (
-                  <tr key={review.id} className="hover:bg-gray-50 dark:hover:bg-dark-border">
-                    <td className="px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-dark-text">{review.usuario}</td>
-                    <td className="px-4 py-2.5 text-sm text-gray-500">{review.productoNombre}</td>
-                    <td className="px-4 py-2.5 text-center">
-                      <div className="flex items-center justify-center gap-0.5">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star key={star} size={10} className={star <= review.calificacion ? "text-amber-400 fill-amber-400" : "text-gray-300"} />
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-sm text-gray-500">
-                      {new Date(review.fecha).toLocaleDateString("es-CO")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="text-center py-10">
+            <Star size={26} className="mx-auto text-gray-300 dark:text-dark-border mb-2" />
+            <p className="text-sm text-gray-400">Aún no hay calificaciones</p>
           </div>
         </div>
       </div>

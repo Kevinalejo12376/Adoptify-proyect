@@ -22,6 +22,9 @@ from app.models.solicitud import SolicitudAdopcion
 from app.models.producto import Producto
 from app.models.tienda import Tienda
 from app.models.catalogos import Rol, TipoDocumento, EstadoMascota
+from app.models.foro import ForoPost
+from app.models.interaccion import Resena
+from app.core.notificaciones import registrar_auditoria
 from app.schemas.admin import (
     AdminUsuarioCreate, AdminUsuarioUpdate, AdminUsuarioResponse,
     TiendaCreate, TiendaUpdate, TiendaEstadoUpdate, TiendaResponse, TiendaResumen,
@@ -84,6 +87,8 @@ def estadisticas(_admin: Usuario = Depends(get_current_admin), db: Session = Dep
         "mascotas_adoptadas": conteo_mascotas_estado.get(adoptado_id, 0) if adoptado_id else 0,
         "solicitudes": db.query(SolicitudAdopcion).count(),
         "productos": db.query(Producto).count(),
+        "foro_posts": db.query(ForoPost).count(),
+        "resenas": db.query(Resena).count(),
     }
 
 ROLES_VALIDOS = {"usuario", "refugio", "administrador", "administrador_principal", "tienda_aliada"}
@@ -322,8 +327,10 @@ def eliminar_usuario(
 
 
 def _serialize_tienda(t: Tienda) -> dict:
-    """Serializa una tienda con datos del usuario asociado."""
+    """Serializa una tienda con datos del usuario responsable asociado."""
     user = t.usuario
+    resp_nombre = f"{user.nombre} {user.apellido or ''}".strip() if user else None
+    productos = t.productos or []
     return {
         "id": t.id,
         "usuario_id": t.usuario_id,
@@ -331,6 +338,10 @@ def _serialize_tienda(t: Tienda) -> dict:
         "slug": t.slug,
         "descripcion": t.descripcion,
         "ubicacion": t.ubicacion,
+        "ciudad": t.ciudad or t.ubicacion,
+        "direccion": t.direccion,
+        "logo_url": t.logo_url,
+        "estado": t.estado or "activa",
         "telefono": t.telefono,
         "email": t.email,
         "website": t.website,
@@ -338,12 +349,18 @@ def _serialize_tienda(t: Tienda) -> dict:
         "instagram": t.instagram,
         "rating": float(t.rating) if t.rating is not None else 0,
         "creado_en": t.creado_en.isoformat() if t.creado_en else None,
-        # Datos del usuario (responsable)
+        "total_productos": len(productos),
+        "total_ventas": sum((p.ventas or 0) for p in productos),
+        "ultimo_login": None,
+        # Datos del usuario responsable (su correo es el de inicio de sesion)
         "usuario_email": user.email if user else None,
-        "usuario_nombre": f"{user.nombre} {user.apellido or ''}".strip() if user else None,
+        "usuario_nombre": resp_nombre,
         "usuario_telefono": user.telefono if user else None,
         "usuario_activo": user.activo if user else True,
         "usuario_rol": user.rol_codigo if user else None,
+        "responsable_nombre": resp_nombre,
+        "responsable_email": user.email if user else None,
+        "responsable_telefono": user.telefono if user else None,
     }
 
 
@@ -354,12 +371,11 @@ def resumen_tiendas(
 ):
     """Resumen estadístico de tiendas aliadas."""
     total = db.query(Tienda).count()
-    # Estado basado en usuario.activo
-    from app.models.usuario import Usuario
-    activas = db.query(Tienda).join(Usuario).filter(Usuario.activo == True).count()
-    suspendidas = db.query(Tienda).join(Usuario).filter(Usuario.activo == False).count()
-    pendientes = 0
-    total_productos = db.query(func.count()).select_from(Tienda).join(Tienda.productos).filter(Tienda.id == Producto.tienda_id).scalar() or 0
+    # Estado basado en la columna estado de la tienda
+    activas = db.query(Tienda).filter(Tienda.estado == "activa").count()
+    suspendidas = db.query(Tienda).filter(Tienda.estado == "suspendida").count()
+    pendientes = db.query(Tienda).filter(Tienda.estado == "pendiente").count()
+    total_productos = db.query(Producto).filter(Producto.tienda_id.isnot(None)).count()
     total_ventas = db.query(func.sum(Producto.ventas)).filter(Producto.tienda_id.isnot(None)).scalar() or 0
     return {
         "total": total,
@@ -384,6 +400,10 @@ def listar_tiendas(
 ):
     """Lista tiendas aliadas con filtros, búsqueda, ordenamiento y paginación."""
     query = db.query(Tienda).options(joinedload(Tienda.usuario))
+
+    # Filtro por estado
+    if estado and estado in ("activa", "pendiente", "suspendida"):
+        query = query.filter(Tienda.estado == estado)
 
     # Búsqueda por texto (solo columnas existentes)
     if busqueda:
@@ -436,25 +456,36 @@ def crear_tienda(
     _admin: Usuario = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Crea una tienda aliada y su usuario de acceso con rol tienda_aliada."""
-    if payload.password != payload.confirmar_password:
+    """Crea una tienda aliada + su usuario responsable (rol tienda_aliada).
+
+    El correo del responsable es el de INICIO DE SESION. El correo de la
+    tienda (payload.email) es solo de contacto/visualizacion.
+    """
+    # Validacion opcional de confirmacion (si el frontend la envia)
+    if payload.confirmar_password and payload.password != payload.confirmar_password:
         raise HTTPException(status_code=400, detail="Las contraseñas no coinciden")
 
-    if db.query(Usuario).filter(Usuario.email == payload.email_acceso).first():
-        raise HTTPException(status_code=400, detail="El correo de acceso ya está registrado")
+    login_email = (payload.responsable_email or "").strip().lower()
+    if not login_email:
+        raise HTTPException(status_code=400, detail="El correo del responsable es obligatorio")
+    if db.query(Usuario).filter(Usuario.email == login_email).first():
+        raise HTTPException(status_code=400, detail="Ese correo de responsable ya está registrado")
+
+    estado = payload.estado if payload.estado in ("activa", "pendiente", "suspendida") else "activa"
 
     rol_tienda = db.query(Rol).filter(Rol.codigo == "tienda_aliada").first()
     if not rol_tienda:
         raise HTTPException(status_code=500, detail="Rol tienda_aliada no encontrado en catálogo")
 
-    # 1. Crear usuario (los datos del responsable van aquí)
-    nombre_usuario = payload.responsable_nombre or payload.nombre
+    # 1. Usuario responsable (inicia sesion con su correo personal)
+    partes = (payload.responsable_nombre or payload.nombre or "Responsable").strip().split(" ", 1)
     user = Usuario(
-        nombre=nombre_usuario,
-        email=payload.email_acceso,
+        nombre=partes[0] or "Responsable",
+        apellido=partes[1] if len(partes) > 1 else None,
+        email=login_email,
         hashed_password=get_password_hash(payload.password),
         rol_id=rol_tienda.id,
-        telefono=payload.responsable_telefono or payload.telefono,
+        telefono=payload.responsable_telefono,
         ubicacion=payload.ciudad,
         activo=True,
     )
@@ -466,7 +497,7 @@ def crear_tienda(
     if db.query(Tienda).filter(Tienda.slug == slug).first():
         slug = f"{slug}-{user.id}"
 
-    # 3. Crear tienda (solo columnas que existen en Supabase)
+    # 3. Crear tienda (el email es de contacto/display)
     tienda = Tienda(
         usuario_id=user.id,
         nombre=payload.nombre,
@@ -475,6 +506,10 @@ def crear_tienda(
         email=payload.email,
         telefono=payload.telefono,
         ubicacion=payload.ciudad,
+        ciudad=payload.ciudad,
+        direccion=payload.direccion,
+        logo_url=payload.logo_url,
+        estado=estado,
         website=payload.website,
         facebook=payload.facebook,
         instagram=payload.instagram,
@@ -524,7 +559,8 @@ def cambiar_estado_tienda(
     if not tienda:
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
 
-    # El estado se maneja mediante activo del usuario
+    # Guarda el estado en la tienda y refleja acceso en el usuario responsable
+    tienda.estado = payload.estado
     if tienda.usuario:
         tienda.usuario.activo = (payload.estado == "activa")
 

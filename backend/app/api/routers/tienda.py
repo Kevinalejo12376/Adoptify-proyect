@@ -1,0 +1,279 @@
+"""Autogestion de la Tienda Aliada autenticada (rol tienda_aliada).
+
+Cada endpoint opera sobre la tienda del usuario en sesion. Los productos se
+identifican por tienda_id. No existe (aun) modelo de items de pedido ni de
+reseñas, por eso pedidos/reseñas se entregan vacios de forma honesta.
+"""
+# pyrefly: ignore [missing-import]
+from fastapi import APIRouter, Depends, HTTPException, status
+# pyrefly: ignore [missing-import]
+from sqlalchemy.orm import Session
+# pyrefly: ignore [missing-import]
+from sqlalchemy import func
+# pyrefly: ignore [missing-import]
+from typing import List
+
+from app.db.database import get_db
+from app.core.security import get_current_tienda, verify_password, get_password_hash
+from app.core.lookups import id_por_codigo
+from app.models.usuario import Usuario
+from app.models.tienda import Tienda
+from app.models.producto import Producto
+from app.models.pedido import Pedido, PedidoItem
+from app.models.catalogos import CategoriaProducto, EstadoPedido
+from app.schemas.producto import ProductoCreate, ProductoUpdate
+from app.schemas.tienda_self import TiendaPerfilUpdate, PasswordUpdate
+from app.schemas.pedido import EstadoPedidoUpdate
+from app.schemas.serializers import serialize_producto, serialize_pedido
+
+router = APIRouter()
+
+
+def _mi_tienda(current_user: Usuario, db: Session) -> Tienda:
+    tienda = db.query(Tienda).filter(Tienda.usuario_id == current_user.id).first()
+    if not tienda:
+        raise HTTPException(status_code=404, detail="No tienes una tienda asociada")
+    return tienda
+
+
+def _serialize_tienda(t: Tienda, u: Usuario) -> dict:
+    resp_nombre = f"{u.nombre} {u.apellido or ''}".strip() if u else None
+    return {
+        "id": t.id,
+        "nombre": t.nombre,
+        "slug": t.slug,
+        "descripcion": t.descripcion,
+        "email": t.email,
+        "telefono": t.telefono,
+        "ciudad": t.ciudad or t.ubicacion,
+        "direccion": t.direccion,
+        "logo_url": t.logo_url,
+        "website": t.website,
+        "facebook": t.facebook,
+        "instagram": t.instagram,
+        "horario_semana": t.horario_semana,
+        "horario_fin_semana": t.horario_fin_semana,
+        "estado": t.estado,
+        "rating": float(t.rating) if t.rating is not None else 0,
+        "responsable_nombre": resp_nombre,
+        "responsable_email": u.email if u else None,
+        "responsable_telefono": u.telefono if u else None,
+        "creado_en": t.creado_en.isoformat() if t.creado_en else None,
+    }
+
+
+@router.get("/mi-perfil")
+def mi_perfil(current_user: Usuario = Depends(get_current_tienda), db: Session = Depends(get_db)):
+    tienda = _mi_tienda(current_user, db)
+    return _serialize_tienda(tienda, current_user)
+
+
+@router.put("/mi-perfil")
+def actualizar_mi_perfil(
+    payload: TiendaPerfilUpdate,
+    current_user: Usuario = Depends(get_current_tienda),
+    db: Session = Depends(get_db),
+):
+    tienda = _mi_tienda(current_user, db)
+    datos = payload.model_dump(exclude_unset=True)
+    if "ciudad" in datos:
+        tienda.ubicacion = datos["ciudad"]
+    for campo, valor in datos.items():
+        setattr(tienda, campo, valor)
+    db.commit()
+    db.refresh(tienda)
+    return _serialize_tienda(tienda, current_user)
+
+
+@router.get("/productos")
+def mis_productos(current_user: Usuario = Depends(get_current_tienda), db: Session = Depends(get_db)):
+    tienda = _mi_tienda(current_user, db)
+    productos = (
+        db.query(Producto)
+        .filter(Producto.tienda_id == tienda.id)
+        .order_by(Producto.creado_en.desc())
+        .all()
+    )
+    return [serialize_producto(p) for p in productos]
+
+
+@router.post("/productos", status_code=status.HTTP_201_CREATED)
+def crear_producto(
+    payload: ProductoCreate,
+    current_user: Usuario = Depends(get_current_tienda),
+    db: Session = Depends(get_db),
+):
+    tienda = _mi_tienda(current_user, db)
+    producto = Producto(
+        nombre=payload.nombre,
+        categoria_id=id_por_codigo(db, CategoriaProducto, payload.categoria),
+        precio=payload.precio,
+        descripcion=payload.descripcion,
+        descripcion_larga=payload.descripcion_larga,
+        calidad=payload.calidad,
+        stock=payload.stock,
+        marca=payload.marca,
+        material=payload.material,
+        tallas=payload.tallas,
+        colores=payload.colores,
+        refugio_id=None,
+        tienda_id=tienda.id,
+    )
+    db.add(producto)
+    db.commit()
+    db.refresh(producto)
+    return serialize_producto(producto)
+
+
+def _mi_producto(producto_id: int, current_user: Usuario, db: Session) -> Producto:
+    tienda = _mi_tienda(current_user, db)
+    producto = db.query(Producto).filter(Producto.id == producto_id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    if producto.tienda_id != tienda.id:
+        raise HTTPException(status_code=403, detail="Este producto no es de tu tienda")
+    return producto
+
+
+@router.get("/productos/{producto_id}")
+def obtener_mi_producto(producto_id: int, current_user: Usuario = Depends(get_current_tienda), db: Session = Depends(get_db)):
+    return serialize_producto(_mi_producto(producto_id, current_user, db))
+
+
+@router.put("/productos/{producto_id}")
+def actualizar_producto(
+    producto_id: int,
+    payload: ProductoUpdate,
+    current_user: Usuario = Depends(get_current_tienda),
+    db: Session = Depends(get_db),
+):
+    producto = _mi_producto(producto_id, current_user, db)
+    datos = payload.model_dump(exclude_unset=True)
+    if "categoria" in datos:
+        producto.categoria_id = id_por_codigo(db, CategoriaProducto, datos.pop("categoria"))
+    for campo, valor in datos.items():
+        setattr(producto, campo, valor)
+    db.commit()
+    db.refresh(producto)
+    return serialize_producto(producto)
+
+
+@router.delete("/productos/{producto_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_producto(
+    producto_id: int,
+    current_user: Usuario = Depends(get_current_tienda),
+    db: Session = Depends(get_db),
+):
+    producto = _mi_producto(producto_id, current_user, db)
+    db.delete(producto)
+    db.commit()
+    return None
+
+
+@router.get("/estadisticas")
+def estadisticas(current_user: Usuario = Depends(get_current_tienda), db: Session = Depends(get_db)):
+    tienda = _mi_tienda(current_user, db)
+    productos = db.query(Producto).filter(Producto.tienda_id == tienda.id).all()
+    total = len(productos)
+    activos = sum(1 for p in productos if p.activo)
+    sin_stock = sum(1 for p in productos if (p.stock or 0) <= 0)
+    total_ventas = sum((p.ventas or 0) for p in productos)
+    ratings = [float(p.rating) for p in productos if p.rating]
+    rating_promedio = round(sum(ratings) / len(ratings), 1) if ratings else 0
+    top = sorted(productos, key=lambda p: (p.ventas or 0), reverse=True)[:5]
+
+    # Pedidos e ingresos reales (por items de mi tienda)
+    ids_pedidos = _ids_pedidos_de_tienda(tienda.id, db)
+    total_pedidos = len(ids_pedidos)
+    ingresos = (
+        db.query(func.coalesce(func.sum(PedidoItem.subtotal), 0))
+        .join(Producto, Producto.id == PedidoItem.producto_id)
+        .filter(Producto.tienda_id == tienda.id)
+        .scalar()
+    )
+    return {
+        "total_productos": total,
+        "productos_activos": activos,
+        "productos_sin_stock": sin_stock,
+        "total_ventas": total_ventas,
+        "rating_promedio": rating_promedio,
+        "total_pedidos": total_pedidos,
+        "ingresos": float(ingresos or 0),
+        "top_productos": [
+            {
+                "id": p.id,
+                "nombre": p.nombre,
+                "ventas": p.ventas or 0,
+                "precio": float(p.precio) if p.precio is not None else 0,
+                "stock": p.stock or 0,
+                "rating": float(p.rating) if p.rating is not None else 0,
+            }
+            for p in top
+        ],
+    }
+
+
+def _ids_pedidos_de_tienda(tienda_id: int, db: Session):
+    filas = (
+        db.query(PedidoItem.pedido_id)
+        .join(Producto, Producto.id == PedidoItem.producto_id)
+        .filter(Producto.tienda_id == tienda_id)
+        .distinct()
+        .all()
+    )
+    return [pid for (pid,) in filas]
+
+
+@router.get("/pedidos")
+def mis_pedidos(current_user: Usuario = Depends(get_current_tienda), db: Session = Depends(get_db)):
+    """Pedidos que contienen productos de mi tienda (con solo mis items)."""
+    tienda = _mi_tienda(current_user, db)
+    ids = _ids_pedidos_de_tienda(tienda.id, db)
+    if not ids:
+        return []
+    pedidos = db.query(Pedido).filter(Pedido.id.in_(ids)).order_by(Pedido.creado_en.desc()).all()
+    return [serialize_pedido(p, solo_tienda_id=tienda.id) for p in pedidos]
+
+
+@router.get("/pedidos/{pedido_id}")
+def obtener_mi_pedido(pedido_id: int, current_user: Usuario = Depends(get_current_tienda), db: Session = Depends(get_db)):
+    tienda = _mi_tienda(current_user, db)
+    if pedido_id not in _ids_pedidos_de_tienda(tienda.id, db):
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    return serialize_pedido(pedido, solo_tienda_id=tienda.id)
+
+
+@router.patch("/pedidos/{pedido_id}/estado")
+def cambiar_estado_pedido(
+    pedido_id: int,
+    payload: EstadoPedidoUpdate,
+    current_user: Usuario = Depends(get_current_tienda),
+    db: Session = Depends(get_db),
+):
+    tienda = _mi_tienda(current_user, db)
+    if pedido_id not in _ids_pedidos_de_tienda(tienda.id, db):
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    estado_id = id_por_codigo(db, EstadoPedido, payload.estado)
+    if estado_id is None:
+        raise HTTPException(status_code=400, detail="Estado de pedido invalido")
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    pedido.estado_id = estado_id
+    db.commit()
+    db.refresh(pedido)
+    return serialize_pedido(pedido, solo_tienda_id=tienda.id)
+
+
+@router.put("/cambiar-password")
+def cambiar_password(
+    payload: PasswordUpdate,
+    current_user: Usuario = Depends(get_current_tienda),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(payload.password_actual, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="La contraseña actual no es correcta")
+    if len(payload.password_nueva or "") < 6:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 6 caracteres")
+    current_user.hashed_password = get_password_hash(payload.password_nueva)
+    db.commit()
+    return {"ok": True}

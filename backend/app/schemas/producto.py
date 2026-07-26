@@ -19,6 +19,11 @@ class ProductoCreate(BaseModel):
     colores: Optional[str] = None
 
 
+class ResenaCreate(BaseModel):
+    calificacion: int
+    comentario: Optional[str] = None
+
+
 class ProductoUpdate(BaseModel):
     nombre: Optional[str] = None
     categoria: Optional[str] = None

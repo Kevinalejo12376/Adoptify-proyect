@@ -40,22 +40,20 @@ import { useCart } from "../../context/CartContext";
 import { useFavorites } from "../../context/FavoritesContext";
 import { useAuth } from "../../context/AuthContext";
 import { categoryIcons, categoryColors } from "../../data/products";
-import { obtenerProducto } from "../../api/productos";
+import {
+  obtenerProducto, listarResenas, crearResena, actualizarResena, eliminarResena,
+} from "../../api/productos";
 
-const STORAGE_KEY = "adoptify_product_comments";
-
-const loadComments = () => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
-  } catch {
-    return {};
-  }
-};
-
-const saveComments = (allComments) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(allComments));
-};
+// Convierte una reseña del backend a la forma que usa la vista de comentarios.
+const mapResena = (r) => ({
+  id: r.id,
+  userId: r.usuario_id,
+  userName: r.usuario_nombre || "Usuario",
+  rating: r.calificacion,
+  text: r.comentario || "",
+  date: r.creada_en,
+  editedAt: r.editada_en,
+});
 
 const getQualityBadge = (quality) => {
   if (quality === "Premium") {
@@ -202,9 +200,13 @@ export default function ProductProfile() {
   }, [id]);
 
   useEffect(() => {
-    const allComments = loadComments();
-    setComments(allComments[product?.id] || []);
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!product?.id) return;
+    let activo = true;
+    listarResenas(product.id)
+      .then((data) => { if (activo) setComments((data || []).map(mapResena)); })
+      .catch(() => {});
+    return () => { activo = false; };
   }, [product?.id]);
 
   useEffect(() => {
@@ -276,33 +278,29 @@ export default function ProductProfile() {
     }
   };
 
-  const persistComments = (updatedComments) => {
-    setComments(updatedComments);
-    const allComments = loadComments();
-    allComments[product.id] = updatedComments;
-    saveComments(allComments);
+  const recargarResenas = async () => {
+    try {
+      const data = await listarResenas(product.id);
+      setComments((data || []).map(mapResena));
+    } catch (e) { /* noop */ }
   };
 
-  const handleSubmitComment = (e) => {
+  const handleSubmitComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim()) return;
-    const comment = {
-      id: Date.now(),
-      productId: product.id,
-      userId: user?.id || "anonymous",
-      userName: user?.name || user?.email || "Usuario Anónimo",
-      rating: newRating,
-      text: newComment.trim(),
-      date: new Date().toISOString(),
-    };
-    persistComments([comment, ...comments]);
-    setNewComment("");
-    setNewRating(5);
+    try {
+      await crearResena(product.id, { calificacion: newRating, comentario: newComment.trim() });
+      await recargarResenas();
+      setNewComment("");
+      setNewRating(5);
+    } catch (e2) { /* noop */ }
   };
 
-  const handleDeleteComment = (commentId) => {
-    const updatedComments = comments.filter((c) => c.id !== commentId);
-    persistComments(updatedComments);
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await eliminarResena(product.id, commentId);
+      await recargarResenas();
+    } catch (e) { /* noop */ }
   };
 
   const handleStartEdit = (comment) => {
@@ -317,14 +315,12 @@ export default function ProductProfile() {
     setEditRating(5);
   };
 
-  const handleSaveEdit = (commentId) => {
+  const handleSaveEdit = async (commentId) => {
     if (!editText.trim()) return;
-    const updatedComments = comments.map((c) =>
-      c.id === commentId
-        ? { ...c, text: editText.trim(), rating: editRating, editedAt: new Date().toISOString() }
-        : c
-    );
-    persistComments(updatedComments);
+    try {
+      await actualizarResena(product.id, commentId, { calificacion: editRating, comentario: editText.trim() });
+      await recargarResenas();
+    } catch (e) { /* noop */ }
     setEditingCommentId(null);
     setEditText("");
     setEditRating(5);

@@ -21,10 +21,10 @@ from app.models.solicitud import SolicitudAdopcion
 from app.models.tienda import Tienda
 from app.models.producto import Producto
 from app.models.soporte import Notificacion, Pqrs, Reporte, Auditoria
-from app.models.pedido import Pedido
+from app.models.pedido import Pedido, PedidoItem
 from app.models.foro import ForoPost
 from app.models.interaccion import (
-    Configuracion, FavoritoMascota, FavoritoProducto, ForoComentario, ForoReaccion,
+    Configuracion, FavoritoMascota, FavoritoProducto, ForoComentario, ForoReaccion, Resena,
 )
 
 __all__ = [
@@ -32,5 +32,5 @@ __all__ = [
     "EstadoMascota", "EstadoSolicitud", "EstadoPedido", "CategoriaProducto",
     "ForoCategoria", "TipoPostForo", "EstadoPostForo", "TipoReaccion",
     "Usuario", "Refugio", "Mascota", "SolicitudAdopcion", "Tienda", "Producto",
-    "Notificacion", "Pqrs", "Reporte", "Auditoria", "Pedido", "ForoPost",
+    "Notificacion", "Pqrs", "Reporte", "Auditoria", "Pedido", "PedidoItem", "ForoPost",
 ]
