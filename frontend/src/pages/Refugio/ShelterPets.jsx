@@ -8,6 +8,14 @@ import {
   Shield, ArrowLeft, MessageCircle, Home, ChevronRight
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
+import { Loader2 } from "lucide-react";
+import { misMascotas, crearMascota, eliminarMascota } from "../../api/mascotas";
+
+// Mapea las etiquetas del formulario a los codigos de catalogo del backend.
+const TIPO_MAP = { Perro: "perro", Gato: "gato" };
+const TAMANO_MAP = { "Pequeño": "pequeno", Mediano: "mediano", Grande: "grande" };
+const GENERO_MAP = { Macho: "macho", Hembra: "hembra" };
+const ESTADO_MAP = { disponible: "disponible", "en proceso": "en_proceso", adoptado: "adoptado" };
 
 // ============================================================
 // COMPONENTES DE FORMULARIO (nivel de módulo — estables)
@@ -230,13 +238,38 @@ export default function ShelterPets() {
   const [filterType, setFilterType] = useState("todas");
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, petId: null });
 
-  const [pets, setPets] = useState([
-    { id: 1, name: "Max", type: "Perro", breed: "Golden Retriever", age: "2 años", size: "Grande", gender: "Macho", status: "disponible", description: "Max es un perro muy cariñoso y juguetón. Le encanta correr y jugar con la pelota. Es ideal para familias con niños y espacios amplios donde pueda ejercitarse.", image: null, vaccinated: true, sterilized: true, entryDate: "10 Ene 2026", weight: "30 kg", color: "Dorado", personality: ["Juguetón", "Amigable", "Energético", "Leal"], health: "Vacunado, esterilizado, desparasitado" },
-    { id: 2, name: "Luna", type: "Gato", breed: "Siamés", age: "1 año", size: "Pequeño", gender: "Hembra", status: "disponible", description: "Luna es una gata muy tranquila y cariñosa. Le encanta dormir al sol y recibir caricias. Se lleva bien con otros gatos y es ideal para departamentos.", image: null, vaccinated: true, sterilized: false, entryDate: "5 Feb 2026", weight: "4 kg", color: "Crema", personality: ["Tranquila", "Cariñosa", "Elegante"], health: "Vacunada, desparasitada" },
-    { id: 3, name: "Rocky", type: "Perro", breed: "Pastor Alemán", age: "3 años", size: "Grande", gender: "Macho", status: "en proceso", description: "Rocky es un perro leal y protector. Ideal para familias con jardín. Tiene entrenamiento básico y es muy inteligente.", image: null, vaccinated: true, sterilized: true, entryDate: "20 Mar 2026", weight: "35 kg", color: "Negro y canela", personality: ["Leal", "Protector", "Inteligente", "Activo"], health: "Vacunado, esterilizado, desparasitado" },
-    { id: 4, name: "Mimi", type: "Gato", breed: "Persa", age: "4 años", size: "Mediano", gender: "Hembra", status: "adoptado", description: "Mimi es una gata elegante y cariñosa. Se lleva bien con otros gatos y disfruta de ambientes tranquilos.", image: null, vaccinated: true, sterilized: true, entryDate: "15 Abr 2026", weight: "5 kg", color: "Blanco y gris", personality: ["Elegante", "Cariñosa", "Tranquila"], health: "Vacunada, esterilizada" },
-    { id: 5, name: "Thor", type: "Perro", breed: "Husky", age: "1 año", size: "Mediano", gender: "Macho", status: "disponible", description: "Thor es un cachorro lleno de energía. Necesita espacio para correr y una familia activa que pueda dedicarle tiempo de ejercicio.", image: null, vaccinated: false, sterilized: false, entryDate: "1 Jun 2026", weight: "22 kg", color: "Gris y blanco", personality: ["Energético", "Juguetón", "Sociable"], health: "Pendiente vacunación" },
-  ]);
+  const [pets, setPets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Carga las mascotas del refugio desde la base de datos.
+  const cargarPets = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await misMascotas();
+      setPets(data.map((m) => ({
+        id: m.id,
+        name: m.nombre,
+        type: m.tipo || "Perro",
+        breed: m.raza || "",
+        age: m.edad || "",
+        size: m.tamano || "",
+        gender: m.genero || "",
+        status: (m.estado || "disponible").replace("_", " "),
+        description: m.descripcion || "",
+        vaccinated: m.vacunado,
+        sterilized: m.esterilizado,
+        image: null,
+      })));
+    } catch (e) {
+      setError(e?.message || "No se pudieron cargar las mascotas");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { cargarPets(); }, [cargarPets]);
 
   const emptyPet = {
     name: "", type: "Perro", breed: "", age: "", size: "Mediano",
@@ -269,22 +302,40 @@ export default function ShelterPets() {
     );
   };
 
-  const handleAddPet = (e) => {
+  const handleAddPet = async (e) => {
     e.preventDefault();
-    const newId = pets.length + 1;
-    setPets([...pets, {
-      ...newPet, id: newId, image: null,
-      entryDate: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
-    }]);
-    setShowAddModal(false);
-    setNewPet({ ...emptyPet });
+    setError(null);
+    try {
+      await crearMascota({
+        nombre: newPet.name,
+        tipo: TIPO_MAP[newPet.type] || "perro",
+        tamano: TAMANO_MAP[newPet.size] || null,
+        genero: GENERO_MAP[newPet.gender] || null,
+        estado: ESTADO_MAP[newPet.status] || "disponible",
+        raza: newPet.breed,
+        edad: newPet.age,
+        descripcion: newPet.description,
+        vacunado: !!newPet.vaccinated,
+        esterilizado: !!newPet.sterilized,
+      });
+      setShowAddModal(false);
+      setNewPet({ ...emptyPet });
+      await cargarPets();
+    } catch (err) {
+      setError(err?.message || "No se pudo registrar la mascota");
+    }
   };
 
-  const handleDeletePet = () => {
-    if (confirmDelete.petId) {
-      setPets(pets.filter(p => p.id !== confirmDelete.petId));
-    }
+  const handleDeletePet = async () => {
+    const id = confirmDelete.petId;
     setConfirmDelete({ isOpen: false, petId: null });
+    if (!id) return;
+    try {
+      await eliminarMascota(id);
+      await cargarPets();
+    } catch (err) {
+      setError(err?.message || "No se pudo eliminar la mascota");
+    }
   };
 
   const openPetDetail = (pet) => {
@@ -295,18 +346,13 @@ export default function ShelterPets() {
     navigate(`/refugio/mascotas/editar/${pet.id}`, { state: { pet: { ...pet, images: pet.images || [] } } });
   };
 
-  // Listen for updates from edit/detail pages
+  // Al volver de editar/eliminar en otra pagina, recarga desde la BD.
   useEffect(() => {
-    if (location.state?.updatedPet) {
-      const updated = location.state.updatedPet;
-      setPets(prev => prev.map(p => p.id === updated.id ? updated : p));
+    if (location.state?.updatedPet || location.state?.deletedPetId) {
+      cargarPets();
       window.history.replaceState({}, document.title);
     }
-    if (location.state?.deletedPetId) {
-      setPets(prev => prev.filter(p => p.id !== location.state.deletedPetId));
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state]);
+  }, [location.state, cargarPets]);
 
   return (
     <div className="min-h-screen pt-24 pb-16">
@@ -351,7 +397,15 @@ export default function ShelterPets() {
 
       {/* Pet Grid */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {filteredPets.length === 0 ? (
+        {error && (
+          <div className="mb-6 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{error}</div>
+        )}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+            <Loader2 className="w-9 h-9 animate-spin text-rose-500 mb-3" />
+            <p>Cargando mascotas...</p>
+          </div>
+        ) : filteredPets.length === 0 ? (
           <div className="text-center py-20 animate-fade-in-up">
             <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
               <PawPrint className="w-10 h-10 text-rose-400 dark:text-rose-400/60" />

@@ -8,6 +8,7 @@ from typing import List
 from app.db.database import get_db
 from app.core.security import get_current_user, get_current_refugio
 from app.core.lookups import id_por_codigo
+from app.core.notificaciones import crear_notificacion, registrar_auditoria
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.mascota import Mascota
@@ -17,6 +18,19 @@ from app.schemas.solicitud import SolicitudCreate, SolicitudResponse, SolicitudE
 from app.schemas.serializers import serialize_solicitud
 
 router = APIRouter()
+
+
+def _enrich(s: SolicitudAdopcion, db: Session) -> dict:
+    """Serializa la solicitud y agrega mascota_nombre/mascota_tipo desde la BD
+    sin depender de lazy loading (que puede colgar la sesion)."""
+    from app.models.catalogos import TipoMascota
+    d = serialize_solicitud(s)
+    row = db.query(Mascota.nombre, Mascota.tipo_id).filter(Mascota.id == s.mascota_id).first()
+    if row:
+        d["mascota_nombre"] = row[0]
+        tipo_row = db.query(TipoMascota.nombre).filter(TipoMascota.id == row[1]).first()
+        d["mascota_tipo"] = tipo_row[0] if tipo_row else None
+    return d
 
 
 @router.post("/", response_model=SolicitudResponse, status_code=status.HTTP_201_CREATED)
@@ -43,24 +57,39 @@ def crear_solicitud(
         tiene_experiencia=payload.tiene_experiencia,
     )
     db.add(solicitud)
+    db.flush()
+
+    # Notifica al refugio dueno de la mascota
+    if mascota.refugio:
+        uid = db.query(Refugio.usuario_id).filter(Refugio.id == mascota.refugio_id).scalar()
+        if uid:
+            crear_notificacion(
+                db, uid, tipo="nueva_solicitud",
+                mensaje=f"Nueva solicitud de adopcion para {mascota.nombre} de {payload.nombre_contacto}",
+                enlace="/refugio/solicitudes",
+            )
+    registrar_auditoria(db, current_user.id, "crear_solicitud", "solicitudes_adopcion",
+                        solicitud.id, f"Solicitud para mascota id {mascota.id}")
     db.commit()
     db.refresh(solicitud)
-    return serialize_solicitud(solicitud)
+    return _enrich(solicitud, db)
 
 
 @router.get("/mias", response_model=List[SolicitudResponse])
 def mis_solicitudes(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Historial de adopciones del usuario autenticado."""
     solicitudes = (
         db.query(SolicitudAdopcion)
         .filter(SolicitudAdopcion.usuario_id == current_user.id)
         .order_by(SolicitudAdopcion.creada_en.desc())
         .all()
     )
-    return [serialize_solicitud(s) for s in solicitudes]
+    return [_enrich(s, db) for s in solicitudes]
 
 
 @router.get("/recibidas", response_model=List[SolicitudResponse])
 def solicitudes_recibidas(current_user: Usuario = Depends(get_current_refugio), db: Session = Depends(get_db)):
+    """Solicitudes recibidas por el refugio autenticado."""
     refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
     if not refugio:
         raise HTTPException(status_code=404, detail="Refugio no encontrado")
@@ -71,7 +100,7 @@ def solicitudes_recibidas(current_user: Usuario = Depends(get_current_refugio), 
         .order_by(SolicitudAdopcion.creada_en.desc())
         .all()
     )
-    return [serialize_solicitud(s) for s in solicitudes]
+    return [_enrich(s, db) for s in solicitudes]
 
 
 @router.patch("/{solicitud_id}/estado", response_model=SolicitudResponse)
@@ -92,4 +121,4 @@ def actualizar_estado(
     solicitud.estado_id = nuevo_estado_id
     db.commit()
     db.refresh(solicitud)
-    return serialize_solicitud(solicitud)
+    return _enrich(solicitud, db)

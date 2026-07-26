@@ -1,21 +1,43 @@
-import React, { useState } from "react";
-import { ClipboardList, Calendar, Clock, User, Dog, Cat, Heart, Search, Filter, CheckCircle, XCircle, AlertCircle, Download, ArrowUp, ChevronDown, MapPin } from "lucide-react";
+﻿import React, { useState, useEffect, useCallback } from "react";
+import { ClipboardList, Calendar, Clock, User, Dog, Cat, Heart, Search, Filter, CheckCircle, XCircle, AlertCircle, Download, ArrowUp, ChevronDown, MapPin, Loader2 } from "lucide-react";
+import { solicitudesRecibidas } from "../../api/solicitudes";
 
 export default function ShelterAdoptionHistory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todas");
   const [timeFilter, setTimeFilter] = useState("todos");
+  const [adoptions, setAdoptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [adoptions] = useState([
-    { id: 1, user: "Ana López", pet: "Max", petType: "Perro", status: "finalizada", date: "14 Jul 2026", time: "10:30 AM", location: "Bogotá", notes: "Adopción exitosa. La familia tiene amplio jardín.", completedDate: "20 Jul 2026" },
-    { id: 2, user: "Carlos Ruiz", pet: "Luna", petType: "Gato", status: "finalizada", date: "13 Jul 2026", time: "3:45 PM", location: "Medellín", notes: "Adopción exitosa. Carlos tiene experiencia con gatos.", completedDate: "18 Jul 2026" },
-    { id: 3, user: "María Fernández", pet: "Rocky", petType: "Perro", status: "finalizada", date: "12 Jul 2026", time: "9:15 AM", location: "Cali", notes: "Adoptado por una veterinaria. Excelente hogar.", completedDate: "15 Jul 2026" },
-    { id: 4, user: "Pedro Martínez", pet: "Mimi", petType: "Gato", status: "finalizada", date: "10 Jul 2026", time: "2:00 PM", location: "Bogotá", notes: "Mimi se adaptó muy bien a su nuevo hogar.", completedDate: "12 Jul 2026" },
-    { id: 5, user: "Laura Gómez", pet: "Thor", petType: "Perro", status: "cerrada", date: "8 Jul 2026", time: "11:30 AM", location: "Barranquilla", notes: "Solicitud cerrada por cambio de situación laboral.", completedDate: "10 Jul 2026" },
-    { id: 6, user: "Sofía Ramírez", pet: "Rocky", petType: "Perro", status: "finalizada", date: "28 Jun 2026", time: "4:00 PM", location: "Bogotá", notes: "Familia con experiencia previa en adopciones.", completedDate: "5 Jul 2026" },
-    { id: 7, user: "Andrés Torres", pet: "Luna", petType: "Gato", status: "finalizada", date: "20 Jun 2026", time: "10:00 AM", location: "Medellín", notes: "Adoptado para compañía de adulto mayor.", completedDate: "25 Jun 2026" },
-    { id: 8, user: "Valentina Ortiz", pet: "Max", petType: "Perro", status: "cerrada", date: "15 Jun 2026", time: "1:30 PM", location: "Cali", notes: "Solicitud cerrada por no cumplir con requisitos.", completedDate: "18 Jun 2026" },
-  ]);
+  const cargar = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const data = await solicitudesRecibidas();
+      // Historial: solo finalizadas o cerradas
+      const historial = data.filter((s) => ["finalizada", "cerrada"].includes(s.estado));
+      setAdoptions(historial.map((s) => ({
+        id: s.id,
+        user: s.nombre_contacto,
+        pet: s.mascota_nombre || `Mascota #${s.mascota_id}`,
+        petType: s.mascota_tipo || "Perro",
+        status: s.estado,
+        date: s.creada_en ? new Date(s.creada_en).toLocaleDateString("es-CO") : "",
+        time: s.creada_en ? new Date(s.creada_en).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "",
+        location: s.ubicacion || "",
+        notes: s.notas || s.mensaje || "",
+        completedDate: "",
+      })));
+    } catch (e) {
+      setError(e?.message || "No se pudo cargar el historial");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+
 
   const getStatusBadge = (status) => {
     const config = {
@@ -41,8 +63,16 @@ export default function ShelterAdoptionHistory() {
   const finalizadas = adoptions.filter(a => a.status === "finalizada").length;
   const cerradas = adoptions.filter(a => a.status === "cerrada").length;
 
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-screen text-gray-500">
+      <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+      <p>Cargando historial...</p>
+    </div>
+  );
+
   return (
     <div className="min-h-screen pt-24 pb-16">
+      {error && <div className="mx-auto max-w-7xl px-4 mb-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{error}</div>}
       {/* Header */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

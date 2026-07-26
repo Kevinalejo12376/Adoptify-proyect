@@ -19,6 +19,7 @@
 -- 0. LIMPIEZA (elimina tablas si existen, en orden seguro)
 -- ============================================================
 DROP TABLE IF EXISTS
+    auditoria, reportes, pqrs,
     notificaciones, actividades, campanas, eventos,
     foro_reacciones, foro_comentarios, foro_post_imagenes, foro_posts,
     pedido_items, pedidos, codigos_promocion, carrito_items,
@@ -45,7 +46,6 @@ CREATE TABLE tipos_documento (
 );
 INSERT INTO tipos_documento (codigo, nombre) VALUES
     ('CC',  'Cedula de ciudadania'),
-    ('TI',  'Tarjeta de identidad'),
     ('CE',  'Cedula de extranjeria'),
     ('PA',  'Pasaporte'),
     ('NIT', 'NIT');
@@ -69,8 +69,7 @@ CREATE TABLE tipos_mascota (
 );
 INSERT INTO tipos_mascota (codigo, nombre) VALUES
     ('perro', 'Perro'),
-    ('gato',  'Gato'),
-    ('otro',  'Otro');
+    ('gato',  'Gato');
 
 CREATE TABLE tamanos_mascota (
     id     BIGSERIAL PRIMARY KEY,
@@ -108,7 +107,7 @@ CREATE TABLE estados_solicitud (
 );
 INSERT INTO estados_solicitud (codigo, nombre) VALUES
     ('pendiente',   'Pendiente'),
-    ('en_revision', 'En revision'),
+    ('en_proceso', 'En Proceso'),
     ('contactado',  'Contactado'),
     ('finalizada',  'Finalizada'),
     ('cerrada',     'Cerrada');
@@ -122,6 +121,7 @@ INSERT INTO estados_pedido (codigo, nombre) VALUES
     ('pendiente', 'Pendiente'),
     ('pagado',    'Pagado'),
     ('enviado',   'Enviado'),
+    ('en_camino', 'En Camino'),
     ('entregado', 'Entregado'),
     ('cancelado', 'Cancelado');
 
@@ -168,7 +168,7 @@ INSERT INTO tipos_post_foro (codigo, nombre) VALUES
     ('question', 'Pregunta'),
     ('tip',      'Consejo'),
     ('event',    'Evento'),
-    ('campaign', 'Campana'),
+    ('campaign', 'Campaña'),
     ('donation', 'Donacion');
 
 CREATE TABLE estados_post_foro (
@@ -567,6 +567,40 @@ CREATE TABLE notificaciones (
 );
 CREATE INDEX idx_notificaciones_usuario ON notificaciones(usuario_id);
 
+-- PQRS (Peticiones, Quejas, Reclamos, Sugerencias)
+CREATE TABLE pqrs (
+    id          BIGSERIAL PRIMARY KEY,
+    usuario_id  BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    tipo        VARCHAR(20) NOT NULL DEFAULT 'peticion',
+    asunto      VARCHAR(200) NOT NULL,
+    mensaje     TEXT NOT NULL,
+    estado      VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+    respuesta   TEXT,
+    creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Reportes de contenido (posts, productos, usuarios, mascotas)
+CREATE TABLE reportes (
+    id             BIGSERIAL PRIMARY KEY,
+    reportante_id  BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    tipo_objeto    VARCHAR(20) NOT NULL,
+    objeto_id      BIGINT,
+    motivo         TEXT NOT NULL,
+    estado         VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Auditoria de acciones (registro de actividad del sistema)
+CREATE TABLE auditoria (
+    id          BIGSERIAL PRIMARY KEY,
+    usuario_id  BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    accion      VARCHAR(60) NOT NULL,
+    entidad     VARCHAR(60),
+    entidad_id  BIGINT,
+    detalle     TEXT,
+    creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ============================================================
 -- 8. SEGURIDAD A NIVEL DE FILA (RLS)
 -- ============================================================
@@ -626,7 +660,23 @@ ALTER TABLE eventos                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE campanas                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE actividades              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notificaciones           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pqrs                     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reportes                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auditoria                ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
--- FIN DEL ESQUEMA  (13 catalogos + 28 tablas de datos)
+-- FIN DEL ESQUEMA
+-- 13 catalogos + 32 tablas de datos = 45 tablas en total
+-- Catalogos: tipos_documento, roles, tipos_mascota, tamanos_mascota,
+--   generos_mascota, estados_mascota, estados_solicitud, estados_pedido,
+--   categorias_producto, foro_categorias, tipos_post_foro, estados_post_foro,
+--   tipos_reaccion
+-- Datos: usuarios, refugios, configuraciones, refugio_imagenes,
+--   mascotas, mascota_imagenes, solicitudes_adopcion, favoritos_mascotas,
+--   tiendas, tienda_imagenes, productos, producto_imagenes,
+--   producto_caracteristicas, resenas, resenas_refugio, favoritos_productos,
+--   carrito_items, codigos_promocion, pedidos, pedido_items,
+--   foro_posts, foro_post_imagenes, foro_comentarios, foro_reacciones,
+--   eventos, campanas, actividades, notificaciones,
+--   pqrs, reportes, auditoria, (+ super-admin se inserta al arrancar el backend)
 -- ============================================================

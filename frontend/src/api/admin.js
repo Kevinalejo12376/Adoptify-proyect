@@ -40,3 +40,37 @@ export async function listarMascotas() {
 export async function eliminarMascota(id) {
   return apiFetch(`${base}/mascotas/${id}`, { method: "DELETE" });
 }
+
+/** Lista todos los productos (con su vendedor). */
+export async function listarProductos() {
+  return apiFetch(`${base}/productos`);
+}
+
+/** Elimina un producto. */
+export async function eliminarProducto(id) {
+  return apiFetch(`${base}/productos/${id}`, { method: "DELETE" });
+}
+
+// ===== PQRS =====
+export async function listarPqrs() { return apiFetch(`${base}/pqrs`); }
+export async function actualizarPqrs(id, payload) {
+  return apiFetch(`${base}/pqrs/${id}`, { method: "PATCH", body: payload });
+}
+
+// ===== Reportes =====
+export async function listarReportes() { return apiFetch(`${base}/reportes`); }
+export async function actualizarReporte(id, payload) {
+  return apiFetch(`${base}/reportes/${id}`, { method: "PATCH", body: payload });
+}
+
+// ===== Pedidos =====
+export async function listarPedidos() { return apiFetch(`${base}/pedidos`); }
+
+// ===== Foro =====
+export async function listarForoAdmin() { return apiFetch(`${base}/foro`); }
+export async function eliminarPostAdmin(id) {
+  return apiFetch(`${base}/foro/${id}`, { method: "DELETE" });
+}
+
+// ===== Auditoría =====
+export async function listarAuditoria() { return apiFetch(`${base}/auditoria`); }

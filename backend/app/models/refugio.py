@@ -1,6 +1,5 @@
 # pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
@@ -19,6 +18,11 @@ class Refugio(Base):
     email = Column(String(255))
     facebook = Column(String(120))
     instagram = Column(String(120))
+    website = Column(String(150))
+    anio_fundacion = Column(Integer)
+    total_rescatados = Column(Integer, nullable=False, default=0)
+    total_voluntarios = Column(Integer, nullable=False, default=0)
+    verificado = Column(Boolean, nullable=False, default=False)
     tienda_habilitada = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 

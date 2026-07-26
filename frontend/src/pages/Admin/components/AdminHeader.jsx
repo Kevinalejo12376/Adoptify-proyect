@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search, Bell, Sun, Moon, User, ChevronDown, LogOut, Settings,
@@ -6,18 +6,47 @@ import {
   Sliders, ExternalLink,
 } from "lucide-react";
 import { useTheme } from "../../../context/ThemeContext";
-import { mockNotificaciones } from "../../../data/admin/mockData";
+import { listarNotificaciones, marcarLeida, marcarTodasLeidas } from "../../../api/notificaciones";
+
+// Icono y color segun el tipo de notificacion
+const getTipoIcon = (tipo) => {
+  const map = {
+    nuevo_refugio: Building2,
+    nuevo_usuario: UserPlus,
+    nueva_mascota: PawPrint,
+    nueva_solicitud: MessageSquare,
+    reporte: Flag,
+    pqrs: HelpCircle,
+    pedido: ShoppingCart,
+    admin: Shield,
+  };
+  return map[tipo] || MessageSquare;
+};
+
+const getTipoColor = (tipo) => {
+  const map = {
+    nuevo_refugio: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
+    nuevo_usuario: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+    nueva_mascota: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
+    nueva_solicitud: "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400",
+    reporte: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
+    pqrs: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
+  };
+  return map[tipo] || "bg-gray-50 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400";
+};
 
 export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [busqueda, setBusqueda] = useState("");
-  const [notificacionesOpen, setNotificacionesOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [perfilOpen, setPerfilOpen] = useState(false);
   const notifRef = useRef(null);
   const perfilRef = useRef(null);
 
-  const notificacionesNoLeidas = mockNotificaciones.filter((n) => !n.leida).length;
+  // --- Notificaciones reales ---
+  const [notifs, setNotifs] = useState([]);
+  const noLeidas = notifs.filter((n) => !n.leida).length;
 
   const getTipoIcon = (tipo) => {
     switch (tipo) {
@@ -28,26 +57,37 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
       case "admin": return "Shield";
       default: return "MessageSquare";
     }
-  };
+  }, []);
 
-  const getTipoColor = (tipo) => {
-    switch (tipo) {
-      case "refugio": return "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400";
-      case "reporte": return "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400";
-      case "pqrs": return "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400";
-      case "pedido": return "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400";
-      case "admin": return "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400";
-      default: return "bg-gray-50 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400";
-    }
-  };
-
+  // Carga inicial y refresca cada 30 segundos
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotificacionesOpen(false);
+    cargarNotifs();
+    const timer = setInterval(cargarNotifs, 30000);
+    return () => clearInterval(timer);
+  }, [cargarNotifs]);
+
+  const handleClickNotif = async (notif) => {
+    if (!notif.leida) {
+      await marcarLeida(notif.id);
+      setNotifs((prev) => prev.map((n) => (n.id === notif.id ? { ...n, leida: true } : n)));
+    }
+    if (notif.enlace) navigate(notif.enlace);
+    setNotifOpen(false);
+  };
+
+  const handleMarcarTodas = async () => {
+    await marcarTodasLeidas();
+    setNotifs((prev) => prev.map((n) => ({ ...n, leida: true })));
+  };
+
+  // Cerrar al hacer click fuera
+  useEffect(() => {
+    const h = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
       if (perfilRef.current && !perfilRef.current.contains(e.target)) setPerfilOpen(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
 
   const handleSearchSubmit = (e) => {
@@ -106,7 +146,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
-          {/* Notificaciones */}
+          {/* Notificaciones reales */}
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setNotificacionesOpen(!notificacionesOpen)}
@@ -124,8 +164,10 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
               <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
                 <div className="p-3 border-b border-gray-100 dark:border-dark-border flex items-center justify-between">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Notificaciones</h3>
-                  {notificacionesNoLeidas > 0 && (
-                    <span className="text-xs text-rose-500 font-medium">{notificacionesNoLeidas} sin leer</span>
+                  {noLeidas > 0 && (
+                    <button onClick={handleMarcarTodas} className="text-xs text-rose-500 hover:text-rose-600 font-medium">
+                      Marcar todas leídas
+                    </button>
                   )}
                 </div>
                 <div className="max-h-80 overflow-y-auto scrollbar-hide">
