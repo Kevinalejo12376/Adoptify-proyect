@@ -5,13 +5,10 @@ import {
   CheckCircle, Store, Eye, X, ShoppingBag, ChevronRight, ChevronLeft,
   Package, Sparkles, Shield, Award
 } from "lucide-react";
-import {
-  products as allProducts,
-  getProductsByShelter,
-  categoryIcons,
-  categoryColors,
-} from "../../data/products";
+import { Loader2 } from "lucide-react";
 import { useFavorites } from "../../context/FavoritesContext";
+import { obtenerRefugio } from "../../api/refugios";
+import { listarMascotas } from "../../api/mascotas";
 
 export default function ShelterDetails() {
   const { id } = useParams();
@@ -24,50 +21,13 @@ export default function ShelterDetails() {
   const [isVisible, setIsVisible] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
 
-  // Mock reviews data
-  const reviews = [
-    {
-      id: 1,
-      user: "María García",
-      avatar: null,
-      rating: 5,
-      date: "Hace 2 días",
-      comment: "Excelente refugio, muy comprometidos con el bienestar animal. Adopté a mi perrito Max y todo el proceso fue muy transparente y lleno de amor. Recomiendo totalmente.",
-    },
-    {
-      id: 2,
-      user: "Carlos López",
-      avatar: null,
-      rating: 4,
-      date: "Hace 1 semana",
-      comment: "Muy buen lugar, los animales están bien cuidados. El proceso de adopción fue rápido y bien explicado. Solo sugiero mejorar la comunicación en horarios.",
-    },
-    {
-      id: 3,
-      user: "Ana Martínez",
-      avatar: null,
-      rating: 5,
-      date: "Hace 2 semanas",
-      comment: "Hermosa experiencia. Rescataron a mi gatita Luna de la calle y la rehabilitaron con mucho cariño. Ahora es parte de nuestra familia. Infinitas gracias.",
-    },
-    {
-      id: 4,
-      user: "Pedro Sánchez",
-      avatar: null,
-      rating: 4,
-      date: "Hace 3 semanas",
-      comment: "Buen servicio y atención. Los voluntarios son muy dedicados. Me gustaría que tuvieran más horarios disponibles para visitas.",
-    },
-    {
-      id: 5,
-      user: "Laura Torres",
-      avatar: null,
-      rating: 5,
-      date: "Hace 1 mes",
-      comment: "El mejor refugio de la ciudad. Adopté a mi compañero fiel gracias a ellos. Hacen una labor increíble con recursos limitados. Todo mi apoyo.",
-    },
-  ];
+  // Datos reales del refugio
+  const [shelter, setShelter] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
+  // Las resenas aun no tienen endpoint publico -> lista vacia por ahora
+  const reviews = [];
   const displayedReviews = showAllReviews ? reviews : reviews.slice(0, 3);
 
   // Get initials for review avatars
@@ -81,51 +41,69 @@ export default function ShelterDetails() {
 
   useEffect(() => {
     setIsVisible(true);
-  }, []);
+    let activo = true;
+    (async () => {
+      setLoading(true); setNotFound(false);
+      try {
+        const r = await obtenerRefugio(id);
+        // Trae las mascotas del refugio (filtra por refugio en cliente)
+        let pets = [];
+        try {
+          const todas = await listarMascotas();
+          pets = todas
+            .filter((m) => m.refugio_id === r.id)
+            .slice(0, 8)
+            .map((m) => ({ id: m.id, name: m.nombre, age: m.edad || "", image: null }));
+        } catch { /* ignore */ }
 
-  // Mock data - in a real app this would come from an API
-  const shelter = {
-    id: id || 1,
-    name: "Hogar de Huellas",
-    location: "Ibagué - Tolima",
-    verified: true,
-    rating: 4.8,
-    totalRatings: 127,
-    logo: null,
-    description: "Dedicados al rescate y rehabilitación de animales en situación de calle. Trabajamos con amor y dedicación para encontrar hogares responsables para cada una de nuestras mascotas.",
-    availablePets: 152,
-    adoptionsThisMonth: 24,
-    vaccinated: true,
-    sterilized: true,
-    hours: "8:00 am - 5:00 pm",
-    phone: "+57 300 123 4567",
-    email: "hogarDeHuellas@gmail.com",
-    address: "Ibagué - Tolima",
-    gallery: [
-      { id: 1, image: null },
-      { id: 2, image: null },
-      { id: 3, image: null },
-      { id: 4, image: null },
-      { id: 5, image: null },
-      { id: 6, image: null }
-    ],
-    pets: [
-      { id: 1, name: "Max", age: "7 meses", image: null },
-      { id: 2, name: "Leo", age: "4 meses", image: null },
-      { id: 3, name: "Layla", age: "24 meses", image: null },
-      { id: 4, name: "Rio", age: "12 meses", image: null }
-    ]
-  };
+        if (!activo) return;
+        setShelter({
+          id: r.id,
+          name: r.nombre,
+          location: r.ubicacion || "",
+          verified: r.verificado,
+          rating: 0,
+          totalRatings: 0,
+          logo: null,
+          description: r.descripcion || "Refugio comprometido con el bienestar animal.",
+          availablePets: pets.length,
+          adoptionsThisMonth: null,
+          vaccinated: true,
+          sterilized: true,
+          hours: "",
+          phone: r.telefono || "",
+          email: r.email || "",
+          address: r.direccion || r.ubicacion || "",
+          gallery: [],
+          pets,
+        });
+      } catch (e) {
+        if (activo) setNotFound(true);
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, [id]);
 
-  // Get products for this shelter
-  const shelterProducts = getProductsByShelter(shelter.id).slice(0, 4);
+  // Los productos por refugio se conectaran cuando exista el endpoint
+  const shelterProducts = [];
 
-  if (!shelter) {
+  if (loading) {
     return (
-      <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-rose-50 via-white to-amber-50">
-        <div className="max-w-7xl mx-auto">
-          <p>Refugio no encontrado</p>
-        </div>
+      <div className="min-h-screen pt-24 flex flex-col items-center justify-center text-gray-500">
+        <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+        <p>Cargando refugio...</p>
+      </div>
+    );
+  }
+
+  if (notFound || !shelter) {
+    return (
+      <div className="min-h-screen pt-24 pb-16 px-4 text-center">
+        <PawPrint className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500">Refugio no encontrado</p>
+        <Link to="/shelters" className="text-rose-500 hover:underline mt-2 inline-block">Volver a refugios</Link>
       </div>
     );
   }

@@ -1,8 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Shield, Eye, EyeOff, Globe, Moon, Sun, Save, ChevronRight, LogOut, Trash2, HelpCircle, Mail, X, Send, FileText, Scale, Cookie, CheckCircle } from "lucide-react";
+import { Bell, Shield, Eye, EyeOff, Globe, Moon, Sun, Save, ChevronRight, LogOut, Trash2, HelpCircle, Mail, X, Send, FileText, Scale, Cookie, CheckCircle, Loader2 } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useI18n } from "../../context/I18nContext";
+import { obtenerConfiguracion, actualizarConfiguracion } from "../../api/configuraciones";
+
+// Mapea las claves del frontend con los campos del backend de configuraciones.
+const NOTIF_MAP = {
+  email: "notif_email",
+  push: "notif_push",
+  adoptionUpdates: "notif_adopciones",
+  forumReplies: "notif_respuestas_foro",
+  newAnimals: "notif_nuevos_animales",
+};
 
 export default function Settings() {
   const { t, language, setLanguage } = useI18n();
@@ -15,6 +25,48 @@ export default function Settings() {
     forumReplies: false,
     newAnimals: true
   });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Carga la configuracion real del usuario autenticado.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const cfg = await obtenerConfiguracion();
+        if (!activo || !cfg) return;
+        setNotifications({
+          email: cfg.notif_email,
+          push: cfg.notif_push,
+          adoptionUpdates: cfg.notif_adopciones,
+          forumReplies: cfg.notif_respuestas_foro,
+          newAnimals: cfg.notif_nuevos_animales,
+        });
+      } catch (e) {
+        // se mantienen los valores por defecto
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
+  // Guarda las notificaciones (y el tema/idioma actuales) en el backend.
+  const handleSaveSettings = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      const payload = { tema: theme, idioma: language };
+      for (const [k, campo] of Object.entries(NOTIF_MAP)) {
+        payload[campo] = notifications[k];
+      }
+      await actualizarConfiguracion(payload);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      // el error deja el boton listo para reintentar
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const [privacy, setPrivacy] = useState({
     showProfile: true,
@@ -378,9 +430,19 @@ export default function Settings() {
 
         {/* Save Button */}
         <div className="mt-6">
-          <button className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg">
-            <Save className="w-5 h-5" />
-            {t("settings.save")}
+          <button
+            onClick={handleSaveSettings}
+            disabled={saving}
+            className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : saved ? (
+              <CheckCircle className="w-5 h-5" />
+            ) : (
+              <Save className="w-5 h-5" />
+            )}
+            {saving ? "Guardando..." : saved ? "¡Guardado!" : t("settings.save")}
           </button>
         </div>
       </div>

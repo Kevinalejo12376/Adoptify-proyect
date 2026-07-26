@@ -1,5 +1,5 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, Numeric, DateTime, ForeignKey, func
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -16,6 +16,29 @@ class Pedido(Base):
     descuento = Column(Numeric(10, 2), nullable=False, default=0)
     total = Column(Numeric(10, 2), nullable=False, default=0)
     codigo_promocion = Column(String(40))
+    # Datos de contacto/envio del comprador
+    nombre_contacto = Column(String(150))
+    telefono_contacto = Column(String(30))
+    direccion_envio = Column(String(255))
+    metodo_pago = Column(String(60))
+    notas = Column(Text)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     estado = relationship("EstadoPedido", lazy="joined")
+    items = relationship("PedidoItem", back_populates="pedido", cascade="all, delete-orphan")
+
+
+class PedidoItem(Base):
+    __tablename__ = "pedido_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pedido_id = Column(Integer, ForeignKey("pedidos.id", ondelete="CASCADE"), nullable=False)
+    producto_id = Column(Integer, ForeignKey("productos.id", ondelete="SET NULL"))
+    # Snapshot de datos del producto al momento de la compra
+    nombre_producto = Column(String(150), nullable=False)
+    precio_unitario = Column(Numeric(10, 2), nullable=False, default=0)
+    cantidad = Column(Integer, nullable=False, default=1)
+    subtotal = Column(Numeric(10, 2), nullable=False, default=0)
+
+    pedido = relationship("Pedido", back_populates="items")
+    producto = relationship("Producto", lazy="joined")

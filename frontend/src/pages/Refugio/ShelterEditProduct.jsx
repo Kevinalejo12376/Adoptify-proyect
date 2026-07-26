@@ -7,10 +7,23 @@ import {
   ArrowUp, ArrowDown, Camera, Sparkles
 } from "lucide-react";
 import { categoryIcons, categoryColors } from "../../data/products";
+import { actualizarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
+
+const toPayload = (d) => ({
+  nombre: d.name,
+  categoria: d.category,
+  precio: parseFloat(d.price) || 0,
+  stock: parseInt(d.stock) || 0,
+  descripcion: d.description,
+  marca: d.brand,
+  material: d.material,
+  colores: d.colors,
+  tallas: Array.isArray(d.sizes) ? d.sizes.join(",") : (d.sizes || ""),
+});
 
 const categoryFields = {
   Ropa: { sizes: true, material: true, colors: true, sizeOptions: ["XS", "S", "M", "L", "XL", "XXL"], label: "Prenda de vestir" },
@@ -207,20 +220,15 @@ export default function ShelterEditProduct() {
     setHasChanges(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
-    setTimeout(() => {
+    try {
+      await actualizarProducto(productData.id, toPayload(productData));
+      navigate("/refugio/tienda", { state: { updatedProduct: true } });
+    } catch (err) {
       setIsSaving(false);
-      const updated = {
-        ...productData,
-        price: parseFloat(productData.price),
-        stock: parseInt(productData.stock),
-        features: productData.features ? productData.features.split(",").map(f => f.trim()).filter(Boolean) : [],
-        sizes: productData.sizes || []
-      };
-      navigate("/refugio/tienda", { state: { updatedProduct: updated } });
-    }, 800);
+    }
   };
 
   const handleCancel = () => {

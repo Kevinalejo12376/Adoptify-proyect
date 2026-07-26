@@ -1,28 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Search, Bell, Sun, Moon, User, ChevronDown, LogOut, Settings,
-  Shield, BarChart3, HelpCircle, Heart, Info, UserCircle,
-  Sliders, ExternalLink,
+  Search, Bell, Sun, Moon, ChevronDown, LogOut, Settings,
+  Shield, BarChart3, HelpCircle, Heart, Info, UserCircle, Sliders,
 } from "lucide-react";
 import { useTheme } from "../../../context/ThemeContext";
 import { listarNotificaciones, marcarLeida, marcarTodasLeidas } from "../../../api/notificaciones";
 
-// Icono y color segun el tipo de notificacion
-const getTipoIcon = (tipo) => {
-  const map = {
-    nuevo_refugio: Building2,
-    nuevo_usuario: UserPlus,
-    nueva_mascota: PawPrint,
-    nueva_solicitud: MessageSquare,
-    reporte: Flag,
-    pqrs: HelpCircle,
-    pedido: ShoppingCart,
-    admin: Shield,
-  };
-  return map[tipo] || MessageSquare;
-};
-
+// Color segun el tipo de notificacion
 const getTipoColor = (tipo) => {
   const map = {
     nuevo_refugio: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
@@ -48,14 +33,12 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
   const [notifs, setNotifs] = useState([]);
   const noLeidas = notifs.filter((n) => !n.leida).length;
 
-  const getTipoIcon = (tipo) => {
-    switch (tipo) {
-      case "refugio": return "Building2";
-      case "reporte": return "Flag";
-      case "pqrs": return "HelpCircle";
-      case "pedido": return "ShoppingCart";
-      case "admin": return "Shield";
-      default: return "MessageSquare";
+  const cargarNotifs = useCallback(async () => {
+    try {
+      const data = await listarNotificaciones();
+      setNotifs(data || []);
+    } catch (e) {
+      // sin notificaciones si falla
     }
   }, []);
 
@@ -68,7 +51,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
 
   const handleClickNotif = async (notif) => {
     if (!notif.leida) {
-      await marcarLeida(notif.id);
+      try { await marcarLeida(notif.id); } catch (e) { /* noop */ }
       setNotifs((prev) => prev.map((n) => (n.id === notif.id ? { ...n, leida: true } : n)));
     }
     if (notif.enlace) navigate(notif.enlace);
@@ -76,7 +59,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
   };
 
   const handleMarcarTodas = async () => {
-    await marcarTodasLeidas();
+    try { await marcarTodasLeidas(); } catch (e) { /* noop */ }
     setNotifs((prev) => prev.map((n) => ({ ...n, leida: true })));
   };
 
@@ -108,7 +91,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
       <div className="flex items-center justify-between h-16 px-4 lg:px-6">
         {/* Botón menú hamburguesa (móvil) + Buscador */}
         <div className="flex items-center gap-3 flex-1">
-          {/* Hamburguesa móvil */}
           <button
             onClick={onMenuToggle}
             className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors"
@@ -120,7 +102,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
             </svg>
           </button>
 
-          {/* Buscador */}
           <form onSubmit={handleSearchSubmit} className="flex-1 max-w-md hidden sm:block">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -149,18 +130,18 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
           {/* Notificaciones reales */}
           <div className="relative" ref={notifRef}>
             <button
-              onClick={() => setNotificacionesOpen(!notificacionesOpen)}
+              onClick={() => setNotifOpen(!notifOpen)}
               className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-all duration-200 hover:scale-105 active:scale-95"
             >
               <Bell size={18} />
-              {notificacionesNoLeidas > 0 && (
+              {noLeidas > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-dark-card">
-                  {notificacionesNoLeidas > 9 ? "9+" : notificacionesNoLeidas}
+                  {noLeidas > 9 ? "9+" : noLeidas}
                 </span>
               )}
             </button>
 
-            {notificacionesOpen && (
+            {notifOpen && (
               <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
                 <div className="p-3 border-b border-gray-100 dark:border-dark-border flex items-center justify-between">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Notificaciones</h3>
@@ -171,14 +152,16 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
                   )}
                 </div>
                 <div className="max-h-80 overflow-y-auto scrollbar-hide">
-                  {mockNotificaciones.slice(0, 5).map((notif) => {
-                    return (
+                  {notifs.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <Bell size={28} className="mx-auto text-gray-300 dark:text-dark-border mb-2" />
+                      <p className="text-sm text-gray-400 dark:text-dark-text-secondary">Sin notificaciones</p>
+                    </div>
+                  ) : (
+                    notifs.slice(0, 8).map((notif) => (
                       <button
                         key={notif.id}
-                        onClick={() => {
-                          navigate(notif.link);
-                          setNotificacionesOpen(false);
-                        }}
+                        onClick={() => handleClickNotif(notif)}
                         className={`w-full text-left p-3 flex items-start gap-3 transition-colors hover:bg-gray-50 dark:hover:bg-dark-border ${
                           !notif.leida ? "bg-rose-50/30 dark:bg-rose-500/5" : ""
                         }`}
@@ -188,38 +171,27 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm ${!notif.leida ? "font-semibold" : "font-medium"} text-gray-900 dark:text-dark-text truncate`}>
-                            {notif.titulo}
+                            {notif.titulo || notif.tipo || "Notificación"}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-0.5 line-clamp-2">
                             {notif.mensaje}
                           </p>
-                          <p className="text-[10px] text-gray-400 dark:text-dark-text-secondary mt-1">
-                            {new Date(notif.fecha).toLocaleDateString("es-CO", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
+                          {notif.creado_en && (
+                            <p className="text-[10px] text-gray-400 dark:text-dark-text-secondary mt-1">
+                              {new Date(notif.creado_en).toLocaleDateString("es-CO", { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          )}
                         </div>
-                        {!notif.leida && (
-                          <div className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0 mt-2" />
-                        )}
+                        {!notif.leida && <div className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0 mt-2" />}
                       </button>
-                    );
-                  })}
-                </div>
-                <div className="p-2 border-t border-gray-100 dark:border-dark-border">
-                  <button
-                    onClick={() => { navigate("/admin/dashboard"); setNotificacionesOpen(false); }}
-                    className="w-full py-2 text-sm font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors"
-                  >
-                    Ver todas las notificaciones
-                  </button>
+                    ))
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Perfil - Solo avatar */}
+          {/* Perfil */}
           <div className="relative" ref={perfilRef}>
             <button
               onClick={() => setPerfilOpen(!perfilOpen)}
@@ -233,7 +205,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
 
             {perfilOpen && (
               <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
-                {/* Header del menú */}
                 <div className="p-4 border-b border-gray-100 dark:border-dark-border">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-sm font-bold text-rose-600 dark:text-rose-400">
@@ -244,102 +215,51 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
                         {adminNombre || "Admin"}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">
-                        admin@adoptify.com
+                        Administrador
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-1.5">
-                  {/* ===== MI CUENTA ===== */}
                   <div className="px-3 pt-2 pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
-                      Mi cuenta
-                    </p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Mi cuenta</p>
                   </div>
-                  <button
-                    onClick={() => handleNavigation("/admin/usuarios")}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150"
-                  >
-                    <UserCircle size={16} />
-                    Perfil
+                  <button onClick={() => handleNavigation("/admin/usuarios")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <UserCircle size={16} /> Perfil
                   </button>
-                  <button
-                    onClick={() => handleNavigation("/admin/configuracion")}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150"
-                  >
-                    <Settings size={16} />
-                    Configuración
+                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Settings size={16} /> Configuración
                   </button>
-                  <button
-                    onClick={() => handleNavigation("/admin/configuracion")}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150"
-                  >
-                    <Sliders size={16} />
-                    Preferencias
+                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Sliders size={16} /> Preferencias
                   </button>
 
-                  {/* ===== GESTIÓN ===== */}
                   <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
-                      Gestión
-                    </p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Gestión</p>
                   </div>
-                  <button
-                    onClick={() => handleNavigation("/admin/administradores")}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150"
-                  >
-                    <Shield size={16} />
-                    Administradores
+                  <button onClick={() => handleNavigation("/admin/administradores")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Shield size={16} /> Administradores
                   </button>
-                  <button
-                    onClick={() => handleNavigation("/admin/estadisticas")}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150"
-                  >
-                    <BarChart3 size={16} />
-                    Estadísticas
+                  <button onClick={() => handleNavigation("/admin/estadisticas")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <BarChart3 size={16} /> Estadísticas
                   </button>
-                  <button
-                    onClick={() => handleNavigation("/admin/pqrs")}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150"
-                  >
-                    <HelpCircle size={16} />
-                    PQRS
+                  <button onClick={() => handleNavigation("/admin/pqrs")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <HelpCircle size={16} /> PQRS
                   </button>
 
-                  {/* ===== SISTEMA ===== */}
                   <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
-                      Sistema
-                    </p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sistema</p>
                   </div>
-                  <button
-                    onClick={() => handleNavigation("/admin/usuarios")}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150"
-                  >
-                    <Heart size={16} />
-                    Centro de ayuda
-                  </button>
-                  <button
-                    onClick={() => handleNavigation("/admin/dashboard")}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150"
-                  >
-                    <Info size={16} />
-                    Acerca de Adoptify
+                  <button onClick={() => handleNavigation("/admin/dashboard")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Info size={16} /> Acerca de Adoptify
                   </button>
 
-                  {/* ===== SESIÓN ===== */}
                   <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
-                      Sesión
-                    </p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sesión</p>
                   </div>
-                  <button
-                    onClick={() => { onLogout(); setPerfilOpen(false); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 mt-1"
-                  >
-                    <LogOut size={16} />
-                    Cerrar sesión
+                  <button onClick={() => { onLogout(); setPerfilOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 mt-1">
+                    <LogOut size={16} /> Cerrar sesión
                   </button>
                 </div>
               </div>

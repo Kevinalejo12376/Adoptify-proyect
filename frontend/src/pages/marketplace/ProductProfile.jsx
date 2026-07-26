@@ -34,34 +34,26 @@ import {
   Share2,
   Eye,
   Maximize2,
+  Loader2,
 } from "lucide-react";
 import { useCart } from "../../context/CartContext";
 import { useFavorites } from "../../context/FavoritesContext";
 import { useAuth } from "../../context/AuthContext";
+import { categoryIcons, categoryColors } from "../../data/products";
 import {
-  getProductById,
-  categoryIcons,
-  categoryColors,
-  getShelterById,
-  getStoreById,
-  getSellerInfo,
-  stores,
-} from "../../data/products";
+  obtenerProducto, listarResenas, crearResena, actualizarResena, eliminarResena,
+} from "../../api/productos";
 
-const STORAGE_KEY = "adoptify_product_comments";
-
-const loadComments = () => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
-  } catch {
-    return {};
-  }
-};
-
-const saveComments = (allComments) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(allComments));
-};
+// Convierte una reseña del backend a la forma que usa la vista de comentarios.
+const mapResena = (r) => ({
+  id: r.id,
+  userId: r.usuario_id,
+  userName: r.usuario_nombre || "Usuario",
+  rating: r.calificacion,
+  text: r.comentario || "",
+  date: r.creada_en,
+  editedAt: r.editada_en,
+});
 
 const getQualityBadge = (quality) => {
   if (quality === "Premium") {
@@ -148,7 +140,8 @@ function FloatingParticles() {
 
 export default function ProductProfile() {
   const { id } = useParams();
-  const product = getProductById(id);
+  const [product, setProduct] = useState(null);
+  const [loadingProduct, setLoadingProduct] = useState(true);
   const { addToCart } = useCart();
   const { isStoreFavorite, toggleStoreFavorite } = useFavorites();
   const { user } = useAuth();
@@ -169,10 +162,51 @@ export default function ProductProfile() {
 
   const galleryRef = useRef(null);
 
+  // Carga el producto real desde la base de datos.
   useEffect(() => {
-    const allComments = loadComments();
-    setComments(allComments[product?.id] || []);
+    let activo = true;
+    setLoadingProduct(true);
+    (async () => {
+      try {
+        const p = await obtenerProducto(id);
+        if (!activo) return;
+        setProduct({
+          ...p,
+          name: p.nombre,
+          category: p.categoria,
+          price: Number(p.precio) || 0,
+          quality: p.calidad || "Estándar",
+          brand: p.marca || "—",
+          material: p.material || "—",
+          sizes: p.tallas
+            ? String(p.tallas).split(",").map((s) => s.trim()).filter(Boolean)
+            : ["Único"],
+          color: categoryColors[p.categoria] || "from-gray-400 to-gray-500",
+          gallery: [],
+          longDescription: p.descripcion_larga || p.descripcion || "",
+          features: [],
+          careInstructions: null,
+          rating: Number(p.rating) || 0,
+          reviews: p.ventas || 0,
+          stock: p.stock ?? 0,
+        });
+      } catch (e) {
+        if (activo) setProduct(null);
+      } finally {
+        if (activo) setLoadingProduct(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, [id]);
+
+  useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!product?.id) return;
+    let activo = true;
+    listarResenas(product.id)
+      .then((data) => { if (activo) setComments((data || []).map(mapResena)); })
+      .catch(() => {});
+    return () => { activo = false; };
   }, [product?.id]);
 
   useEffect(() => {
@@ -181,6 +215,15 @@ export default function ProductProfile() {
       return () => clearTimeout(timer);
     }
   }, [addedToWishlist]);
+
+  if (loadingProduct) {
+    return (
+      <div className="min-h-screen pt-28 pb-16 flex flex-col items-center justify-center text-gray-500 dark:text-dark-text-secondary">
+        <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+        <p>Cargando producto...</p>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -212,9 +255,11 @@ export default function ProductProfile() {
   const isFav = isStoreFavorite(product.id);
   const qualityBadge = getQualityBadge(product.quality);
   const QualityIcon = qualityBadge.icon;
-  const sellerInfo = getSellerInfo(product);
-  const productShelter = sellerInfo.type === 'shelter' ? sellerInfo.data : null;
-  const productStore = sellerInfo.type === 'store' ? sellerInfo.data : null;
+  // La info del vendedor se omite: el detalle de producto proviene de la BD
+  // y no incluye los datos completos del refugio/tienda.
+  const sellerInfo = { type: null };
+  const productShelter = null;
+  const productStore = null;
   const previewCommentsCount = 3;
   const displayComments = showAllComments ? comments : comments.slice(0, previewCommentsCount);
   const gallery = product.gallery || [];
@@ -233,33 +278,29 @@ export default function ProductProfile() {
     }
   };
 
-  const persistComments = (updatedComments) => {
-    setComments(updatedComments);
-    const allComments = loadComments();
-    allComments[product.id] = updatedComments;
-    saveComments(allComments);
+  const recargarResenas = async () => {
+    try {
+      const data = await listarResenas(product.id);
+      setComments((data || []).map(mapResena));
+    } catch (e) { /* noop */ }
   };
 
-  const handleSubmitComment = (e) => {
+  const handleSubmitComment = async (e) => {
     e.preventDefault();
     if (!newComment.trim()) return;
-    const comment = {
-      id: Date.now(),
-      productId: product.id,
-      userId: user?.id || "anonymous",
-      userName: user?.name || user?.email || "Usuario Anónimo",
-      rating: newRating,
-      text: newComment.trim(),
-      date: new Date().toISOString(),
-    };
-    persistComments([comment, ...comments]);
-    setNewComment("");
-    setNewRating(5);
+    try {
+      await crearResena(product.id, { calificacion: newRating, comentario: newComment.trim() });
+      await recargarResenas();
+      setNewComment("");
+      setNewRating(5);
+    } catch (e2) { /* noop */ }
   };
 
-  const handleDeleteComment = (commentId) => {
-    const updatedComments = comments.filter((c) => c.id !== commentId);
-    persistComments(updatedComments);
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await eliminarResena(product.id, commentId);
+      await recargarResenas();
+    } catch (e) { /* noop */ }
   };
 
   const handleStartEdit = (comment) => {
@@ -274,14 +315,12 @@ export default function ProductProfile() {
     setEditRating(5);
   };
 
-  const handleSaveEdit = (commentId) => {
+  const handleSaveEdit = async (commentId) => {
     if (!editText.trim()) return;
-    const updatedComments = comments.map((c) =>
-      c.id === commentId
-        ? { ...c, text: editText.trim(), rating: editRating, editedAt: new Date().toISOString() }
-        : c
-    );
-    persistComments(updatedComments);
+    try {
+      await actualizarResena(product.id, commentId, { calificacion: editRating, comentario: editText.trim() });
+      await recargarResenas();
+    } catch (e) { /* noop */ }
     setEditingCommentId(null);
     setEditText("");
     setEditRating(5);

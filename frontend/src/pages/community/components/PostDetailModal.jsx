@@ -154,16 +154,31 @@ function CommentItem({ comment, depth = 0, isDark }) {
   );
 }
 
-export default function PostDetailModal({ post, isOpen, onClose }) {
+export default function PostDetailModal({ post, isOpen, onClose, onComment, onReact }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const [newComment, setNewComment] = useState("");
   const [isSaved, setIsSaved] = useState(false);
   const [userReaction, setUserReaction] = useState(null);
+  const [sending, setSending] = useState(false);
 
   if (!isOpen || !post) return null;
 
   const isShelter = post.accountType === "shelter";
+
+  const handleSendComment = async () => {
+    const text = newComment.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      await onComment?.(post.id, text);
+      setNewComment("");
+    } catch (e) {
+      // se conserva el texto si falla
+    } finally {
+      setSending(false);
+    }
+  };
 
   const getInitials = (name) => {
     if (!name) return "?";
@@ -327,7 +342,10 @@ export default function PostDetailModal({ post, isOpen, onClose }) {
               return (
                 <button
                   key={reaction.id}
-                  onClick={() => setUserReaction(isActive ? null : reaction.id)}
+                  onClick={() => {
+                    setUserReaction(isActive ? null : reaction.id);
+                    onReact?.(post.id, reaction.id);
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                     isActive
                       ? `${reaction.activeBg} ${reaction.color}`
@@ -409,6 +427,7 @@ export default function PostDetailModal({ post, isOpen, onClose }) {
                 type="text"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendComment()}
                 placeholder="Escribe un comentario..."
                 className={`flex-1 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 ${
                   isDark
@@ -424,14 +443,15 @@ export default function PostDetailModal({ post, isOpen, onClose }) {
                 <ImageIcon className="w-5 h-5" />
               </button>
               <button
+                onClick={handleSendComment}
                 className={`p-2.5 rounded-xl transition-all ${
-                  newComment.trim()
+                  newComment.trim() && !sending
                     ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg"
                     : isDark
                     ? "bg-dark-border text-dark-text-secondary"
                     : "bg-gray-100 text-gray-400"
                 }`}
-                disabled={!newComment.trim()}
+                disabled={!newComment.trim() || sending}
               >
                 <Send className="w-4 h-4" />
               </button>

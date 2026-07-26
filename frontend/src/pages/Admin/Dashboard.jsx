@@ -5,7 +5,6 @@ import {
   TrendingUp, Activity, Calendar,
 } from "lucide-react";
 import { getEstadisticas, listarUsuarios } from "../../api/admin";
-import { mockGraficas } from "../../data/admin/mockData";
 
 // ========================================================
 // Skeleton Loading Component
@@ -265,8 +264,8 @@ export default function AdminDashboard() {
     return () => { activo = false; };
   }, []);
 
-  // Datos mock para sparklines
-  const sparklineData = mockGraficas?.usuariosRegistrados?.data || [];
+  // Sin series temporales por ahora (no hay endpoint historico).
+  const sparklineData = [];
 
   if (loading) {
     return (
@@ -323,7 +322,7 @@ export default function AdminDashboard() {
       icono: Building2, color: "emerald",
       onClick: () => navigate("/admin/refugios"),
       incremento: 5,
-      sparklineData: mockGraficas?.adopciones?.data || [],
+      sparklineData: [],
     },
     {
       titulo: "Administradores", valor: stats.administradores,
@@ -344,7 +343,7 @@ export default function AdminDashboard() {
       titulo: "Mascotas Adoptadas", valor: stats.mascotas_adoptadas,
       icono: Heart, color: "rose",
       incremento: -3,
-      sparklineData: mockGraficas?.adopciones?.data || [],
+      sparklineData: [],
     },
     {
       titulo: "Solicitudes de Adopción", valor: stats.solicitudes,
@@ -397,91 +396,36 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Sección de gráficos modernos */}
+      {/* Distribuciones reales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Usuarios Registrados por Mes */}
+        {/* Mascotas por estado */}
         <div className="animate-fade-in bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center">
-                <Users size={16} className="text-rose-500" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">
-                Usuarios Registrados por Mes
-              </h3>
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+              <PawPrint size={16} className="text-amber-500" />
             </div>
-            <span className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary">2024</span>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Mascotas por estado</h3>
           </div>
           <MiniBarChart
-            data={mockGraficas?.usuariosRegistrados?.data || []}
-            labels={mockGraficas?.usuariosRegistrados?.labels || []}
+            data={[stats.mascotas_disponibles || 0, stats.mascotas_adoptadas || 0, Math.max((stats.mascotas || 0) - (stats.mascotas_disponibles || 0) - (stats.mascotas_adoptadas || 0), 0)]}
+            labels={["Disponibles", "Adoptadas", "En proceso"]}
+            color="amber"
+            height={120}
+          />
+        </div>
+
+        {/* Cuentas registradas */}
+        <div className="animate-fade-in bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center">
+              <Users size={16} className="text-rose-500" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Cuentas registradas</h3>
+          </div>
+          <MiniBarChart
+            data={[stats.usuarios || 0, stats.refugios || 0, stats.administradores || 0]}
+            labels={["Usuarios", "Refugios", "Admins"]}
             color="rose"
-            height={120}
-          />
-        </div>
-
-        {/* Mascotas Adoptadas */}
-        <div className="animate-fade-in bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center">
-                <Heart size={16} className="text-emerald-500" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">
-                Mascotas Adoptadas
-              </h3>
-            </div>
-            <span className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary">2024</span>
-          </div>
-          <MiniBarChart
-            data={mockGraficas?.adopciones?.data || []}
-            labels={mockGraficas?.adopciones?.labels || []}
-            color="emerald"
-            height={120}
-          />
-        </div>
-
-        {/* Solicitudes de Adopción */}
-        <div className="animate-fade-in bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center">
-                <ClipboardList size={16} className="text-violet-500" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">
-                Solicitudes de Adopción
-              </h3>
-            </div>
-            <span className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary">
-              <Calendar size={12} className="inline mr-1" />
-              Últimos meses
-            </span>
-          </div>
-          <MiniBarChart
-            data={mockGraficas?.foroActividad?.publicaciones?.slice(0, 6) || []}
-            labels={mockGraficas?.foroActividad?.labels?.slice(0, 6) || []}
-            color="violet"
-            height={120}
-          />
-        </div>
-
-        {/* Productos Publicados */}
-        <div className="animate-fade-in bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
-                <Store size={16} className="text-blue-500" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">
-                Productos Publicados
-              </h3>
-            </div>
-            <span className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary">2024</span>
-          </div>
-          <MiniBarChart
-            data={mockGraficas?.foroActividad?.comentarios?.slice(0, 6) || []}
-            labels={mockGraficas?.foroActividad?.labels?.slice(0, 6) || []}
-            color="blue"
             height={120}
           />
         </div>

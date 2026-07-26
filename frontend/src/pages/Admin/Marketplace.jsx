@@ -7,7 +7,27 @@ import {
   Building2, RefreshCw, BarChart3,
   ShoppingBag,
 } from "lucide-react";
-import { mockProductosAdmin } from "../../data/admin/mockData";
+import { listarProductos as listarProductosAdmin, eliminarProducto as eliminarProductoAdmin } from "../../api/admin";
+
+// Normaliza un producto del backend admin a la forma que usa esta vista.
+const mapProdAdmin = (p) => ({
+  id: p.id,
+  nombre: p.nombre,
+  categoria: p.categoria || "",
+  precio: Number(p.precio) || 0,
+  stock: p.stock ?? 0,
+  estado: p.activo ? "visible" : "oculto",
+  tipo_vendedor: p.tipo_vendedor === "Tienda" ? "tienda" : "refugio",
+  vendedor_nombre: p.vendedor || "—",
+  fecha: p.creado_en ? new Date(p.creado_en).toLocaleDateString("es-CO") : "—",
+  reportes: 0,
+  favoritos: 0,
+  compartidos: 0,
+  visitas: 0,
+  rating: null,
+  vendedor_productos: 0,
+  imagen: null,
+});
 
 // ========================================================
 // CONSTANTES
@@ -293,11 +313,19 @@ function VistaProductos() {
   const searchTimeout = useRef(null);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setProductos(mockProductosAdmin);
-      setLoading(false);
-    }, 500);
-    return () => clearTimeout(t);
+    let activo = true;
+    (async () => {
+      try {
+        const data = await listarProductosAdmin();
+        if (!activo) return;
+        setProductos((data || []).map(mapProdAdmin));
+      } catch (e) {
+        if (activo) setProductos([]);
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
   }, []);
 
   const categorias = [...new Set(productos.map((p) => p.categoria).filter(Boolean))];
@@ -329,8 +357,13 @@ function VistaProductos() {
     ));
   };
 
-  const handleEliminar = (id) => {
-    setProductos((prev) => prev.filter((p) => p.id !== id));
+  const handleEliminar = async (id) => {
+    try {
+      await eliminarProductoAdmin(id);
+      setProductos((prev) => prev.filter((p) => p.id !== id));
+    } catch (e) {
+      // noop
+    }
   };
 
   if (loading) {

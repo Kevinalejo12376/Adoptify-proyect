@@ -59,16 +59,15 @@ class TiendaCreate(BaseModel):
     website: Optional[str] = None
     facebook: Optional[str] = None
     instagram: Optional[str] = None
-    # Datos del responsable
-    responsable_nombre: Optional[str] = None
-    responsable_email: Optional[str] = None
+    # Datos del responsable. Su correo personal es el de INICIO DE SESION.
+    responsable_nombre: str
+    responsable_email: str
     responsable_telefono: Optional[str] = None
-    # Datos de acceso
-    email_acceso: str
+    # Contraseña temporal de acceso del responsable
     password: str
-    confirmar_password: str
+    confirmar_password: Optional[str] = None
     # Estado inicial
-    estado: str = "pendiente"  # activa | pendiente | suspendida
+    estado: str = "activa"  # activa | pendiente | suspendida
 
 
 class TiendaUpdate(BaseModel):
@@ -100,6 +99,10 @@ class TiendaResponse(BaseModel):
     slug: Optional[str] = None
     descripcion: Optional[str] = None
     ubicacion: Optional[str] = None
+    ciudad: Optional[str] = None
+    direccion: Optional[str] = None
+    logo_url: Optional[str] = None
+    estado: Optional[str] = "activa"
     telefono: Optional[str] = None
     email: Optional[str] = None
     website: Optional[str] = None
@@ -107,12 +110,19 @@ class TiendaResponse(BaseModel):
     instagram: Optional[str] = None
     rating: float = 0
     creado_en: Optional[str] = None
-    # Datos del usuario asociado (responsable)
+    total_productos: int = 0
+    total_ventas: int = 0
+    ultimo_login: Optional[str] = None
+    total_registros: Optional[int] = None
+    # Datos del usuario asociado (responsable). El correo es el de login.
     usuario_email: Optional[str] = None
     usuario_nombre: Optional[str] = None
     usuario_telefono: Optional[str] = None
     usuario_activo: bool = True
     usuario_rol: Optional[str] = None
+    responsable_nombre: Optional[str] = None
+    responsable_email: Optional[str] = None
+    responsable_telefono: Optional[str] = None
 
 
 class TiendaResumen(BaseModel):

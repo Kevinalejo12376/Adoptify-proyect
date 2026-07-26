@@ -491,8 +491,6 @@ export default function Animals() {
             </button>
           </div>
         )}
-        </>
-        )}
       </div>
       <ScrollToTop />
     </div>
