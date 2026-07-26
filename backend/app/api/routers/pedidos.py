@@ -22,6 +22,21 @@ from app.core.notificaciones import crear_notificacion
 router = APIRouter()
 
 
+def _registrar_historial(db, pedido_id, estado_id, notas=None):
+    """Registra un cambio de estado en el historial del pedido.
+    Si la tabla historial_estados_pedido no existe (ej: en Supabase si el
+    usuario aun no ha ejecutado el CREATE TABLE), simplemente lo omite."""
+    try:
+        from app.models.pedido import HistorialEstadoPedido
+        db.add(HistorialEstadoPedido(
+            pedido_id=pedido_id,
+            estado_id=estado_id,
+            notas=notas,
+        ))
+    except Exception as exc:
+        print(f"[pedidos] No se pudo registrar historial (tabla no existe?): {exc}")
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def crear_pedido(
     payload: PedidoCreate,
@@ -51,6 +66,9 @@ def crear_pedido(
     )
     db.add(pedido)
     db.flush()
+
+    # Registrar estado inicial en el historial
+    _registrar_historial(db, pedido.id, estado_id, "Pedido realizado")
 
     subtotal = Decimal("0")
     vendedores = {}  # (tipo, entidad_id) -> lista de "cantidad x nombre"
@@ -85,8 +103,15 @@ def crear_pedido(
     pedido.total = subtotal + Decimal(str(payload.costo_envio or 0)) - Decimal(str(payload.descuento or 0))
     db.flush()
 
-    # Notifica a cada vendedor (tienda/refugio) sobre la venta
+    # Notifica al comprador
     numero = f"PED-{pedido.id:05d}"
+    crear_notificacion(
+        db, current_user.id, "pedido_realizado",
+        f"¡Tu pedido {numero} ha sido realizado con éxito!",
+        f"/mis-pedidos/{pedido.id}",
+    )
+
+    # Notifica a cada vendedor (tienda/refugio) sobre la venta
     for (tipo, ent_id), lineas in vendedores.items():
         if tipo == "tienda":
             ent = db.query(Tienda).filter(Tienda.id == ent_id).first()
@@ -104,6 +129,31 @@ def crear_pedido(
 
     db.commit()
     db.refresh(pedido)
+    return serialize_pedido(pedido)
+
+
+@router.get("/mios")
+def mis_pedidos(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    pedidos = (
+        db.query(Pedido)
+        .filter(Pedido.usuario_id == current_user.id)
+        .order_by(Pedido.creado_en.desc())
+        .all()
+    )
+    return [serialize_pedido(p) for p in pedidos]
+
+
+@router.get("/{pedido_id}")
+def obtener_pedido(pedido_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    pedido = (
+        db.query(Pedido)
+        .filter(Pedido.id == pedido_id)
+        .first()
+    )
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    if pedido.usuario_id != current_user.id and current_user.rol_codigo not in ("administrador", "administrador_principal"):
+        raise HTTPException(status_code=403, detail="No puedes ver este pedido")
     return serialize_pedido(pedido)
 
 

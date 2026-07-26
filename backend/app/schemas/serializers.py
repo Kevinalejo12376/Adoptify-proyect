@@ -73,6 +73,15 @@ def serialize_solicitud(s):
 def serialize_pedido(p, solo_tienda_id=None):
     """Serializa un pedido con sus items. Si solo_tienda_id se indica, filtra
     los items a los de esa tienda y recalcula el subtotal desde la vista de la tienda."""
+    try:
+        return _serialize_pedido_inner(p, solo_tienda_id)
+    except Exception as exc:
+        print(f"[serializer] Error serializando pedido {getattr(p, 'id', '?')}: {exc}")
+        return _serialize_pedido_fallback(p, solo_tienda_id)
+
+
+def _serialize_pedido_fallback(p, solo_tienda_id=None):
+    """Serializacion de emergencia si algo falla (tabla faltante, etc)."""
     items = p.items or []
     if solo_tienda_id is not None:
         items = [it for it in items if it.producto and it.producto.tienda_id == solo_tienda_id]
@@ -85,6 +94,8 @@ def serialize_pedido(p, solo_tienda_id=None):
             "cantidad": it.cantidad,
             "subtotal": float(it.subtotal) if it.subtotal is not None else 0,
             "tienda_id": it.producto.tienda_id if it.producto else None,
+            "refugio_id": it.producto.refugio_id if it.producto else None,
+            "imagen_url": None,
         }
         for it in items
     ]
@@ -105,9 +116,118 @@ def serialize_pedido(p, solo_tienda_id=None):
         "direccion_envio": p.direccion_envio,
         "metodo_pago": p.metodo_pago,
         "notas": p.notas,
+        "fecha_estimada_entrega": None,
         "creado_en": p.creado_en.isoformat() if p.creado_en else None,
         "items": items_data,
+        "vendedor": None,
+        "historial": [],
     }
+
+
+def _serialize_pedido_inner(p, solo_tienda_id=None):
+    items = p.items or []
+    if solo_tienda_id is not None:
+        items = [it for it in items if it.producto and it.producto.tienda_id == solo_tienda_id]
+    items_data = [
+        {
+            "id": it.id,
+            "producto_id": it.producto_id,
+            "nombre_producto": it.nombre_producto,
+            "precio_unitario": float(it.precio_unitario) if it.precio_unitario is not None else 0,
+            "cantidad": it.cantidad,
+            "subtotal": float(it.subtotal) if it.subtotal is not None else 0,
+            "tienda_id": it.producto.tienda_id if it.producto else None,
+            "refugio_id": it.producto.refugio_id if it.producto else None,
+            "imagen_url": _primera_imagen_producto(it.producto) if it.producto else None,
+        }
+        for it in items
+    ]
+    subtotal_vista = sum(i["subtotal"] for i in items_data) if solo_tienda_id is not None else (float(p.subtotal) if p.subtotal is not None else 0)
+
+    # Informacion del vendedor (tienda o refugio)
+    vendedor = _info_vendedor(items)
+
+    # Historial de estados (con proteccion por si la tabla no existe)
+    historial = []
+    try:
+        if hasattr(p, "historial") and p.historial:
+            historial = [
+                {
+                    "id": h.id,
+                    "estado": h.estado.codigo if h.estado else None,
+                    "estado_nombre": h.estado.nombre if h.estado else None,
+                    "notas": h.notas,
+                    "creado_en": h.creado_en.isoformat() if h.creado_en else None,
+                }
+                for h in p.historial
+            ]
+    except Exception:
+        historial = []
+
+    return {
+        "id": p.id,
+        "numero": f"PED-{p.id:05d}",
+        "usuario_id": p.usuario_id,
+        "estado": p.estado.codigo if p.estado else None,
+        "estado_nombre": p.estado.nombre if p.estado else None,
+        "subtotal": subtotal_vista,
+        "costo_envio": float(p.costo_envio) if p.costo_envio is not None else 0,
+        "descuento": float(p.descuento) if p.descuento is not None else 0,
+        "total": (subtotal_vista if solo_tienda_id is not None else (float(p.total) if p.total is not None else 0)),
+        "codigo_promocion": p.codigo_promocion,
+        "nombre_contacto": p.nombre_contacto,
+        "telefono_contacto": p.telefono_contacto,
+        "direccion_envio": p.direccion_envio,
+        "metodo_pago": p.metodo_pago,
+        "notas": p.notas,
+        "fecha_estimada_entrega": p.fecha_estimada_entrega.isoformat() if p.fecha_estimada_entrega else None,
+        "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        "items": items_data,
+        "vendedor": vendedor,
+        "historial": historial,
+    }
+
+
+def _primera_imagen_producto(producto):
+    """Obtiene la URL de la primera imagen de un producto."""
+    if not producto:
+        return None
+    try:
+        if hasattr(producto, "imagenes") and producto.imagenes:
+            return producto.imagenes[0].url
+    except Exception:
+        pass
+    return None
+
+
+def _info_vendedor(items):
+    """Obtiene la informacion del vendedor a partir de las relaciones de los items."""
+    seen_tiendas = {}
+    seen_refugios = {}
+    for it in items:
+        if not it.producto:
+            continue
+        # Tienda
+        if it.producto.tienda_id and it.producto.tienda_id not in seen_tiendas:
+            seen_tiendas[it.producto.tienda_id] = True
+            tienda = getattr(it.producto, "tienda", None)
+            if tienda:
+                return {
+                    "tipo": "tienda",
+                    "id": tienda.id,
+                    "nombre": tienda.nombre,
+                }
+        # Refugio
+        if it.producto.refugio_id and it.producto.refugio_id not in seen_refugios:
+            seen_refugios[it.producto.refugio_id] = True
+            refugio = getattr(it.producto, "refugio", None)
+            if refugio:
+                return {
+                    "tipo": "refugio",
+                    "id": refugio.id,
+                    "nombre": refugio.nombre,
+                }
+    return None
 
 
 def serialize_producto(p):

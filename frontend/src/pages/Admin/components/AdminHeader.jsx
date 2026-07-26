@@ -183,6 +183,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
                           )}
                         </div>
                         {!notif.leida && <div className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0 mt-2" />}
+                      </button>
                     ))
                   )}
                 </div>
