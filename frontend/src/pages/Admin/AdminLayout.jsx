@@ -5,7 +5,7 @@ import AdminSidebar from "./components/AdminSidebar";
 import AdminHeader from "./components/AdminHeader";
 
 export default function AdminLayout() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -20,33 +20,33 @@ export default function AdminLayout() {
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg">
       {/* Sidebar */}
       <AdminSidebar
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
         adminNombre={adminNombre}
         onLogout={handleLogout}
       />
 
-      {/* Contenido principal */}
+      {/* Contenido principal - se ajusta automáticamente */}
       <div
-        className={`
-          transition-all duration-300
-          lg:ml-[260px] pb-16 lg:pb-0
-          ${sidebarCollapsed ? "lg:!ml-[72px]" : ""}
-        `}
+        className="
+          transition-all duration-[280ms] ease-out
+          lg:ml-[80px] pb-16 lg:pb-0
+        "
       >
         {/* Header */}
         <AdminHeader
           adminNombre={adminNombre}
           onLogout={handleLogout}
+          onMenuToggle={() => setMobileOpen(!mobileOpen)}
         />
 
-        {/* Main Content (Outlet) */}
-        <main className="p-4 lg:p-6">
+        {/* Main Content (Outlet) con animación fade-in */}
+        <main className="p-4 lg:p-6 animate-fade-in">
           <Outlet />
         </main>
       </div>
 
-      {/* Bottom spacing for mobile nav */}
+      {/* Bottom spacing for mobile */}
       <div className="h-16 lg:hidden" />
     </div>
   );

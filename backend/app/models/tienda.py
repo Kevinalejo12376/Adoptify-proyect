@@ -19,7 +19,10 @@ class Tienda(Base):
     website = Column(String(150))
     facebook = Column(String(120))
     instagram = Column(String(120))
+    horario_semana = Column(String(120))
+    horario_fin_semana = Column(String(120))
     rating = Column(Numeric(2, 1), nullable=False, default=0)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
+    usuario = relationship("Usuario", backref="tienda", uselist=False)
     productos = relationship("Producto", back_populates="tienda")

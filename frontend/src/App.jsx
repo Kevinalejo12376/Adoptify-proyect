@@ -91,6 +91,7 @@ import AdminAdministradores from "./pages/Admin/Administradores";
 import AdminEstadisticas from "./pages/Admin/Estadisticas";
 import AdminAuditoria from "./pages/Admin/Auditoria";
 import AdminConfiguracion from "./pages/Admin/Configuracion";
+import AdminTiendas from "./pages/Admin/GestionTiendas";
 
 function AppContent() {
   const location = useLocation();
@@ -119,7 +120,9 @@ function AppContent() {
             <Route path="usuarios" element={<AdminUsuarios />} />
             <Route path="refugios" element={<AdminRefugios />} />
             <Route path="mascotas" element={<AdminMascotas />} />
+            <Route path="tiendas" element={<AdminTiendas />} />
             <Route path="marketplace" element={<AdminMarketplace />} />
+            <Route path="marketplace/estadisticas" element={<AdminMarketplace />} />
             <Route path="pedidos" element={<AdminPedidos />} />
             <Route path="foro" element={<AdminForo />} />
             <Route path="reportes" element={<AdminReportes />} />

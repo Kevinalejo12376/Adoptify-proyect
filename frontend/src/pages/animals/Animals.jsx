@@ -1,6 +1,22 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Filter, PawPrint, Heart, MapPin, Calendar, ChevronDown, X } from "lucide-react";
+import {
+  Search,
+  Filter,
+  PawPrint,
+  Heart,
+  MapPin,
+  ChevronDown,
+  X,
+  RotateCcw,
+  Sparkles,
+  SlidersHorizontal,
+  Dog,
+  Cat,
+  Ruler,
+  Calendar,
+  VenetianMask,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ScrollToTop from "../../components/ScrollToTop";
 
@@ -43,6 +59,8 @@ export default function Animals() {
     return matchesSearch && matchesType && matchesSize && matchesAge && matchesGender;
   });
 
+  const hasActiveFilters = selectedType !== "all" || selectedSize !== "all" || selectedAge !== "all" || selectedGender !== "all" || searchTerm !== "";
+
   const clearFilters = () => {
     setSelectedType("all");
     setSelectedSize("all");
@@ -51,21 +69,72 @@ export default function Animals() {
     setSearchTerm("");
   };
 
+  const getAnimalGradient = (animal) => {
+    if (animal.type === "Perro") {
+      return animal.gender === "Macho"
+        ? "from-blue-400 to-indigo-500"
+        : "from-rose-400 to-pink-500";
+    } else {
+      return animal.gender === "Macho"
+        ? "from-amber-400 to-orange-500"
+        : "from-violet-400 to-purple-500";
+    }
+  };
+
+  const getAnimalIcon = (type) => {
+    return type === "Perro" ? Dog : Cat;
+  };
+
+  // Filter options
+  const typeOptions = [
+    { value: "all", label: "Todos", icon: Sparkles },
+    { value: "Perro", label: "Perros", icon: Dog },
+    { value: "Gato", label: "Gatos", icon: Cat },
+  ];
+
+  const sizeOptions = [
+    { value: "all", label: "Todos", icon: Sparkles },
+    { value: "Pequeño", label: "Pequeño", icon: Ruler },
+    { value: "Mediano", label: "Mediano", icon: Ruler },
+    { value: "Grande", label: "Grande", icon: Ruler },
+  ];
+
+  const ageOptions = [
+    { value: "all", label: "Todas", icon: Sparkles },
+    { value: "meses", label: "Cachorros", icon: Calendar },
+    { value: "año", label: "1 año", icon: Calendar },
+    { value: "años", label: "Adultos", icon: Calendar },
+  ];
+
+  const genderOptions = [
+    { value: "all", label: "Todos", icon: Sparkles },
+    { value: "Macho", label: "Macho", icon: VenetianMask },
+    { value: "Hembra", label: "Hembra", icon: VenetianMask },
+  ];
+
   return (
-    <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-rose-50 via-white to-amber-50">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen pt-24 pb-16 bg-gradient-to-br from-rose-50 via-white to-amber-50 dark:from-dark-bg dark:via-dark-card dark:to-dark-bg">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4 font-display">
-            Explorar Mascotas
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-rose-500/10 to-amber-500/10 dark:from-rose-900/20 dark:to-amber-900/20 text-rose-600 dark:text-rose-400 rounded-full text-sm font-semibold mb-4 border border-rose-200/50 dark:border-rose-800/30">
+            <PawPrint className="w-4 h-4" />
+            Adopción
+          </div>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-dark-text mb-4 font-display leading-tight">
+            Explorar{" "}
+            <span className="bg-gradient-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent">
+              Mascotas
+            </span>
           </h1>
-          <p className="text-xl text-gray-600">
+          <p className="text-lg sm:text-xl text-gray-600 dark:text-dark-text-secondary max-w-2xl">
             Encuentra a tu compañero perfecto entre cientos de animales esperando un hogar
           </p>
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-6">
+        {/* Search & Filters */}
+        <div className="mb-8 space-y-4">
+          {/* Search Bar */}
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -73,163 +142,326 @@ export default function Animals() {
               placeholder="Buscar por nombre o raza..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent shadow-sm"
+              className="w-full pl-12 pr-36 py-4 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent shadow-sm dark:text-dark-text dark:placeholder-dark-text-secondary"
             />
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all"
-            >
-              <Filter className="w-4 h-4" />
-              Filtros
-              <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Filters Panel */}
-        {showFilters && (
-          <div className="mb-6 bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Filtros</h3>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary hover:text-rose-600 dark:hover:text-rose-400 bg-gray-100 dark:bg-dark-border rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-all"
+                  title="Limpiar filtros"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span className="hidden sm:inline">Limpiar</span>
+                </button>
+              )}
               <button
-                onClick={clearFilters}
-                className="flex items-center gap-2 text-sm text-rose-600 hover:text-rose-700"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                  showFilters
+                    ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-200/40 dark:shadow-rose-500/20"
+                    : "bg-white dark:bg-dark-card text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-700 hover:text-rose-600 dark:hover:text-rose-400"
+                }`}
               >
-                <X className="w-4 h-4" />
-                Limpiar filtros
+                <SlidersHorizontal className="w-4 h-4" />
+                <span className="hidden sm:inline">Filtros</span>
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform duration-200 ${
+                    showFilters ? "rotate-180" : ""
+                  }`}
+                />
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
-                <select
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+          </div>
+
+          {/* Filters Panel */}
+          {showFilters && (
+            <div className="bg-white dark:bg-dark-card rounded-2xl shadow-lg dark:shadow-dark-border/20 border border-gray-100 dark:border-dark-border overflow-hidden">
+              {/* Filters Header */}
+              <div className="px-6 py-4 border-b border-gray-100 dark:border-dark-border bg-gradient-to-r from-rose-50/50 to-amber-50/50 dark:from-rose-900/5 dark:to-amber-900/5 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center">
+                    <Filter className="w-4 h-4 text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text font-display">
+                    Filtros
+                  </h3>
+                  {hasActiveFilters && (
+                    <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-[10px] font-bold rounded-full">
+                      Activos
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={clearFilters}
+                  className="text-xs font-semibold text-gray-400 dark:text-dark-text-secondary hover:text-rose-600 dark:hover:text-rose-400 transition-colors flex items-center gap-1"
                 >
-                  <option value="all">Todos</option>
-                  <option value="Perro">Perros</option>
-                  <option value="Gato">Gatos</option>
-                </select>
+                  <RotateCcw className="w-3 h-3" />
+                  Limpiar todo
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Tamaño</label>
-                <select
-                  value={selectedSize}
-                  onChange={(e) => setSelectedSize(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
-                >
-                  <option value="all">Todos</option>
-                  <option value="Pequeño">Pequeño</option>
-                  <option value="Mediano">Mediano</option>
-                  <option value="Grande">Grande</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Edad</label>
-                <select
-                  value={selectedAge}
-                  onChange={(e) => setSelectedAge(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
-                >
-                  <option value="all">Todas</option>
-                  <option value="meses">Cachorros (meses)</option>
-                  <option value="año">1 año</option>
-                  <option value="años">Adultos (años)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Género</label>
-                <select
-                  value={selectedGender}
-                  onChange={(e) => setSelectedGender(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
-                >
-                  <option value="all">Todos</option>
-                  <option value="Macho">Macho</option>
-                  <option value="Hembra">Hembra</option>
-                </select>
+
+              <div className="p-6 space-y-6">
+                {/* ─── TYPE ─── */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <PawPrint className="w-4 h-4 text-rose-500" />
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-dark-text">
+                      Tipo
+                    </h4>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {typeOptions.map(({ value, label, icon: Icon }) => (
+                      <button
+                        key={value}
+                        onClick={() => setSelectedType(value)}
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                          selectedType === value
+                            ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-200/40 dark:shadow-rose-500/20 scale-105"
+                            : "bg-gray-50 dark:bg-dark-bg text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-700 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-rose-900/10"
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${selectedType === value ? "" : "text-gray-400 dark:text-dark-text-secondary"}`} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ─── SIZE ─── */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Ruler className="w-4 h-4 text-rose-500" />
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-dark-text">
+                      Tamaño
+                    </h4>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {sizeOptions.map(({ value, label, icon: Icon }) => (
+                      <button
+                        key={value}
+                        onClick={() => setSelectedSize(value)}
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                          selectedSize === value
+                            ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-200/40 dark:shadow-rose-500/20"
+                            : "bg-gray-50 dark:bg-dark-bg text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-700 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-rose-900/10"
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${selectedSize === value ? "" : "text-gray-400 dark:text-dark-text-secondary"}`} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ─── AGE ─── */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calendar className="w-4 h-4 text-rose-500" />
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-dark-text">
+                      Edad
+                    </h4>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {ageOptions.map(({ value, label, icon: Icon }) => (
+                      <button
+                        key={value}
+                        onClick={() => setSelectedAge(value)}
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                          selectedAge === value
+                            ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-200/40 dark:shadow-rose-500/20"
+                            : "bg-gray-50 dark:bg-dark-bg text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-700 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-rose-900/10"
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${selectedAge === value ? "" : "text-gray-400 dark:text-dark-text-secondary"}`} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ─── GENDER ─── */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <VenetianMask className="w-4 h-4 text-rose-500" />
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-dark-text">
+                      Género
+                    </h4>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {genderOptions.map(({ value, label, icon: Icon }) => (
+                      <button
+                        key={value}
+                        onClick={() => setSelectedGender(value)}
+                        className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                          selectedGender === value
+                            ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-200/40 dark:shadow-rose-500/20"
+                            : "bg-gray-50 dark:bg-dark-bg text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-700 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-rose-900/10"
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${selectedGender === value ? "" : "text-gray-400 dark:text-dark-text-secondary"}`} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Results Count */}
-        <div className="mb-6 flex justify-between items-center">
-          <p className="text-gray-600">
-            Mostrando <span className="font-semibold text-gray-900">{filteredAnimals.length}</span> mascotas
-          </p>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:border-rose-300 hover:text-rose-600 transition-all">
-              Recientes
-            </button>
-            <button className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:border-rose-300 hover:text-rose-600 transition-all">
-              Populares
-            </button>
+          {/* Results info */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
+              Mostrando{" "}
+              <span className="font-semibold text-gray-900 dark:text-dark-text">
+                {filteredAnimals.length}
+              </span>{" "}
+              {filteredAnimals.length === 1 ? "mascota" : "mascotas"}
+              {hasActiveFilters && (
+                <span className="text-gray-400 dark:text-dark-text-secondary">
+                  {" "}(con filtros aplicados)
+                </span>
+              )}
+            </p>
           </div>
         </div>
 
         {/* Animals Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredAnimals.map((animal) => (
-            <div key={animal.id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:scale-105 group">
-              <div className="relative">
-                <div className="w-full h-48 bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                  <PawPrint className="w-20 h-20 text-rose-400" />
-                </div>
-                <button
-                  onClick={() => toggleFavorite(animal)}
-                  className="absolute top-4 right-4 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-all"
-                >
-                  <Heart 
-                    className={`w-5 h-5 ${isFavorite(animal.id) ? 'fill-rose-500 text-rose-500' : 'text-gray-400'}`} 
-                  />
-                </button>
-                <div className="absolute bottom-4 left-4 flex gap-2">
-                  <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-gray-700">
-                    {animal.type}
-                  </span>
-                  <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-gray-700">
-                    {animal.age}
-                  </span>
-                </div>
-              </div>
-              <div className="p-5">
-                <h3 className="text-xl font-bold text-gray-900 mb-1 font-display">{animal.name}</h3>
-                <p className="text-sm text-gray-600 mb-3">{animal.breed}</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {animal.shelter}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2 text-xs text-gray-500">
-                    <span className="px-2 py-1 bg-rose-50 text-rose-600 rounded-lg">{animal.size}</span>
-                    <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg">{animal.gender}</span>
+          {filteredAnimals.map((animal) => {
+            const AnimalIcon = getAnimalIcon(animal.type);
+            const gradient = getAnimalGradient(animal);
+            const isFav = isFavorite(animal.id);
+
+            return (
+              <div
+                key={animal.id}
+                className="group bg-white dark:bg-dark-card rounded-2xl shadow-lg dark:shadow-dark-border/20 overflow-hidden hover:shadow-xl dark:hover:shadow-dark-border/40 transition-all duration-300 hover:-translate-y-1.5 border border-gray-100 dark:border-dark-border"
+              >
+                {/* Animal Image */}
+                <Link to={`/animal/${animal.id}`}>
+                  <div className="relative h-48 overflow-hidden">
+                    {/* Gradient Background */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-60 dark:opacity-40`} />
+                    {/* Pattern Overlay */}
+                    <div className="absolute inset-0 opacity-20">
+                      <div className="w-full h-full" style={{
+                        backgroundImage: 'radial-gradient(circle at 25% 25%, rgba(255,255,255,0.3) 0%, transparent 50%), radial-gradient(circle at 75% 75%, rgba(255,255,255,0.2) 0%, transparent 50%)'
+                      }} />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
+
+                    {/* Icon */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-24 h-24 bg-white/30 dark:bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center transition-transform duration-500 group-hover:scale-110">
+                        <AnimalIcon className="w-12 h-12 text-white drop-shadow-lg" />
+                      </div>
+                    </div>
+
+                    {/* Type Badge */}
+                    <div className="absolute top-3 left-3">
+                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-full shadow-lg">
+                        <AnimalIcon className="w-3 h-3" />
+                        {animal.type}
+                      </span>
+                    </div>
+
+                    {/* Age Badge */}
+                    <div className="absolute top-12 left-3">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white/90 dark:bg-dark-card/90 backdrop-blur-sm text-gray-700 dark:text-dark-text text-xs font-bold rounded-full shadow-lg">
+                        <Calendar className="w-2.5 h-2.5 text-rose-500" />
+                        {animal.age}
+                      </span>
+                    </div>
+
+                    {/* Favorite Button */}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleFavorite(animal);
+                      }}
+                      className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ${
+                        isFav
+                          ? "bg-rose-500 text-white scale-110"
+                          : "bg-white/90 dark:bg-dark-card/90 text-gray-400 hover:bg-white dark:hover:bg-dark-card opacity-0 group-hover:opacity-100"
+                      }`}
+                    >
+                      <Heart
+                        className={`w-4 h-4 ${
+                          isFav ? "fill-white" : ""
+                        }`}
+                      />
+                    </button>
                   </div>
-                  <Link 
+                </Link>
+
+                {/* Animal Info */}
+                <div className="p-5">
+                  {/* Name */}
+                  <Link to={`/animal/${animal.id}`}>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-1.5 font-display line-clamp-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                      {animal.name}
+                    </h3>
+                  </Link>
+
+                  {/* Breed */}
+                  <p className="text-base text-gray-500 dark:text-dark-text-secondary mb-3 leading-relaxed">
+                    {animal.breed}
+                  </p>
+
+                  {/* Shelter */}
+                  <div className="flex items-center gap-1.5 mb-4">
+                    <MapPin className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
+                    <span className="text-sm text-gray-500 dark:text-dark-text-secondary truncate">
+                      {animal.shelter}
+                    </span>
+                  </div>
+
+                  {/* Size & Gender Tags */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex gap-2">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 text-xs font-bold rounded-lg">
+                        <Ruler className="w-2.5 h-2.5" />
+                        {animal.size}
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-xs font-bold rounded-lg">
+                        <VenetianMask className="w-2.5 h-2.5" />
+                        {animal.gender}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <Link
                     to={`/animal/${animal.id}`}
-                    className="px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 shadow-md shadow-rose-200/50 dark:shadow-rose-500/20 active:scale-[0.97] transition-all duration-300"
                   >
-                    Ver más
+                    <PawPrint className="w-4 h-4" />
+                    Conocer más
                   </Link>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* No Results */}
         {filteredAnimals.length === 0 && (
-          <div className="text-center py-16">
-            <PawPrint className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No se encontraron mascotas</h3>
-            <p className="text-gray-600 mb-4">Intenta con otros filtros o términos de búsqueda</p>
+          <div className="text-center py-20">
+            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-900/30 dark:to-amber-900/30 rounded-full flex items-center justify-center">
+              <PawPrint className="w-10 h-10 text-rose-400 dark:text-rose-500" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-2">
+              No se encontraron mascotas
+            </h3>
+            <p className="text-gray-500 dark:text-dark-text-secondary mb-6 max-w-md mx-auto">
+              Intenta con otros filtros o términos de búsqueda. ¡Tenemos muchas mascotas esperando por ti!
+            </p>
             <button
               onClick={clearFilters}
-              className="px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg shadow-rose-200/50 dark:shadow-rose-500/20 hover:scale-105 active:scale-95"
             >
+              <X className="w-4 h-4" />
               Limpiar filtros
             </button>
           </div>

@@ -142,6 +142,18 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
             data["address"] = refugio.direccion
             data["location"] = refugio.ubicacion or current_user.ubicacion
             data["settings"] = {"storeEnabled": bool(refugio.tienda_habilitada)}
+    if rol_codigo == "tienda_aliada":
+        from app.models.tienda import Tienda
+        tienda = db.query(Tienda).filter(Tienda.usuario_id == current_user.id).first()
+        if tienda:
+            data["name"] = tienda.nombre
+            data["storeId"] = tienda.id
+            data["storeName"] = tienda.nombre
+            data["storeSlug"] = tienda.slug
+            data["description"] = tienda.descripcion
+            data["location"] = tienda.ciudad or tienda.ubicacion
+            data["phone"] = tienda.telefono or current_user.telefono
+            data["settings"] = {"storeEnabled": True}
     return data
 
 

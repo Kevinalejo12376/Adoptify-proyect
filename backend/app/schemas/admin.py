@@ -1,7 +1,7 @@
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 # pyrefly: ignore [missing-import]
-from typing import Optional
+from typing import Optional, List
 
 
 class AdminUsuarioCreate(BaseModel):
@@ -21,6 +21,8 @@ class AdminUsuarioCreate(BaseModel):
 class AdminUsuarioUpdate(BaseModel):
     nombre: Optional[str] = None
     apellido: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
     telefono: Optional[str] = None
     ubicacion: Optional[str] = None
     activo: Optional[bool] = None
@@ -38,3 +40,86 @@ class AdminUsuarioResponse(BaseModel):
     rol_nombre: Optional[str] = None
     refugio_nombre: Optional[str] = None
     creado_en: Optional[str] = None
+
+
+# ============================================================
+# Schemas para gestión de Tiendas Aliadas
+# ============================================================
+
+class TiendaCreate(BaseModel):
+    """Creación de tienda aliada con datos de tienda + usuario."""
+    # Datos de la tienda
+    nombre: str
+    descripcion: Optional[str] = None
+    logo_url: Optional[str] = None
+    email: Optional[str] = None
+    telefono: Optional[str] = None
+    ciudad: Optional[str] = None
+    direccion: Optional[str] = None
+    website: Optional[str] = None
+    facebook: Optional[str] = None
+    instagram: Optional[str] = None
+    # Datos del responsable
+    responsable_nombre: Optional[str] = None
+    responsable_email: Optional[str] = None
+    responsable_telefono: Optional[str] = None
+    # Datos de acceso
+    email_acceso: str
+    password: str
+    confirmar_password: str
+    # Estado inicial
+    estado: str = "pendiente"  # activa | pendiente | suspendida
+
+
+class TiendaUpdate(BaseModel):
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    logo_url: Optional[str] = None
+    email: Optional[str] = None
+    telefono: Optional[str] = None
+    ciudad: Optional[str] = None
+    direccion: Optional[str] = None
+    website: Optional[str] = None
+    facebook: Optional[str] = None
+    instagram: Optional[str] = None
+    responsable_nombre: Optional[str] = None
+    responsable_email: Optional[str] = None
+    responsable_telefono: Optional[str] = None
+    estado: Optional[str] = None
+
+
+class TiendaEstadoUpdate(BaseModel):
+    """Para cambiar estado (activar/suspender/reactivar)."""
+    estado: str
+
+
+class TiendaResponse(BaseModel):
+    id: int
+    usuario_id: Optional[int] = None
+    nombre: str
+    slug: Optional[str] = None
+    descripcion: Optional[str] = None
+    ubicacion: Optional[str] = None
+    telefono: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    facebook: Optional[str] = None
+    instagram: Optional[str] = None
+    rating: float = 0
+    creado_en: Optional[str] = None
+    # Datos del usuario asociado (responsable)
+    usuario_email: Optional[str] = None
+    usuario_nombre: Optional[str] = None
+    usuario_telefono: Optional[str] = None
+    usuario_activo: bool = True
+    usuario_rol: Optional[str] = None
+
+
+class TiendaResumen(BaseModel):
+    """Resumen estadístico de tiendas."""
+    total: int = 0
+    activas: int = 0
+    suspendidas: int = 0
+    pendientes: int = 0
+    total_productos: int = 0
+    total_ventas: int = 0
