@@ -18,6 +18,17 @@ export default function ShelterProfile() {
   const [activeTab, setActiveTab] = useState("resumen");
   const [selectedImage, setSelectedImage] = useState(null);
 
+  // Formatear la fecha de registro (creado_en) como dd/mm/aa
+  const memberSince = user?.creado_en
+    ? (() => {
+        const d = new Date(user.creado_en);
+        const dia = String(d.getDate()).padStart(2, "0");
+        const mes = String(d.getMonth() + 1).padStart(2, "0");
+        const anio = String(d.getFullYear()).slice(-2);
+        return `${dia}/${mes}/${anio}`;
+      })()
+    : "—";
+
   const [profile, setProfile] = useState({
     name: user?.name || "Refugio Patitas Felices",
     email: user?.email || "",
@@ -29,7 +40,7 @@ export default function ShelterProfile() {
       "Somos un refugio dedicado a rescatar y encontrar hogares amorosos para perros y gatos en situación de calle. Desde 2020 hemos ayudado a más de 100 mascotas a encontrar un hogar.",
     facebook: user?.socialMedia?.facebook || "patitasfelices",
     instagram: user?.socialMedia?.instagram || "@patitasfelices_refugio",
-    founded: "2020",
+    founded: memberSince,
     website: "www.patitasfelices.com",
     images: [],
   });
@@ -106,9 +117,9 @@ export default function ShelterProfile() {
     },
     {
       icon: Calendar,
-      label: "Trayectoria",
-      value: "6 años",
-      sublabel: "Desde 2020",
+      label: "Miembro desde",
+      value: memberSince,
+      sublabel: "Fecha de registro",
       color: "text-emerald-500",
       bg: "bg-emerald-50 dark:bg-emerald-500/10",
       progress: 100,
@@ -554,13 +565,15 @@ export default function ShelterProfile() {
                 <div className="bg-gradient-to-br from-rose-500 to-amber-500 rounded-3xl p-6 shadow-lg text-center relative overflow-hidden">
                   <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIyIi8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
                   <div className="relative z-10">
-                    <Trophy className="w-10 h-10 text-amber-200 mx-auto mb-3" />
-                    <p className="text-sm text-rose-100 font-medium">Trayectoria</p>
+                    <Calendar className="w-10 h-10 text-amber-200 mx-auto mb-3" />
+                    <p className="text-sm text-rose-100 font-medium">Miembro desde</p>
                     <p className="text-3xl font-bold text-white font-display mt-1">
                       {profile.founded}
                     </p>
                     <p className="text-xs text-rose-200 mt-2">
-                      {new Date().getFullYear() - parseInt(profile.founded)} años de compromiso animal
+                      {user?.creado_en
+                        ? Math.floor((Date.now() - new Date(user.creado_en).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) + " años de compromiso animal"
+                        : "—"}
                     </p>
                   </div>
                 </div>
@@ -928,7 +941,7 @@ export default function ShelterProfile() {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                        Fundado
+                        Miembro desde
                       </p>
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">
                         {profile.founded}

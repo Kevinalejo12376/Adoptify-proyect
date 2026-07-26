@@ -4,43 +4,12 @@ import { Link } from "react-router-dom";
 import {
   User, Mail, Phone, MapPin, Calendar, Edit, Camera, Save, X,
   PawPrint, Heart, Settings, LogOut, Shield, ChevronRight,
-  MessageCircle, Home, Star, ThumbsUp, Clock, TrendingUp,
-  Dog, Cat, Gift, CheckCircle, AlertCircle,
-  Image, Globe, Plus,
-  Search, Users, Share2, ArrowUp, Quote, Sparkles
+  MessageCircle, Home, Clock, TrendingUp,
+  AlertCircle,
+  Image, Globe, Loader2,
+  Search, ArrowUp, Quote, Sparkles
 } from "lucide-react";
-
-// ─── Mock Data ───
-const MOCK_USER = {
-  name: "María García",
-  email: "maria.garcia@email.com",
-  phone: "+57 300 123 4567",
-  location: "Bogotá, Colombia",
-  bio: "Amante de los animales desde siempre. Tengo 2 perros y 1 gato adoptados. Me encanta ayudar en refugios cuando puedo. Voluntaria activa en fundaciones de rescate animal.",
-  joinDate: "Enero 2024",
-  avatar: null,
-  cover: null,
-  website: "https://mariaejemplo.co",
-  social: {
-    twitter: "@maria_animales",
-    instagram: "@maria_adopta"
-  }
-};
-
-const MOCK_PETS = [
-  { id: 1, name: "Max", type: "dog", breed: "Golden Retriever", age: "2 años", adopted: "15 Ene 2024" },
-  { id: 2, name: "Luna", type: "cat", breed: "Siamés", age: "1.5 años", adopted: "20 Feb 2024" },
-  { id: 3, name: "Rocky", type: "dog", breed: "Bulldog Francés", age: "3 años", adopted: "10 Dic 2023" },
-];
-
-const MOCK_ACTIVITY = [
-  { id: 1, type: "adoption", icon: Heart, title: "Adoptaste a Luna", desc: "Gatita siamesa de 1.5 años", time: "hace 2 días", color: "from-rose-400 to-rose-500" },
-  { id: 2, type: "forum", icon: MessageCircle, title: "Comentaste en el foro", desc: "Consejos para gatos tímidos", time: "hace 5 días", color: "from-amber-400 to-amber-500" },
-  { id: 3, type: "donation", icon: Gift, title: "Donaste al refugio", desc: "Fundación 'Amigo fiel'", time: "hace 1 semana", color: "from-emerald-400 to-emerald-500" },
-  { id: 4, type: "review", icon: Star, title: "Dejaste una reseña", desc: "Refugio 'Hogar de huellas' - 5 estrellas", time: "hace 2 semanas", color: "from-violet-400 to-violet-500" },
-  { id: 5, type: "share", icon: Share2, title: "Compartiste una historia", desc: "El día que conocí a Max", time: "hace 3 semanas", color: "from-cyan-400 to-cyan-500" },
-];
-
+import { fetchProfile, updateProfile } from "../../api/auth";
 
 // ─── Animated Counter ───
 function AnimatedCounter({ end, duration = 2000, suffix = "" }) {
@@ -96,63 +65,19 @@ function SectionDivider({ icon: Icon, label, action }) {
   );
 }
 
-// ─── Pet Card ───
-function PetCard({ pet, index }) {
-  const PetIcon = pet.type === "dog" ? Dog : Cat;
+// ─── Empty State ───
+function EmptyState({ icon: Icon, title, description, action }) {
   return (
-    <div
-      className="group bg-white dark:bg-dark-card rounded-2xl shadow-lg hover:shadow-2xl border-2 border-gray-100 dark:border-dark-border hover:border-rose-200 dark:hover:border-rose-800 transition-all duration-500 overflow-hidden animate-fadeIn"
-      style={{ animationDelay: `${index * 100}ms` }}
-    >
-      <div className="p-5">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 bg-gradient-to-br from-rose-200 to-amber-200 dark:from-rose-900/40 dark:to-amber-900/40 rounded-2xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
-              <PetIcon className="w-8 h-8 text-rose-500 dark:text-rose-400" />
-            </div>
-            <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
-              <CheckCircle className="w-3 h-3 text-white" />
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h4 className="font-bold text-gray-900 dark:text-white text-lg">{pet.name}</h4>
-              <span className="text-xs text-gray-400 dark:text-gray-500">• {pet.age}</span>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{pet.breed}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Adoptado: {pet.adopted}
-            </p>
-          </div>
-          <ChevronRight className="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-rose-500 dark:group-hover:text-rose-400 transition-colors duration-300 group-hover:translate-x-1 transform transition-transform" />
-        </div>
+    <div className="text-center py-10 px-4">
+      <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-dark-bg rounded-2xl flex items-center justify-center">
+        <Icon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
       </div>
+      <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{title}</h4>
+      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto mb-4">{description}</p>
+      {action}
     </div>
   );
 }
-
-// ─── Activity Item ───
-function ActivityItem({ item, index }) {
-  const Icon = item.icon;
-  return (
-    <div
-      className="flex items-start gap-4 p-4 rounded-2xl bg-gray-50 dark:bg-dark-bg hover:bg-rose-50/50 dark:hover:bg-rose-900/10 transition-all duration-300 animate-fadeIn cursor-default group"
-      style={{ animationDelay: `${index * 100}ms` }}
-    >
-      <div className={`w-10 h-10 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.title}</p>
-        <p className="text-sm text-gray-600 dark:text-gray-400">{item.desc}</p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
-          <Clock className="w-3 h-3" /> {item.time}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 
 // ─── Avatar Modal ───
 function AvatarModal({ isOpen, onClose }) {
@@ -217,7 +142,7 @@ function AvatarModal({ isOpen, onClose }) {
 }
 
 // ─── Edit Profile Modal ───
-function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onCancel }) {
+function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onCancel, saving }) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
@@ -230,7 +155,7 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
             </div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white font-display">Editar Perfil</h3>
           </div>
-          <button onClick={onCancel} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-bg transition-all">
+          <button onClick={onCancel} disabled={saving} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-bg transition-all">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -240,13 +165,15 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nombre completo</label>
               <input type="text" value={editedUser.name}
                 onChange={e => setEditedUser({ ...editedUser, name: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+                disabled={saving}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all disabled:opacity-60" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Correo electrónico</label>
               <input type="email" value={editedUser.email}
                 onChange={e => setEditedUser({ ...editedUser, email: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+                disabled={true}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all opacity-60 cursor-not-allowed" />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -254,49 +181,64 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Teléfono</label>
               <input type="tel" value={editedUser.phone}
                 onChange={e => setEditedUser({ ...editedUser, phone: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+                disabled={saving}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all disabled:opacity-60" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ubicación</label>
               <input type="text" value={editedUser.location}
                 onChange={e => setEditedUser({ ...editedUser, location: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+                disabled={saving}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all disabled:opacity-60" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Biografía</label>
             <textarea rows="4" value={editedUser.bio}
               onChange={e => setEditedUser({ ...editedUser, bio: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all resize-none" />
+              disabled={saving}
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all resize-none disabled:opacity-60" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sitio web</label>
               <input type="url" value={editedUser.website || ""}
                 onChange={e => setEditedUser({ ...editedUser, website: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+                disabled={saving}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all disabled:opacity-60" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Twitter / X</label>
               <input type="text" value={editedUser.social?.twitter || ""}
                 onChange={e => setEditedUser({ ...editedUser, social: { ...editedUser.social, twitter: e.target.value } })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+                disabled={saving}
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all disabled:opacity-60" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Instagram</label>
             <input type="text" value={editedUser.social?.instagram || ""}
               onChange={e => setEditedUser({ ...editedUser, social: { ...editedUser.social, instagram: e.target.value } })}
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+              disabled={saving}
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all disabled:opacity-60" />
           </div>
         </div>
         <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-dark-border">
-          <button onClick={onCancel} className="flex-1 px-6 py-3 bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-dark-border">
+          <button onClick={onCancel} disabled={saving} className="flex-1 px-6 py-3 bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-dark-border disabled:opacity-50">
             Cancelar
           </button>
-          <button onClick={onSave} className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-900/30">
-            <Save className="w-4 h-4" />
-            Guardar cambios
+          <button onClick={onSave} disabled={saving} className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-900/30 disabled:opacity-60">
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Guardar cambios
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -306,14 +248,69 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
 
 // ─── Main Component ───
 export default function UserProfile() {
+  const { user: authUser, profileCompleted, openProfileModal } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
-  const [user, setUser] = useState(MOCK_USER);
-  const [editedUser, setEditedUser] = useState({ ...MOCK_USER });
-  // Acceso al modal de completar perfil desde AuthContext
-  const { profileCompleted, openProfileModal } = useAuth();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  // Construir el objeto de usuario combinando authUser + profile
+  const user = {
+    name: authUser?.name || authUser?.nombre || "",
+    email: authUser?.email || "",
+    phone: profile?.telefono || authUser?.phone || "",
+    location: profile?.ubicacion || authUser?.location || "",
+    bio: profile?.bio || "",
+    joinDate: authUser?.creado_en
+      ? (() => {
+          const d = new Date(authUser.creado_en);
+          const dia = String(d.getDate()).padStart(2, "0");
+          const mes = String(d.getMonth() + 1).padStart(2, "0");
+          const anio = String(d.getFullYear()).slice(-2);
+          return `${dia}/${mes}/${anio}`;
+        })()
+      : "",
+    avatar: profile?.avatar_url || null,
+    cover: profile?.cover_url || null,
+    website: profile?.website || "",
+    social: {
+      twitter: profile?.twitter || "",
+      instagram: profile?.instagram || "",
+    },
+  };
+
+  const [editedUser, setEditedUser] = useState({ ...user });
+
+  // Actualizar editedUser cuando user cambie
+  useEffect(() => {
+    if (!loading) {
+      setEditedUser({ ...user });
+    }
+  }, [profile, authUser, loading]);
+
+  // ─── Fetch real profile data ───
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchProfile();
+        setProfile(data);
+      } catch (err) {
+        // Si el perfil no existe o hay error, solo mostrar datos básicos del authUser
+        console.warn("No se pudo cargar el perfil:", err);
+        setError("No se pudo cargar la información adicional del perfil");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProfile();
+  }, []);
 
   // Scroll to top button visibility
   useEffect(() => {
@@ -324,25 +321,51 @@ export default function UserProfile() {
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
-  const handleSave = () => {
-    setUser({ ...editedUser });
-    setShowEditModal(false);
+  // ─── Save changes to API ───
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const payload = {
+        telefono: editedUser.phone || null,
+        ubicacion: editedUser.location || null,
+        bio: editedUser.bio || null,
+        website: editedUser.website || null,
+        twitter: editedUser.social?.twitter || null,
+        instagram: editedUser.social?.instagram || null,
+      };
+      // Limpiar campos vacíos
+      Object.keys(payload).forEach(key => {
+        if (!payload[key]) delete payload[key];
+      });
+
+      const result = await updateProfile(payload);
+      setProfile(result);
+      setShowEditModal(false);
+    } catch (err) {
+      setSaveError(err?.message || "Error al guardar el perfil");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
     setEditedUser({ ...user });
     setShowEditModal(false);
+    setSaveError(null);
   };
 
   const openEdit = () => {
     setEditedUser({ ...user });
     setShowEditModal(true);
+    setSaveError(null);
   };
 
+  // Stats con datos reales
   const stats = [
-    { label: "Mascotas adoptadas", value: 3, icon: PawPrint, color: "from-rose-500 to-rose-600", shadow: "shadow-rose-200 dark:shadow-rose-900/30" },
-    { label: "Favoritos", value: 12, icon: Heart, color: "from-amber-500 to-amber-600", shadow: "shadow-amber-200 dark:shadow-amber-900/30" },
-    { label: "Miembro desde", value: user.joinDate, icon: Calendar, color: "from-rose-500 to-amber-500", shadow: "shadow-rose-200 dark:shadow-rose-900/30", isText: true },
+    { label: "Mascotas adoptadas", value: 0, icon: PawPrint, color: "from-rose-500 to-rose-600", shadow: "shadow-rose-200 dark:shadow-rose-900/30" },
+    { label: "Favoritos", value: 0, icon: Heart, color: "from-amber-500 to-amber-600", shadow: "shadow-amber-200 dark:shadow-amber-900/30" },
+    { label: "Miembro desde", value: user.joinDate || "—", icon: Calendar, color: "from-rose-500 to-amber-500", shadow: "shadow-rose-200 dark:shadow-rose-900/30", isText: true },
   ];
 
   const tabs = [
@@ -421,20 +444,22 @@ export default function UserProfile() {
                 {/* Name & Location */}
                 <div className="text-center sm:text-left">
                   <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white font-display">
-                    {user.name}
+                    {user.name || "Usuario"}
                   </h2>
                   <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
                     <MapPin className="w-4 h-4 text-rose-400 dark:text-rose-500" />
-                    <p className="text-gray-600 dark:text-gray-400">{user.location}</p>
+                    <p className="text-gray-600 dark:text-gray-400">
+                      {user.location || "Ubicación no especificada"}
+                    </p>
                   </div>
-                  
                 </div>
               </div>
 
               {/* Edit Button */}
               <button
                 onClick={openEdit}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-900/30 hover:scale-105 active:scale-95 w-full sm:w-auto justify-center"
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-900/30 hover:scale-105 active:scale-95 w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Edit className="w-4 h-4" />
                 Editar Perfil
@@ -446,7 +471,13 @@ export default function UserProfile() {
               <div className="flex items-start gap-3">
                 <Quote className="w-5 h-5 text-rose-400 dark:text-rose-500 flex-shrink-0 mt-0.5" />
                 <p className="text-gray-700 dark:text-gray-300 leading-relaxed italic">
-                  "{user.bio}"
+                  {user.bio ? (
+                    `"${user.bio}"`
+                  ) : (
+                    <span className="text-gray-400 dark:text-gray-500 not-italic">
+                      No has añadido una biografía aún. {profileCompleted ? "" : "Completa tu perfil para contarnos sobre ti."}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -454,27 +485,39 @@ export default function UserProfile() {
             {/* Social Links */}
             <div className="mt-4 flex flex-wrap items-center justify-center sm:justify-start gap-3">
               {user.website && (
-                <a href={user.website} target="_blank" rel="noopener noreferrer"
+                <a href={user.website.startsWith("http") ? user.website : `https://${user.website}`} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-dark-bg rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all">
-                  <Globe className="w-4 h-4" /> {user.website.replace("https://", "")}
+                  <Globe className="w-4 h-4" /> {user.website.replace(/^https?:\/\//, "")}
                 </a>
               )}
               {user.social?.twitter && (
-                <a href="#" className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-dark-bg rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all">
+                <a href={`https://twitter.com/${user.social.twitter.replace("@", "")}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-dark-bg rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all">
                   <MessageCircle className="w-4 h-4" /> {user.social.twitter}
                 </a>
               )}
               {user.social?.instagram && (
-                <a href="#" className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-dark-bg rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all">
+                <a href={`https://instagram.com/${user.social.instagram.replace("@", "")}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-dark-bg rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all">
                   <Camera className="w-4 h-4" /> {user.social.instagram}
                 </a>
               )}
             </div>
+
+            {/* Error de carga del perfil */}
+            {error && (
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-xl">
+                <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* ─── Banner de perfil incompleto ─── */}
-        {!profileCompleted && (
+        {!profileCompleted && !loading && (
           <div className="bg-gradient-to-r from-rose-500 to-amber-500 rounded-2xl shadow-lg p-5 sm:p-6 mb-8 animate-fadeIn relative overflow-hidden group">
             <div className="absolute inset-0 bg-black/10" />
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full" />
@@ -564,10 +607,10 @@ export default function UserProfile() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
-                  { icon: User, label: "Nombre completo", value: user.name, color: "from-rose-500 to-rose-600" },
-                  { icon: Mail, label: "Correo electrónico", value: user.email, color: "from-amber-500 to-amber-600" },
-                  { icon: Phone, label: "Teléfono", value: user.phone, color: "from-emerald-500 to-emerald-600" },
-                  { icon: MapPin, label: "Ubicación", value: user.location, color: "from-violet-500 to-violet-600" },
+                  { icon: User, label: "Nombre completo", value: user.name || "—", color: "from-rose-500 to-rose-600" },
+                  { icon: Mail, label: "Correo electrónico", value: user.email || "—", color: "from-amber-500 to-amber-600" },
+                  { icon: Phone, label: "Teléfono", value: user.phone || "—", color: "from-emerald-500 to-emerald-600" },
+                  { icon: MapPin, label: "Ubicación", value: user.location || "—", color: "from-violet-500 to-violet-600" },
                 ].map((item, idx) => (
                   <div
                     key={item.label}
@@ -579,11 +622,61 @@ export default function UserProfile() {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{item.label}</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">{item.value}</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {item.value === "—" ? (
+                          <span className="text-gray-400 dark:text-gray-500">—</span>
+                        ) : (
+                          item.value
+                        )}
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Info adicional del perfil (website, twitter, instagram) si existen */}
+              {(user.website || user.social?.twitter || user.social?.instagram) && (
+                <div className="mt-6 pt-6 border-t border-gray-100 dark:border-dark-border">
+                  <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
+                    Redes y Sitio Web
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {user.website && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-bg rounded-xl">
+                        <Globe className="w-5 h-5 text-rose-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-gray-400">Sitio web</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {user.website.replace(/^https?:\/\//, "")}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {user.social?.twitter && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-bg rounded-xl">
+                        <MessageCircle className="w-5 h-5 text-rose-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-gray-400">Twitter / X</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {user.social.twitter}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {user.social?.instagram && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-bg rounded-xl">
+                        <Camera className="w-5 h-5 text-rose-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-gray-400">Instagram</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {user.social.instagram}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Quick Actions */}
@@ -660,48 +753,44 @@ export default function UserProfile() {
         {/* ─── Pets Tab ─── */}
         {activeTab === "pets" && (
           <div className="bg-white dark:bg-dark-card rounded-3xl shadow-lg p-6 sm:p-8 border border-gray-100 dark:border-dark-border animate-fadeIn">
-            <SectionDivider icon={PawPrint} label="Mis Mascotas" action="Ver todas" />
+            <SectionDivider icon={PawPrint} label="Mis Mascotas" />
 
-            <div className="space-y-4">
-              {MOCK_PETS.map((pet, idx) => (
-                <PetCard key={pet.id} pet={pet} index={idx} />
-              ))}
-            </div>
-
-            {/* Add Pet CTA */}
-            <div className="mt-6 p-5 border-2 border-dashed border-gray-200 dark:border-dark-border rounded-2xl text-center hover:border-rose-300 dark:hover:border-rose-700 transition-all duration-300 group cursor-pointer bg-gray-50/50 dark:bg-dark-bg/50">
-              <div className="w-14 h-14 mx-auto mb-3 bg-rose-100 dark:bg-rose-900/30 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                <Plus className="w-7 h-7 text-rose-500 dark:text-rose-400" />
-              </div>
-              <p className="font-semibold text-gray-900 dark:text-white mb-1">Registrar nueva mascota</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Añade una mascota adoptada a tu perfil</p>
-            </div>
+            <EmptyState
+              icon={PawPrint}
+              title="No tienes mascotas registradas"
+              description="Las mascotas que adoptes aparecerán aquí. Por ahora no hay ninguna registrada."
+              action={
+                <Link
+                  to="/animals"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg text-sm"
+                >
+                  <Search className="w-4 h-4" />
+                  Explorar mascotas
+                </Link>
+              }
+            />
           </div>
         )}
 
         {/* ─── Activity Tab ─── */}
         {activeTab === "activity" && (
           <div className="bg-white dark:bg-dark-card rounded-3xl shadow-lg p-6 sm:p-8 border border-gray-100 dark:border-dark-border animate-fadeIn">
-            <SectionDivider icon={Clock} label="Actividad Reciente" action="Ver todo" />
+            <SectionDivider icon={Clock} label="Actividad Reciente" />
 
-            <div className="relative">
-              {/* Timeline line */}
-              <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-rose-300 via-amber-300 to-rose-300 dark:from-rose-700 dark:via-amber-700 dark:to-rose-700 rounded-full opacity-50" />
-
-              <div className="space-y-4 relative">
-                {MOCK_ACTIVITY.map((item, idx) => (
-                  <ActivityItem key={item.id} item={item} index={idx} />
-                ))}
-              </div>
-            </div>
-
-            {/* Load More */}
-            <div className="mt-6 text-center">
-              <button className="inline-flex items-center gap-2 px-6 py-3 bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 hover:text-rose-600 dark:hover:text-rose-400 transition-all border border-gray-200 dark:border-dark-border hover:border-rose-200 dark:hover:border-rose-800">
-                <Clock className="w-4 h-4" />
-                Cargar más actividad
-              </button>
-            </div>
+            <EmptyState
+              icon={Clock}
+              title="No hay actividad reciente"
+              description="Tus interacciones como adopciones, comentarios en el foro y donaciones aparecerán aquí."
+              action={
+                <Link
+                  to="/"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg text-sm"
+                >
+                  <Home className="w-4 h-4" />
+                  Ir al inicio
+                </Link>
+              }
+            />
           </div>
         )}
 
@@ -710,6 +799,22 @@ export default function UserProfile() {
           <p>Completa tu perfil para obtener más visibilidad en la comunidad</p>
         </div>
       </div>
+
+      {/* ─── Error de guardado ─── */}
+      {saveError && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl p-4 shadow-xl animate-fadeIn">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400">Error al guardar</p>
+              <p className="text-xs text-red-600 dark:text-red-300 mt-1">{saveError}</p>
+            </div>
+            <button onClick={() => setSaveError(null)} className="text-red-400 hover:text-red-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ─── Modals ─── */}
       <AvatarModal isOpen={showAvatarModal} onClose={() => setShowAvatarModal(false)} />
@@ -720,6 +825,7 @@ export default function UserProfile() {
         setEditedUser={setEditedUser}
         onSave={handleSave}
         onCancel={handleCancel}
+        saving={saving}
       />
 
       {/* ─── Scroll to Top ─── */}

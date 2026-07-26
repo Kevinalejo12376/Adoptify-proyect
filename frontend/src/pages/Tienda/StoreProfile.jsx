@@ -1,16 +1,29 @@
 import React, { useState } from "react";
 import {
   Store, MapPin, Phone, Mail, Globe, Clock, CreditCard, Truck, Star,
-  Edit3, Save, Upload, ChevronDown,
+  Edit3, Save, Upload, ChevronDown, Calendar,
   MessageSquare, ShoppingCart, Package,
 } from "lucide-react";
 import { mockStoreData, mockStoreReviews } from "../../data/store/mockStoreData";
+import { useAuth } from "../../context/AuthContext";
 
 export default function StoreProfile() {
+  const { user } = useAuth();
   const store = mockStoreData;
   const reviews = mockStoreReviews;
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...store });
+
+  // Formatear la fecha de registro (creado_en) como dd/mm/aa
+  const memberSince = user?.creado_en
+    ? (() => {
+        const d = new Date(user.creado_en);
+        const dia = String(d.getDate()).padStart(2, "0");
+        const mes = String(d.getMonth() + 1).padStart(2, "0");
+        const anio = String(d.getFullYear()).slice(-2);
+        return `${dia}/${mes}/${anio}`;
+      })()
+    : "—";
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -29,6 +42,7 @@ export default function StoreProfile() {
   };
 
   const statsCards = [
+    { icon: Calendar, label: "Miembro desde", value: memberSince, color: "text-emerald-500", bg: "bg-emerald-50" },
     { icon: Star, label: "Calificación", value: store.calificacion, color: "text-amber-500", bg: "bg-amber-50" },
     { icon: ShoppingCart, label: "Ventas totales", value: store.totalVentas, color: "text-blue-500", bg: "bg-blue-50" },
     { icon: Package, label: "Productos", value: store.totalProductos, color: "text-rose-500", bg: "bg-rose-50" },

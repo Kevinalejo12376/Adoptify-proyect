@@ -122,6 +122,7 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
         "role": rol_codigo,
         "rol": rol_codigo,
         "estado": "activo" if current_user.activo else "inactivo",
+        "creado_en": current_user.creado_en.isoformat() if current_user.creado_en else None,
         "settings": {"storeEnabled": False},
     }
     # Para administradores, entrega los permisos que espera el panel admin.
