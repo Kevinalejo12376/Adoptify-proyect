@@ -38,7 +38,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
       const data = await listarNotificaciones();
       setNotifs(data || []);
     } catch (e) {
-      // sin notificaciones si falla
+      console.error("Error al cargar notificaciones:", e);
     }
   }, []);
 
@@ -183,9 +183,16 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
                           )}
                         </div>
                         {!notif.leida && <div className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0 mt-2" />}
-                      </button>
                     ))
                   )}
+                </div>
+                <div className="p-2 border-t border-gray-100 dark:border-dark-border">
+                  <button
+                    onClick={() => { navigate("/admin/dashboard"); setNotifOpen(false); }}
+                    className="w-full py-2 text-sm font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors"
+                  >
+                    Ver todas las notificaciones
+                  </button>
                 </div>
               </div>
             )}
