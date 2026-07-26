@@ -7,14 +7,49 @@ import {
   ArrowUp, ArrowDown, Shirt, Bone, Stethoscope, Droplets, Dog,
   Sparkles, Ruler, Weight, Layers, Tag, Palette, Scissors,
   ShoppingCart, Heart, Phone, Mail, Clock, ChevronRight,
-  ArrowLeft, Shield, Info, Box
+  ArrowLeft, Shield, Info, Box, Loader2
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { categoryIcons, categoryColors } from "../../data/products";
+import { misProductos, crearProducto, actualizarProducto, eliminarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
+
+// Normaliza un producto del backend a la forma que usa esta vista.
+const mapProducto = (p) => ({
+  id: p.id,
+  name: p.nombre,
+  category: p.categoria || "Alimentos",
+  price: Number(p.precio) || 0,
+  stock: p.stock ?? 0,
+  description: p.descripcion || "",
+  brand: p.marca || "",
+  material: p.material || "",
+  colors: p.colores || "",
+  sizes: p.tallas ? String(p.tallas).split(",").map((s) => s.trim()).filter(Boolean) : [],
+  active: p.activo,
+  rating: Number(p.rating) || 0,
+  sales: p.ventas || 0,
+  features: [],
+  images: [],
+});
+
+// Construye el payload que espera el backend a partir del formulario.
+const toPayload = (d) => ({
+  nombre: d.name,
+  categoria: d.category,
+  precio: parseFloat(d.price) || 0,
+  stock: parseInt(d.stock) || 0,
+  descripcion: d.description,
+  marca: d.brand,
+  material: d.material,
+  colores: d.colors,
+  tallas: Array.isArray(d.sizes) ? d.sizes.join(",") : (d.sizes || ""),
+});
+
+export { mapProducto, toPayload };
 
 const categoryFields = {
   Ropa: { sizes: true, material: true, colors: true, sizeOptions: ["XS", "S", "M", "L", "XL", "XXL"], label: "Prenda de vestir" },
@@ -334,13 +369,25 @@ export default function ShelterStore() {
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, productId: null });
   const [confirmToggle, setConfirmToggle] = useState({ isOpen: false, productId: null, newState: false });
 
-  const [products, setProducts] = useState([
-    { id: 1, name: "Collar Premium Ajustable", category: "Accesorios", price: 100.00, stock: 25, description: "Collar de cuero sintético de alta calidad, ajustable y duradero para todo tipo de mascotas. Diseño ergonómico que garantiza comodidad.", brand: "PetStyle", material: "Cuero sintético", colors: "Negro, Marrón", sizes: ["S", "M", "L", "XL"], active: true, rating: 4.8, sales: 124, features: ["Hebilla ajustable", "Costuras reforzadas", "Diseño ergonómico"], images: [] },
-    { id: 2, name: "Recipiente de Comida Anti-vuelco", category: "Alimentos", price: 45.00, stock: 50, description: "Bowl de acero inoxidable con base antideslizante. Perfecto para la alimentación diaria de tu mascota.", brand: "HappyPet", material: "Acero inoxidable", sizes: ["500ml", "1L", "1.5L"], active: true, rating: 4.6, sales: 89, features: ["Base antideslizante", "Apto lavavajillas", "Bordes suaves"], images: [] },
-    { id: 3, name: "Juguete Interactivo Kong", category: "Juguetes", price: 35.00, stock: 15, description: "Juguete resistente para estimulación mental de tu mascota. Ideal para liberar estrés y ansiedad.", brand: "Kong", material: "Caucho natural", colors: "Rojo, Azul", sizes: ["S", "M", "L"], active: true, rating: 4.9, sales: 256, features: ["Resistente", "Estimulación mental", "Dispensador de comida"], images: [] },
-    { id: 4, name: "Shampoo Natural para Mascotas", category: "Higiene", price: 28.00, stock: 0, description: "Shampoo suave con ingredientes naturales. Hipoalergénico y balanceado para el cuidado diario.", brand: "PetCare", material: "Natural", sizes: ["250ml", "500ml"], active: false, rating: 4.5, sales: 67, features: ["Hipoalergénico", "Aroma suave", "pH balanceado"], images: [] },
-    { id: 5, name: "Desparasitante Oral", category: "Salud", price: 32.00, stock: 40, description: "Desparasitante de amplio espectro para perros y gatos. Fácil administración con sabor agradable.", brand: "VetLife", material: "Oral", sizes: ["3 dosis", "6 dosis"], active: true, rating: 4.7, sales: 312, features: ["Amplio espectro", "Fácil administración", "Sabor agradable"], images: [] },
-  ]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const recargar = async () => {
+    try {
+      const data = await misProductos();
+      setProducts((data || []).map(mapProducto));
+    } catch (e) {
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    recargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const emptyProduct = { name: "", category: "Alimentos", price: "", stock: "", description: "", brand: "", material: "", colors: "", sizes: [], features: "", active: true, images: [] };
   const [newProduct, setNewProduct] = useState({ ...emptyProduct });
@@ -363,22 +410,42 @@ export default function ShelterStore() {
     return matchesSearch && matchesCategory && matchesActive;
   });
 
-  const handleAddProduct = (e) => {
+  const handleAddProduct = async (e) => {
     e.preventDefault();
-    const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
-    const product = { ...newProduct, id: newId, price: parseFloat(newProduct.price), stock: parseInt(newProduct.stock), sales: 0, rating: 0, sizes: newProduct.sizes || [], features: newProduct.features ? newProduct.features.split(",").map(f => f.trim()).filter(Boolean) : [], images: newProduct.images || [] };
-    setProducts([...products, product]);
-    setShowAddModal(false);
-    setNewProduct({ ...emptyProduct });
+    setSaving(true);
+    try {
+      await crearProducto(toPayload(newProduct));
+      await recargar();
+      setShowAddModal(false);
+      setNewProduct({ ...emptyProduct });
+    } catch (err) {
+      // se mantiene el modal abierto si falla
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteProduct = () => {
-    if (confirmDelete.productId) setProducts(products.filter(p => p.id !== confirmDelete.productId));
+  const handleDeleteProduct = async () => {
+    if (confirmDelete.productId) {
+      try {
+        await eliminarProducto(confirmDelete.productId);
+        setProducts((prev) => prev.filter((p) => p.id !== confirmDelete.productId));
+      } catch (err) {
+        // noop
+      }
+    }
     setConfirmDelete({ isOpen: false, productId: null });
   };
 
-  const handleToggleActive = () => {
-    if (confirmToggle.productId) setProducts(products.map(p => p.id === confirmToggle.productId ? { ...p, active: confirmToggle.newState } : p));
+  const handleToggleActive = async () => {
+    if (confirmToggle.productId) {
+      try {
+        await actualizarProducto(confirmToggle.productId, { activo: confirmToggle.newState });
+        setProducts((prev) => prev.map((p) => (p.id === confirmToggle.productId ? { ...p, active: confirmToggle.newState } : p)));
+      } catch (err) {
+        // noop
+      }
+    }
     setConfirmToggle({ isOpen: false, productId: null, newState: false });
   };
 
@@ -401,22 +468,17 @@ export default function ShelterStore() {
     });
   };
 
-  // Listen for updates from edit/detail pages
+  // Al volver de las paginas de edicion/detalle, recarga desde la BD.
   useEffect(() => {
-    if (location.state?.updatedProduct) {
-      const updated = location.state.updatedProduct;
-      setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+    if (
+      location.state?.updatedProduct ||
+      location.state?.deletedProductId ||
+      location.state?.toggledProductId !== undefined
+    ) {
+      recargar();
       window.history.replaceState({}, document.title);
     }
-    if (location.state?.deletedProductId) {
-      setProducts(prev => prev.filter(p => p.id !== location.state.deletedProductId));
-      window.history.replaceState({}, document.title);
-    }
-    if (location.state?.toggledProductId !== undefined) {
-      const { toggledProductId, newActiveState } = location.state;
-      setProducts(prev => prev.map(p => p.id === toggledProductId ? { ...p, active: newActiveState } : p));
-      window.history.replaceState({}, document.title);
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
   return (
@@ -485,7 +547,12 @@ export default function ShelterStore() {
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {filteredProducts.length === 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24 text-gray-500 dark:text-dark-text-secondary">
+            <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+            <p>Cargando productos...</p>
+          </div>
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-20 animate-fade-in-up">
             <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
               <ShoppingBag className="w-10 h-10 text-rose-400 dark:text-rose-400/60" />

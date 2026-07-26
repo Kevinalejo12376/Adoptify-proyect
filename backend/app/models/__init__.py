@@ -23,6 +23,9 @@ from app.models.producto import Producto
 from app.models.soporte import Notificacion, Pqrs, Reporte, Auditoria
 from app.models.pedido import Pedido
 from app.models.foro import ForoPost
+from app.models.interaccion import (
+    Configuracion, FavoritoMascota, FavoritoProducto, ForoComentario, ForoReaccion,
+)
 
 __all__ = [
     "TipoDocumento", "Rol", "TipoMascota", "TamanoMascota", "GeneroMascota",

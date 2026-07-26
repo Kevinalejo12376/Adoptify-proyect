@@ -18,3 +18,7 @@ export const misEstadisticas = () => apiFetch(`${base}/mi-perfil/estadisticas`);
 /** Actualizar perfil del refugio autenticado. */
 export const actualizarPerfil = (payload) =>
   apiFetch(`${base}/mi-perfil`, { method: "PUT", body: payload });
+
+/** Estadisticas publicas globales (para la landing / Home). */
+export const estadisticasPublicas = () =>
+  apiFetch("/api/publico/estadisticas", { auth: false });

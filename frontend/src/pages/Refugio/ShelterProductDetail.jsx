@@ -6,6 +6,7 @@ import {
   AlertCircle, ChevronRight, Box
 } from "lucide-react";
 import { categoryIcons, categoryColors } from "../../data/products";
+import { actualizarProducto, eliminarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
 
 const CatIconComponent = ({ category, className }) => {
@@ -46,18 +47,28 @@ export default function ShelterProductDetail() {
   const isOutOfStock = product.stock === 0;
   const images = product.images || [];
 
-  const handleDelete = () => {
-    setDeleted(true);
+  const handleDelete = async () => {
     setShowDeleteModal(false);
-    setTimeout(() => navigate("/refugio/tienda", { state: { deletedProductId: product.id } }), 300);
+    try {
+      await eliminarProducto(product.id);
+      setDeleted(true);
+      setTimeout(() => navigate("/refugio/tienda", { state: { deletedProductId: product.id } }), 300);
+    } catch (err) {
+      // noop
+    }
   };
 
   const handleEdit = () => {
     navigate(`/refugio/tienda/editar/${product.id}`, { state: { product } });
   };
 
-  const handleToggleActive = () => {
-    navigate("/refugio/tienda", { state: { toggledProductId: product.id, newActiveState: !product.active } });
+  const handleToggleActive = async () => {
+    try {
+      await actualizarProducto(product.id, { activo: !product.active });
+      navigate("/refugio/tienda", { state: { toggledProductId: product.id, newActiveState: !product.active } });
+    } catch (err) {
+      // noop
+    }
   };
 
   const features = Array.isArray(product.features) ? product.features

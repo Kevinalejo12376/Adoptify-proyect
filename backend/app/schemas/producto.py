@@ -19,6 +19,21 @@ class ProductoCreate(BaseModel):
     colores: Optional[str] = None
 
 
+class ProductoUpdate(BaseModel):
+    nombre: Optional[str] = None
+    categoria: Optional[str] = None
+    precio: Optional[float] = None
+    descripcion: Optional[str] = None
+    descripcion_larga: Optional[str] = None
+    calidad: Optional[str] = None
+    stock: Optional[int] = None
+    marca: Optional[str] = None
+    material: Optional[str] = None
+    tallas: Optional[str] = None
+    colores: Optional[str] = None
+    activo: Optional[bool] = None
+
+
 class ProductoResponse(BaseModel):
     id: int
     nombre: str

@@ -507,7 +507,7 @@ export default function ForumPostCard({ post, onPostClick, onReactionChange }) {
               }`}
             >
               <MessageCircle className="w-5 h-5" />
-              {post.comments?.length || 0}
+              {post.commentsCount ?? post.comments?.length ?? 0}
             </button>
           </div>
 

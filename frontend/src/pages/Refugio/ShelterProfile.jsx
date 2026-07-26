@@ -1,14 +1,15 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Building2, MapPin, Phone, Mail, Globe, PawPrint, Heart, Users,
   Calendar, Edit3, Camera, CheckCircle, X, ChevronRight, Dog, Cat,
   Image, Upload, Trash2, ArrowUp, ArrowDown, Clock, AlertCircle,
   ClipboardList, MessageSquare, Settings,
   ChevronLeft, Sparkles, ShieldCheck, Star, Target, Trophy,
-  Eye, EyeOff
+  Eye, EyeOff, Loader2
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
+import { miPerfil, misEstadisticas, actualizarPerfil } from "../../api/refugios";
 
 const MAX_SHELTER_IMAGES = 6;
 
@@ -17,26 +18,59 @@ export default function ShelterProfile() {
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("resumen");
   const [selectedImage, setSelectedImage] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [statsData, setStatsData] = useState(null);
 
   const [profile, setProfile] = useState({
-    name: user?.name || "Refugio Patitas Felices",
+    name: user?.name || "",
     email: user?.email || "",
-    phone: user?.phone || "+57 301 987 6543",
-    location: user?.location || "Bogotá, Colombia",
-    address: user?.address || "Cra 45 # 67-89, Bogotá",
-    description:
-      user?.description ||
-      "Somos un refugio dedicado a rescatar y encontrar hogares amorosos para perros y gatos en situación de calle. Desde 2020 hemos ayudado a más de 100 mascotas a encontrar un hogar.",
-    facebook: user?.socialMedia?.facebook || "patitasfelices",
-    instagram: user?.socialMedia?.instagram || "@patitasfelices_refugio",
-    founded: "2020",
-    website: "www.patitasfelices.com",
+    phone: "",
+    location: user?.location || "",
+    address: "",
+    description: "",
+    facebook: "",
+    instagram: "",
+    founded: "",
+    website: "",
     images: [],
   });
 
   const [editForm, setEditForm] = useState({ ...profile });
   const fileInputRef = useRef(null);
   const galleryInputRef = useRef(null);
+
+  // Carga el perfil y las estadisticas reales del refugio autenticado.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const [perfil, stats] = await Promise.all([miPerfil(), misEstadisticas()]);
+        if (!activo) return;
+        const p = {
+          name: perfil.nombre || "",
+          email: perfil.email || "",
+          phone: perfil.telefono || "",
+          location: perfil.ubicacion || "",
+          address: perfil.direccion || "",
+          description: perfil.descripcion || "",
+          facebook: perfil.facebook || "",
+          instagram: perfil.instagram || "",
+          founded: stats?.anio_fundacion ? String(stats.anio_fundacion) : "",
+          website: "",
+          images: [],
+        };
+        setProfile(p);
+        setEditForm(p);
+        setStatsData(stats);
+      } catch (e) {
+        // se mantiene el perfil vacio si falla la carga
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
 
   // ─── Image handlers ───────────────────────────────────────────────
   const handleImageUpload = (e) => {
@@ -75,13 +109,17 @@ export default function ShelterProfile() {
     setEditForm((prev) => ({ ...prev, images: imgs }));
   };
 
-  // ─── Static data ──────────────────────────────────────────────────
+  // ─── Datos derivados de la API ────────────────────────────────────
+  const aniosTrayectoria = profile.founded
+    ? new Date().getFullYear() - parseInt(profile.founded)
+    : null;
+
   const stats = [
     {
       icon: PawPrint,
       label: "Rescatados",
-      value: "156",
-      sublabel: "+12 este mes",
+      value: String(statsData?.rescatados ?? 0),
+      sublabel: `${statsData?.mascotas ?? 0} en el refugio`,
       color: "text-rose-500",
       bg: "bg-rose-50 dark:bg-rose-500/10",
       progress: 78,
@@ -89,8 +127,8 @@ export default function ShelterProfile() {
     {
       icon: Heart,
       label: "Adoptados",
-      value: "132",
-      sublabel: "84% tasa",
+      value: String(statsData?.exitosas ?? 0),
+      sublabel: `${statsData?.solicitudes ?? 0} solicitudes`,
       color: "text-pink-500",
       bg: "bg-pink-50 dark:bg-pink-500/10",
       progress: 84,
@@ -98,8 +136,8 @@ export default function ShelterProfile() {
     {
       icon: Users,
       label: "Voluntarios",
-      value: "18",
-      sublabel: "+3 activos",
+      value: String(statsData?.voluntarios ?? 0),
+      sublabel: "activos",
       color: "text-amber-500",
       bg: "bg-amber-50 dark:bg-amber-500/10",
       progress: 60,
@@ -107,8 +145,8 @@ export default function ShelterProfile() {
     {
       icon: Calendar,
       label: "Trayectoria",
-      value: "6 años",
-      sublabel: "Desde 2020",
+      value: aniosTrayectoria != null ? `${aniosTrayectoria} años` : "—",
+      sublabel: profile.founded ? `Desde ${profile.founded}` : "Sin definir",
       color: "text-emerald-500",
       bg: "bg-emerald-50 dark:bg-emerald-500/10",
       progress: 100,
@@ -119,21 +157,21 @@ export default function ShelterProfile() {
     {
       icon: Dog,
       label: "Mis Mascotas",
-      desc: "24 registradas",
+      desc: `${statsData?.mascotas ?? 0} registradas`,
       path: "/refugio/mascotas",
       gradient: "from-rose-500 to-pink-500",
     },
     {
       icon: ClipboardList,
       label: "Solicitudes",
-      desc: "6 pendientes",
+      desc: `${statsData?.pendientes ?? 0} pendientes`,
       path: "/refugio/solicitudes",
       gradient: "from-amber-500 to-orange-500",
     },
     {
       icon: Heart,
       label: "Adopciones",
-      desc: "12 exitosas",
+      desc: `${statsData?.exitosas ?? 0} exitosas`,
       path: "/refugio/historial",
       gradient: "from-emerald-500 to-teal-500",
     },
@@ -146,68 +184,32 @@ export default function ShelterProfile() {
     },
   ];
 
-  const recentActivity = [
-    {
-      type: "adopcion",
-      icon: Heart,
-      title: "Adopción concretada",
-      desc: "Max fue adoptado por la familia López",
-      time: "Hace 2 horas",
-      color: "text-rose-500",
-      bg: "bg-rose-50 dark:bg-rose-500/10",
-    },
-    {
-      type: "solicitud",
-      icon: ClipboardList,
-      title: "Nueva solicitud recibida",
-      desc: "Carlos Ruiz quiere adoptar a Luna",
-      time: "Hace 5 horas",
-      color: "text-amber-500",
-      bg: "bg-amber-50 dark:bg-amber-500/10",
-    },
-    {
-      type: "mascota",
-      icon: PawPrint,
-      title: "Mascota registrada",
-      desc: "Rocky, un golden retriever de 2 años",
-      time: "Ayer",
-      color: "text-emerald-500",
-      bg: "bg-emerald-50 dark:bg-emerald-500/10",
-    },
-    {
-      type: "foro",
-      icon: MessageSquare,
-      title: "Publicación en el foro",
-      desc: "Nuevo comentario en tu publicación",
-      time: "Ayer",
-      color: "text-violet-500",
-      bg: "bg-violet-50 dark:bg-violet-500/10",
-    },
-  ];
+  // La actividad reciente se alimentara de eventos reales; por ahora vacia.
+  const recentActivity = [];
 
   const alerts = [
     {
       icon: AlertCircle,
       title: "Solicitudes pendientes",
-      desc: "Tienes 6 solicitudes por revisar",
+      desc: `Tienes ${statsData?.pendientes ?? 0} solicitudes por revisar`,
       color: "text-amber-500",
       bg: "bg-amber-50 dark:bg-amber-500/10",
       action: "Revisar",
       path: "/refugio/solicitudes",
     },
     {
-      icon: Clock,
-      title: "Seguimiento programado",
-      desc: "2 adopciones requieren seguimiento esta semana",
-      color: "text-blue-500",
-      bg: "bg-blue-50 dark:bg-blue-500/10",
+      icon: PawPrint,
+      title: "Mascotas registradas",
+      desc: `${statsData?.mascotas ?? 0} mascotas en tu refugio`,
+      color: "text-emerald-500",
+      bg: "bg-emerald-50 dark:bg-emerald-500/10",
       action: "Ver",
-      path: "/refugio/historial",
+      path: "/refugio/mascotas",
     },
     {
       icon: ShieldCheck,
-      title: "Perfil incompleto",
-      desc: "Agrega fotos para completar tu perfil",
+      title: "Completa tu perfil",
+      desc: "Agrega fotos e información para destacar",
       color: "text-violet-500",
       bg: "bg-violet-50 dark:bg-violet-500/10",
       action: "Completar",
@@ -222,23 +224,32 @@ export default function ShelterProfile() {
   ];
 
   // ─── Save handler ─────────────────────────────────────────────────
-  const handleSave = () => {
-    setProfile({ ...editForm });
-    const updatedUser = {
-      ...user,
-      name: editForm.name,
-      phone: editForm.phone,
-      location: editForm.location,
-      address: editForm.address,
-      description: editForm.description,
-      socialMedia: {
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await actualizarPerfil({
+        nombre: editForm.name,
+        telefono: editForm.phone,
+        ubicacion: editForm.location,
+        direccion: editForm.address,
+        descripcion: editForm.description,
         facebook: editForm.facebook,
         instagram: editForm.instagram,
-      },
-      images: editForm.images,
-    };
-    login(updatedUser);
-    setIsEditing(false);
+      });
+      setProfile({ ...editForm });
+      login({
+        ...user,
+        name: editForm.name,
+        location: editForm.location,
+        address: editForm.address,
+        description: editForm.description,
+      });
+      setIsEditing(false);
+    } catch (e) {
+      // el error se refleja manteniendo el modo edicion
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ─── Image preview modal ──────────────────────────────────────────
@@ -270,6 +281,14 @@ export default function ShelterProfile() {
   };
 
   // ─── Render ───────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center pt-20">
+        <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pt-20 pb-16">
       {/* ===== HERO / COVER SECTION ===== */}
@@ -483,6 +502,16 @@ export default function ShelterProfile() {
                     Actividad Reciente
                   </h2>
                   <div className="space-y-1">
+                    {recentActivity.length === 0 && (
+                      <div className="text-center py-10">
+                        <div className="w-14 h-14 rounded-full bg-gray-100 dark:bg-dark-border flex items-center justify-center mx-auto mb-3">
+                          <Clock className="w-7 h-7 text-gray-300 dark:text-dark-text-secondary" />
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+                          No hay actividad reciente
+                        </p>
+                      </div>
+                    )}
                     {recentActivity.map((activity, index) => {
                       const Icon = activity.icon;
                       return (
@@ -557,10 +586,12 @@ export default function ShelterProfile() {
                     <Trophy className="w-10 h-10 text-amber-200 mx-auto mb-3" />
                     <p className="text-sm text-rose-100 font-medium">Trayectoria</p>
                     <p className="text-3xl font-bold text-white font-display mt-1">
-                      {profile.founded}
+                      {profile.founded || "—"}
                     </p>
                     <p className="text-xs text-rose-200 mt-2">
-                      {new Date().getFullYear() - parseInt(profile.founded)} años de compromiso animal
+                      {aniosTrayectoria != null
+                        ? `${aniosTrayectoria} años de compromiso animal`
+                        : "Agrega tu año de fundación"}
                     </p>
                   </div>
                 </div>
@@ -972,10 +1003,15 @@ export default function ShelterProfile() {
           <div className="mt-8 flex justify-center animate-fade-in-up">
             <button
               onClick={handleSave}
-              className="px-10 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-bold rounded-2xl shadow-xl shadow-rose-200/50 dark:shadow-rose-500/20 hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center gap-3 text-lg"
+              disabled={saving}
+              className="px-10 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-bold rounded-2xl shadow-xl shadow-rose-200/50 dark:shadow-rose-500/20 hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center gap-3 text-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <CheckCircle className="w-6 h-6" />
-              Guardar Cambios
+              {saving ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                <CheckCircle className="w-6 h-6" />
+              )}
+              {saving ? "Guardando..." : "Guardar Cambios"}
             </button>
           </div>
         )}

@@ -1,8 +1,24 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { SUPER_ADMIN } from "../data/admin/mockData";
 import { STORE_CREDENTIALS, mockStoreData } from "../data/store/mockStoreData";
 import { loginRequest, registerRequest, fetchMe, logoutRequest } from "../api/auth";
 import { getToken } from "../api/client";
+import {
+  listarMascotasFavoritas,
+  agregarMascotaFavorita,
+  quitarMascotaFavorita,
+} from "../api/favoritos";
+
+// Normaliza una mascota del backend a la forma que usan las vistas de favoritos.
+const mapMascotaFav = (m) => ({
+  id: m.id,
+  name: m.nombre,
+  type: m.tipo,
+  breed: m.raza,
+  age: m.edad,
+  size: m.tamano,
+  gender: m.genero,
+  shelter: m.refugio_nombre,
+});
 
 const AuthContext = createContext(null);
 
@@ -20,6 +36,11 @@ export const AuthProvider = ({ children }) => {
         try {
           const me = await fetchMe();
           setUser(me);
+          // Carga los favoritos de mascotas reales desde la base de datos.
+          try {
+            const favs = await listarMascotasFavoritas();
+            setFavorites((favs || []).map(mapMascotaFav));
+          } catch { /* sin favoritos */ }
         } catch {
           logoutRequest();
         }
@@ -28,10 +49,6 @@ export const AuthProvider = ({ children }) => {
         if (storedUser) {
           try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
         }
-      }
-      const storedFavorites = localStorage.getItem("favorites");
-      if (storedFavorites) {
-        try { setFavorites(JSON.parse(storedFavorites)); } catch { /* ignore */ }
       }
       setLoading(false);
     };
@@ -43,6 +60,10 @@ export const AuthProvider = ({ children }) => {
   const apiLogin = async (email, password) => {
     const me = await loginRequest(email, password);
     setUser(me);
+    try {
+      const favs = await listarMascotasFavoritas();
+      setFavorites((favs || []).map(mapMascotaFav));
+    } catch { /* sin favoritos */ }
     return me;
   };
 
@@ -73,17 +94,6 @@ export const AuthProvider = ({ children }) => {
     window.location.href = "/";
   };
 
-  // --- Admin Login (mock) ---
-  const adminLogin = (email, password) => {
-    if (email === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
-      const adminData = { ...SUPER_ADMIN, ultimoAcceso: new Date().toISOString() };
-      setUser(adminData);
-      localStorage.setItem("user", JSON.stringify(adminData));
-      return { success: true, user: adminData };
-    }
-    return { success: false, error: "Credenciales incorrectas" };
-  };
-
   // --- Store (Tienda Aliada) Login (mock) ---
   const storeLogin = (email, password) => {
     if (email === STORE_CREDENTIALS.email && password === STORE_CREDENTIALS.password) {
@@ -101,21 +111,17 @@ export const AuthProvider = ({ children }) => {
   };
   const isStore = () => (user?.role || user?.rol) === "tienda_aliada";
 
-  // ===== Favoritos (local) =====
+  // ===== Favoritos de mascotas (persistidos en la base de datos) =====
   const addFavorite = (animal) => {
-    setFavorites((prev) => {
-      const nuevos = [...prev, animal];
-      localStorage.setItem("favorites", JSON.stringify(nuevos));
-      return nuevos;
-    });
+    setFavorites((prev) =>
+      prev.some((f) => f.id === animal.id) ? prev : [...prev, animal]
+    );
+    agregarMascotaFavorita(animal.id).catch(() => {});
   };
 
   const removeFavorite = (animalId) => {
-    setFavorites((prev) => {
-      const nuevos = prev.filter((fav) => fav.id !== animalId);
-      localStorage.setItem("favorites", JSON.stringify(nuevos));
-      return nuevos;
-    });
+    setFavorites((prev) => prev.filter((fav) => fav.id !== animalId));
+    quitarMascotaFavorita(animalId).catch(() => {});
   };
 
   const isFavorite = (animalId) => favorites.some((fav) => fav.id === animalId);
@@ -126,7 +132,7 @@ export const AuthProvider = ({ children }) => {
         user, loading, favorites,
         apiLogin, apiRegister,       // reales (usuario/refugio)
         login, register, logout,     // mock setters
-        adminLogin, storeLogin, isAdmin, isStore,
+        storeLogin, isAdmin, isStore,
         addFavorite, removeFavorite, isFavorite,
       }}
     >

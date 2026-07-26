@@ -6,39 +6,25 @@ import {
   MessageCircle, Home, Star, ThumbsUp, Clock, TrendingUp,
   Dog, Cat, Gift, CheckCircle, AlertCircle,
   Image, Globe, Plus,
-  Search, Users, Share2, ArrowUp, Quote, Sparkles
+  Search, Users, Share2, ArrowUp, Quote, Sparkles, Loader2
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { misSolicitudes } from "../../api/solicitudes";
+import { idsMascotasFavoritas } from "../../api/favoritos";
 
-// ─── Mock Data ───
-const MOCK_USER = {
-  name: "María García",
-  email: "maria.garcia@email.com",
-  phone: "+57 300 123 4567",
-  location: "Bogotá, Colombia",
-  bio: "Amante de los animales desde siempre. Tengo 2 perros y 1 gato adoptados. Me encanta ayudar en refugios cuando puedo. Voluntaria activa en fundaciones de rescate animal.",
-  joinDate: "Enero 2024",
+// Perfil base (se completa con los datos reales del usuario autenticado).
+const EMPTY_USER = {
+  name: "",
+  email: "",
+  phone: "",
+  location: "",
+  bio: "",
+  joinDate: "",
   avatar: null,
   cover: null,
-  website: "https://mariaejemplo.co",
-  social: {
-    twitter: "@maria_animales",
-    instagram: "@maria_adopta"
-  }
+  website: "",
+  social: { twitter: "", instagram: "" },
 };
-
-const MOCK_PETS = [
-  { id: 1, name: "Max", type: "dog", breed: "Golden Retriever", age: "2 años", adopted: "15 Ene 2024" },
-  { id: 2, name: "Luna", type: "cat", breed: "Siamés", age: "1.5 años", adopted: "20 Feb 2024" },
-  { id: 3, name: "Rocky", type: "dog", breed: "Bulldog Francés", age: "3 años", adopted: "10 Dic 2023" },
-];
-
-const MOCK_ACTIVITY = [
-  { id: 1, type: "adoption", icon: Heart, title: "Adoptaste a Luna", desc: "Gatita siamesa de 1.5 años", time: "hace 2 días", color: "from-rose-400 to-rose-500" },
-  { id: 2, type: "forum", icon: MessageCircle, title: "Comentaste en el foro", desc: "Consejos para gatos tímidos", time: "hace 5 días", color: "from-amber-400 to-amber-500" },
-  { id: 3, type: "donation", icon: Gift, title: "Donaste al refugio", desc: "Fundación 'Amigo fiel'", time: "hace 1 semana", color: "from-emerald-400 to-emerald-500" },
-  { id: 4, type: "review", icon: Star, title: "Dejaste una reseña", desc: "Refugio 'Hogar de huellas' - 5 estrellas", time: "hace 2 semanas", color: "from-violet-400 to-violet-500" },
-  { id: 5, type: "share", icon: Share2, title: "Compartiste una historia", desc: "El día que conocí a Max", time: "hace 3 semanas", color: "from-cyan-400 to-cyan-500" },
-];
 
 
 // ─── Animated Counter ───
@@ -305,12 +291,70 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
 
 // ─── Main Component ───
 export default function UserProfile() {
+  const { user: authUser } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
-  const [user, setUser] = useState(MOCK_USER);
-  const [editedUser, setEditedUser] = useState({ ...MOCK_USER });
+  const [user, setUser] = useState(EMPTY_USER);
+  const [editedUser, setEditedUser] = useState({ ...EMPTY_USER });
+  const [pets, setPets] = useState([]);
+  const [favCount, setFavCount] = useState(0);
+  const [solTotal, setSolTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  // Sincroniza el perfil con el usuario autenticado del contexto.
+  useEffect(() => {
+    if (authUser) {
+      const u = {
+        ...EMPTY_USER,
+        name: authUser.name || authUser.nombre || "",
+        email: authUser.email || "",
+        phone: authUser.phone || "",
+        location: authUser.location || "",
+        bio: authUser.bio || "",
+      };
+      setUser(u);
+      setEditedUser(u);
+    }
+  }, [authUser]);
+
+  // Carga mascotas adoptadas (solicitudes finalizadas) y numero de favoritos.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const [solicitudes, favIds] = await Promise.all([
+          misSolicitudes().catch(() => []),
+          idsMascotasFavoritas().catch(() => []),
+        ]);
+        if (!activo) return;
+        const lista = solicitudes || [];
+        setSolTotal(lista.length);
+        const adoptadas = lista
+          .filter((s) => s.estado === "finalizada")
+          .map((s) => ({
+            id: s.id,
+            name: s.mascota_nombre || "Mascota",
+            type: s.mascota_tipo === "Gato" ? "cat" : "dog",
+            breed: s.mascota_tipo || "",
+            age: "",
+            adopted: s.creada_en
+              ? new Date(s.creada_en).toLocaleDateString("es-CO", {
+                  day: "2-digit", month: "short", year: "numeric",
+                })
+              : "",
+          }));
+        setPets(adoptadas);
+        setFavCount((favIds || []).length);
+      } catch (e) {
+        // se mantienen listas vacias
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
 
   // Scroll to top button visibility
   useEffect(() => {
@@ -337,9 +381,9 @@ export default function UserProfile() {
   };
 
   const stats = [
-    { label: "Mascotas adoptadas", value: 3, icon: PawPrint, color: "from-rose-500 to-rose-600", shadow: "shadow-rose-200 dark:shadow-rose-900/30" },
-    { label: "Favoritos", value: 12, icon: Heart, color: "from-amber-500 to-amber-600", shadow: "shadow-amber-200 dark:shadow-amber-900/30" },
-    { label: "Miembro desde", value: user.joinDate, icon: Calendar, color: "from-rose-500 to-amber-500", shadow: "shadow-rose-200 dark:shadow-rose-900/30", isText: true },
+    { label: "Mascotas adoptadas", value: pets.length, icon: PawPrint, color: "from-rose-500 to-rose-600", shadow: "shadow-rose-200 dark:shadow-rose-900/30" },
+    { label: "Favoritos", value: favCount, icon: Heart, color: "from-amber-500 to-amber-600", shadow: "shadow-amber-200 dark:shadow-amber-900/30" },
+    { label: "Solicitudes", value: solTotal, icon: PawPrint, color: "from-rose-500 to-amber-500", shadow: "shadow-rose-200 dark:shadow-rose-900/30" },
   ];
 
   const tabs = [
@@ -631,9 +675,23 @@ export default function UserProfile() {
             <SectionDivider icon={PawPrint} label="Mis Mascotas" action="Ver todas" />
 
             <div className="space-y-4">
-              {MOCK_PETS.map((pet, idx) => (
-                <PetCard key={pet.id} pet={pet} index={idx} />
-              ))}
+              {pets.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-dark-bg flex items-center justify-center mx-auto mb-4">
+                    <PawPrint className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Aún no tienes mascotas adoptadas
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Cuando completes una adopción aparecerá aquí
+                  </p>
+                </div>
+              ) : (
+                pets.map((pet, idx) => (
+                  <PetCard key={pet.id} pet={pet} index={idx} />
+                ))
+              )}
             </div>
 
             {/* Add Pet CTA */}
@@ -652,23 +710,16 @@ export default function UserProfile() {
           <div className="bg-white dark:bg-dark-card rounded-3xl shadow-lg p-6 sm:p-8 border border-gray-100 dark:border-dark-border animate-fadeIn">
             <SectionDivider icon={Clock} label="Actividad Reciente" action="Ver todo" />
 
-            <div className="relative">
-              {/* Timeline line */}
-              <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-rose-300 via-amber-300 to-rose-300 dark:from-rose-700 dark:via-amber-700 dark:to-rose-700 rounded-full opacity-50" />
-
-              <div className="space-y-4 relative">
-                {MOCK_ACTIVITY.map((item, idx) => (
-                  <ActivityItem key={item.id} item={item} index={idx} />
-                ))}
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-dark-bg flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-8 h-8 text-gray-300 dark:text-gray-600" />
               </div>
-            </div>
-
-            {/* Load More */}
-            <div className="mt-6 text-center">
-              <button className="inline-flex items-center gap-2 px-6 py-3 bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 hover:text-rose-600 dark:hover:text-rose-400 transition-all border border-gray-200 dark:border-dark-border hover:border-rose-200 dark:hover:border-rose-800">
-                <Clock className="w-4 h-4" />
-                Cargar más actividad
-              </button>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                No hay actividad reciente
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                Tu actividad en la plataforma aparecerá aquí
+              </p>
             </div>
           </div>
         )}

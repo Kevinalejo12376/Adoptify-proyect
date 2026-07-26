@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { listarProductos } from "../../api/productos";
 import {
   ShoppingCart,
   Trash2,
@@ -69,33 +70,29 @@ export default function Cart() {
 
   const [addedSuggested, setAddedSuggested] = useState({});
 
-  // Suggested products (sin usar contexto, simulados)
-  const suggestedProducts = [
-    {
-      id: 101,
-      name: "Cepillo Dental para Mascotas",
-      price: 18.0,
-      category: "Higiene",
-      color: "from-rose-300 to-pink-400",
-      description: "Kit de cepillo dental y pasta sabor a pollo",
-    },
-    {
-      id: 102,
-      name: "Galletas Naturales Premium",
-      price: 22.0,
-      category: "Alimentos",
-      color: "from-emerald-300 to-teal-400",
-      description: "Snacks horneados con ingredientes 100% naturales",
-    },
-    {
-      id: 103,
-      name: "Juguete Interactivo Peluche",
-      price: 35.0,
-      category: "Juguetes",
-      color: "from-amber-300 to-orange-400",
-      description: "Peluche con sonido y relleno resistente para mordisquear",
-    },
-  ];
+  // Productos sugeridos reales desde la base de datos.
+  const [suggestedProducts, setSuggestedProducts] = useState([]);
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const data = await listarProductos();
+        if (!activo) return;
+        const mapped = (data || []).slice(0, 3).map((p) => ({
+          id: p.id,
+          name: p.nombre,
+          price: Number(p.precio) || 0,
+          category: p.categoria,
+          color: "from-rose-300 to-amber-300",
+          description: p.descripcion || "",
+        }));
+        setSuggestedProducts(mapped);
+      } catch (e) {
+        // sin sugeridos si falla
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
 
   const handleAddSuggested = (product) => {
     addToCart(product);

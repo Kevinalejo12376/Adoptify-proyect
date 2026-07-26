@@ -1,37 +1,38 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Users, Building2, PawPrint, Heart, Store, ShoppingCart,
-  MessageSquare, Flag, HelpCircle,
+  MessageSquare, Flag, HelpCircle, Shield, ClipboardList, Loader2,
 } from "lucide-react";
-import { mockDashboardStats, mockGraficas, mockRefugios, mockMascotasAdmin, mockProductosAdmin, mockPedidos, mockForoAdmin, mockReportes, mockPQRS } from "../../data/admin/mockData";
+import {
+  getEstadisticas, listarPedidos, listarReportes, listarPqrs, listarForoAdmin,
+} from "../../api/admin";
 
-function BarChart({ data, label, color = "rose", height = 48 }) {
-  if (!data || data.length === 0) return null;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-
+// Grafica de barras simple con etiquetas (usa datos reales).
+function LabeledBarChart({ items, height = 180 }) {
+  const max = Math.max(...items.map((i) => i.value), 1);
   return (
-    <div className="flex items-end gap-1.5" style={{ height }}>
-      {data.map((valor, i) => {
-        const altura = ((valor - min) / range) * 100;
-        return (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <span className="text-[10px] font-medium text-gray-500 dark:text-dark-text-secondary">{valor}</span>
-            <div
-              style={{ height: `${Math.max(altura, 8)}%` }}
-              className={`w-full rounded-md transition-all duration-300 ${
-                color === "rose" ? "bg-rose-400 dark:bg-rose-500" :
-                color === "emerald" ? "bg-emerald-400 dark:bg-emerald-500" :
-                color === "amber" ? "bg-amber-400 dark:bg-amber-500" :
-                color === "blue" ? "bg-blue-400 dark:bg-blue-500" :
-                color === "violet" ? "bg-violet-400 dark:bg-violet-500" :
-                "bg-gray-400 dark:bg-gray-500"
-              }`}
-            />
-          </div>
-        );
-      })}
+    <div>
+      <div className="flex items-end gap-3" style={{ height }}>
+        {items.map((it, i) => {
+          const altura = (it.value / max) * 100;
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1 justify-end">
+              <span className="text-xs font-semibold text-gray-600 dark:text-dark-text-secondary">{it.value}</span>
+              <div
+                style={{ height: `${Math.max(altura, 4)}%` }}
+                className={`w-full rounded-lg bg-gradient-to-t ${it.color} transition-all duration-500`}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-3 mt-2">
+        {items.map((it, i) => (
+          <span key={i} className="flex-1 text-center text-[11px] text-gray-400 dark:text-dark-text-secondary">
+            {it.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -44,6 +45,8 @@ const StatWidget = ({ icon: Icono, label, total, color }) => (
       color === "amber" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" :
       color === "blue" ? "bg-blue-50 dark:bg-blue-500/10 text-blue-500" :
       color === "violet" ? "bg-violet-50 dark:bg-violet-500/10 text-violet-500" :
+      color === "orange" ? "bg-orange-50 dark:bg-orange-500/10 text-orange-500" :
+      color === "cyan" ? "bg-cyan-50 dark:bg-cyan-500/10 text-cyan-500" :
       "bg-gray-50 dark:bg-gray-500/10 text-gray-500"
     }`}>
       <Icono size={18} strokeWidth={1.5} />
@@ -56,64 +59,60 @@ const StatWidget = ({ icon: Icono, label, total, color }) => (
 );
 
 export default function AdminEstadisticas() {
+  const [stats, setStats] = useState(null);
+  const [counts, setCounts] = useState({ pedidos: 0, reportes: 0, pqrs: 0, foro: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const [est, pedidos, reportes, pqrs, foro] = await Promise.all([
+          getEstadisticas().catch(() => null),
+          listarPedidos().catch(() => []),
+          listarReportes().catch(() => []),
+          listarPqrs().catch(() => []),
+          listarForoAdmin().catch(() => []),
+        ]);
+        if (!activo) return;
+        setStats(est);
+        setCounts({
+          pedidos: (pedidos || []).length,
+          reportes: (reportes || []).length,
+          pqrs: (pqrs || []).length,
+          foro: (foro || []).length,
+        });
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-gray-500 dark:text-dark-text-secondary">
+        <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+        <p>Cargando estadísticas...</p>
+      </div>
+    );
+  }
+
+  const s = stats || {};
+  const enProceso = Math.max((s.mascotas || 0) - (s.mascotas_disponibles || 0) - (s.mascotas_adoptadas || 0), 0);
+
   const sections = [
-    {
-      titulo: "Usuarios",
-      icon: Users,
-      color: "rose",
-      data: mockGraficas.usuariosRegistrados,
-      total: mockDashboardStats.usuariosRegistrados.total,
-    },
-    {
-      titulo: "Refugios",
-      icon: Building2,
-      color: "emerald",
-      total: mockDashboardStats.refugiosRegistrados.total,
-    },
-    {
-      titulo: "Mascotas",
-      icon: PawPrint,
-      color: "amber",
-      total: mockMascotasAdmin.length,
-    },
-    {
-      titulo: "Adopciones",
-      icon: Heart,
-      color: "rose",
-      data: mockGraficas.adopciones,
-      total: mockDashboardStats.mascotasAdoptadas.total,
-    },
-    {
-      titulo: "Marketplace",
-      icon: Store,
-      color: "blue",
-      total: mockProductosAdmin.length,
-    },
-    {
-      titulo: "Pedidos",
-      icon: ShoppingCart,
-      color: "violet",
-      total: mockPedidos.length,
-    },
-    {
-      titulo: "Foro",
-      icon: MessageSquare,
-      color: "amber",
-      data: mockGraficas.foroActividad,
-      total: mockForoAdmin.filter(p => p.estado === "visible").length,
-    },
-    {
-      titulo: "Reportes",
-      icon: Flag,
-      color: "orange",
-      total: mockReportes.length,
-    },
-    {
-      titulo: "PQRS",
-      icon: HelpCircle,
-      color: "cyan",
-      total: mockPQRS.length,
-    },
+    { titulo: "Usuarios", icon: Users, color: "rose", total: s.usuarios ?? 0 },
+    { titulo: "Refugios", icon: Building2, color: "emerald", total: s.refugios ?? 0 },
+    { titulo: "Administradores", icon: Shield, color: "blue", total: s.administradores ?? 0 },
+    { titulo: "Mascotas", icon: PawPrint, color: "amber", total: s.mascotas ?? 0 },
+    { titulo: "Adopciones", icon: Heart, color: "rose", total: s.mascotas_adoptadas ?? 0 },
+    { titulo: "Solicitudes", icon: ClipboardList, color: "violet", total: s.solicitudes ?? 0 },
+    { titulo: "Marketplace", icon: Store, color: "blue", total: s.productos ?? 0 },
+    { titulo: "Pedidos", icon: ShoppingCart, color: "violet", total: counts.pedidos },
+    { titulo: "Foro", icon: MessageSquare, color: "amber", total: counts.foro },
+    { titulo: "Reportes", icon: Flag, color: "orange", total: counts.reportes },
+    { titulo: "PQRS", icon: HelpCircle, color: "cyan", total: counts.pqrs },
   ];
 
   return (
@@ -121,115 +120,54 @@ export default function AdminEstadisticas() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Estadísticas</h1>
         <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-          Visualiza las estadísticas generales de la plataforma
+          Datos reales de la plataforma
         </p>
       </div>
 
       {/* Resumen rápido */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         {sections.map((sec, i) => (
-          <StatWidget key={i} icono={sec.icon} label={sec.titulo} total={sec.total} color={sec.color} />
+          <StatWidget key={i} icon={sec.icon} label={sec.titulo} total={sec.total} color={sec.color} />
         ))}
       </div>
 
-      {/* Gráficas detalladas */}
+      {/* Gráficas con datos reales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Usuarios Registrados */}
+        {/* Mascotas por estado */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Usuarios Registrados por Mes</h3>
-          </div>
-          <div className="flex items-end gap-1 mb-2" style={{ height: 160 }}>
-            {mockGraficas.usuariosRegistrados.data.map((valor, i) => {
-              const max = Math.max(...mockGraficas.usuariosRegistrados.data);
-              const altura = (valor / max) * 100;
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1 justify-end">
-                  <span className="text-[10px] font-medium text-gray-500">{valor}</span>
-                  <div
-                    style={{ height: `${altura}%` }}
-                    className="w-full rounded-md bg-gradient-to-t from-rose-400 to-rose-300 dark:from-rose-600 dark:to-rose-500 transition-all duration-300"
-                  />
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex justify-between text-[10px] text-gray-400 dark:text-dark-text-secondary">
-            {mockGraficas.usuariosRegistrados.labels.map((l, i) => (
-              <span key={i}>{l}</span>
-            ))}
-          </div>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Mascotas por estado</h3>
+          <LabeledBarChart
+            items={[
+              { label: "Disponibles", value: s.mascotas_disponibles ?? 0, color: "from-emerald-400 to-emerald-300 dark:from-emerald-600 dark:to-emerald-500" },
+              { label: "Adoptadas", value: s.mascotas_adoptadas ?? 0, color: "from-rose-400 to-rose-300 dark:from-rose-600 dark:to-rose-500" },
+              { label: "En proceso", value: enProceso, color: "from-amber-400 to-amber-300 dark:from-amber-600 dark:to-amber-500" },
+            ]}
+          />
         </div>
 
-        {/* Adopciones */}
+        {/* Cuentas de la plataforma */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Adopciones por Mes</h3>
-          </div>
-          <div className="flex items-end gap-1 mb-2" style={{ height: 160 }}>
-            {mockGraficas.adopciones.data.map((valor, i) => {
-              const max = Math.max(...mockGraficas.adopciones.data);
-              const altura = (valor / max) * 100;
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1 justify-end">
-                  <span className="text-[10px] font-medium text-gray-500">{valor}</span>
-                  <div
-                    style={{ height: `${altura}%` }}
-                    className="w-full rounded-md bg-gradient-to-t from-emerald-400 to-emerald-300 dark:from-emerald-600 dark:to-emerald-500 transition-all duration-300"
-                  />
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex justify-between text-[10px] text-gray-400 dark:text-dark-text-secondary">
-            {mockGraficas.adopciones.labels.map((l, i) => (
-              <span key={i}>{l}</span>
-            ))}
-          </div>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Cuentas registradas</h3>
+          <LabeledBarChart
+            items={[
+              { label: "Usuarios", value: s.usuarios ?? 0, color: "from-rose-400 to-rose-300 dark:from-rose-600 dark:to-rose-500" },
+              { label: "Refugios", value: s.refugios ?? 0, color: "from-emerald-400 to-emerald-300 dark:from-emerald-600 dark:to-emerald-500" },
+              { label: "Admins", value: s.administradores ?? 0, color: "from-blue-400 to-blue-300 dark:from-blue-600 dark:to-blue-500" },
+            ]}
+          />
         </div>
 
-        {/* Actividad del Foro */}
+        {/* Comunidad y soporte */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 shadow-sm lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Actividad del Foro</h3>
-          </div>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-2">Publicaciones</p>
-              <div className="flex items-end gap-1" style={{ height: 120 }}>
-                {mockGraficas.foroActividad.publicaciones.map((valor, i) => {
-                  const max = Math.max(...mockGraficas.foroActividad.publicaciones);
-                  const altura = (valor / max) * 100;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-0.5 justify-end">
-                      <span className="text-[9px] text-gray-400">{valor}</span>
-                      <div style={{ height: `${altura}%` }} className="w-full rounded-sm bg-amber-400 dark:bg-amber-500" />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-2">Comentarios</p>
-              <div className="flex items-end gap-1" style={{ height: 120 }}>
-                {mockGraficas.foroActividad.comentarios.map((valor, i) => {
-                  const max = Math.max(...mockGraficas.foroActividad.comentarios);
-                  const altura = (valor / max) * 100;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-0.5 justify-end">
-                      <span className="text-[9px] text-gray-400">{valor}</span>
-                      <div style={{ height: `${altura}%` }} className="w-full rounded-sm bg-violet-400 dark:bg-violet-500" />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-between text-[10px] text-gray-400 dark:text-dark-text-secondary mt-2">
-            {mockGraficas.foroActividad.labels.map((l, i) => (
-              <span key={i}>{l}</span>
-            ))}
-          </div>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Comunidad y soporte</h3>
+          <LabeledBarChart
+            items={[
+              { label: "Publicaciones", value: counts.foro, color: "from-amber-400 to-amber-300 dark:from-amber-600 dark:to-amber-500" },
+              { label: "Pedidos", value: counts.pedidos, color: "from-violet-400 to-violet-300 dark:from-violet-600 dark:to-violet-500" },
+              { label: "Reportes", value: counts.reportes, color: "from-orange-400 to-orange-300 dark:from-orange-600 dark:to-orange-500" },
+              { label: "PQRS", value: counts.pqrs, color: "from-cyan-400 to-cyan-300 dark:from-cyan-600 dark:to-cyan-500" },
+            ]}
+          />
         </div>
       </div>
     </div>

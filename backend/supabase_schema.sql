@@ -220,6 +220,17 @@ CREATE TABLE usuarios (
 );
 CREATE INDEX idx_usuarios_rol ON usuarios(rol_id);
 
+-- Super administrador por defecto
+INSERT INTO usuarios (nombre, email, hashed_password, rol_id, activo, creado_en)
+VALUES (
+    'Adoptify Oficial',
+    'adoptifyoficial@gmail.com',
+    '$2b$12$ggu6XmhNG7/nIC32oFB2x.PE2dxOCbVhwB0zxA/Ja3kAgfvNTjE6S',
+    (SELECT id FROM roles WHERE codigo = 'administrador_principal'),
+    true,
+    now()
+);
+
 CREATE TABLE refugios (
     id                 BIGSERIAL PRIMARY KEY,
     usuario_id         BIGINT NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,

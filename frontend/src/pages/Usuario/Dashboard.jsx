@@ -1,11 +1,53 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Bell, Calendar, MapPin, TrendingUp } from "lucide-react";
+import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Bell, Calendar, MapPin, TrendingUp, Loader2 } from "lucide-react";
 import mascotaImg from "../../assets/Mascotas.jpg";
+import { listarMascotas } from "../../api/mascotas";
+import { listarProductos } from "../../api/productos";
+import { listarPosts } from "../../api/foro";
+import { estadisticasPublicas } from "../../api/refugios";
+
+const nf = new Intl.NumberFormat("es-CO");
+
+function tiempoRelativo(iso) {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const horas = Math.floor(diff / 3600000);
+  if (horas < 1) return "hace un momento";
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.floor(horas / 24);
+  return `hace ${dias} d`;
+}
 
 export default function Dashboard() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [activeSection, setActiveSection] = useState("");
+  const [stats, setStats] = useState(null);
+  const [pets, setPets] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [topics, setTopics] = useState([]);
+  const [postsTotal, setPostsTotal] = useState(0);
+
+  // Carga datos reales para el panel del usuario.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      const [est, mascotas, prods, posts] = await Promise.all([
+        estadisticasPublicas().catch(() => null),
+        listarMascotas().catch(() => []),
+        listarProductos().catch(() => []),
+        listarPosts().catch(() => []),
+      ]);
+      if (!activo) return;
+      setStats(est);
+      setPets((mascotas || []).slice(0, 4));
+      setProducts((prods || []).slice(0, 3));
+      const lista = posts || [];
+      setPostsTotal(lista.length);
+      setTopics(lista.slice(0, 3));
+    })();
+    return () => { activo = false; };
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -77,21 +119,21 @@ export default function Dashboard() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <PawPrint className="w-5 h-5 text-rose-500" />
-                    <div className="text-2xl font-bold text-gray-900 font-display">1,245</div>
+                    <div className="text-2xl font-bold text-gray-900 font-display">{nf.format(stats?.mascotas_disponibles ?? 0)}</div>
                   </div>
                   <div className="text-sm text-gray-600">Mascotas disponibles</div>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <Heart className="w-5 h-5 text-amber-500" />
-                    <div className="text-2xl font-bold text-gray-900 font-display">3,982</div>
+                    <div className="text-2xl font-bold text-gray-900 font-display">{nf.format(stats?.adopciones_exitosas ?? 0)}</div>
                   </div>
                   <div className="text-sm text-gray-600">Adopciones exitosas</div>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <Users className="w-5 h-5 text-rose-500" />
-                    <div className="text-2xl font-bold text-gray-900 font-display">5,210</div>
+                    <div className="text-2xl font-bold text-gray-900 font-display">{nf.format(stats?.usuarios ?? 0)}</div>
                   </div>
                   <div className="text-sm text-gray-600">Miembros activos</div>
                 </div>
@@ -205,26 +247,30 @@ export default function Dashboard() {
             </Link>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { name: "Max", shelter: "Refugio 'Hogar de huellas'", age: "2 años", breed: "Golden Retriever" },
-              { name: "Thor", shelter: "Refugio 'Patitas de amor'", age: "3 años", breed: "Husky Siberiano" },
-              { name: "Matias", shelter: "Fundación 'Amigo fiel'", age: "1 año", breed: "Beagle" },
-              { name: "Leo", shelter: "Refugio 'Nueva vida'", age: "4 años", breed: "Pastor Alemán" }
-            ].map((pet, index) => (
-              <div key={index} className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-                <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                  <PawPrint className="w-16 h-16 text-rose-500" />
+          {pets.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <PawPrint className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No hay mascotas disponibles por el momento</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {pets.map((pet) => (
+                <div key={pet.id} className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
+                    <PawPrint className="w-16 h-16 text-rose-500" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">{pet.nombre}</h3>
+                  <p className="text-sm text-gray-600 mb-1">{pet.raza || pet.tipo}</p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    {[pet.edad, pet.refugio_nombre].filter(Boolean).join(" • ")}
+                  </p>
+                  <Link to={`/animal/${pet.id}`} className="inline-block px-6 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                    Ver más
+                  </Link>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">{pet.name}</h3>
-                <p className="text-sm text-gray-600 mb-1">{pet.breed}</p>
-                <p className="text-xs text-gray-500 mb-4">{pet.age} • {pet.shelter}</p>
-                <Link to="/animals" className="inline-block px-6 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
-                  Ver más
-                </Link>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -243,27 +289,30 @@ export default function Dashboard() {
             </Link>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { name: "Collar Premium", price: "$100.00" },
-              { name: "Recipiente de comida", price: "$45.00" },
-              { name: "Juguete interactivo", price: "$35.00" }
-            ].map((product, index) => (
-              <div key={index} className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
-                <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                  <ShoppingBag className="w-16 h-16 text-rose-500" />
+          {products.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No hay productos disponibles por el momento</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {products.map((product) => (
+                <div key={product.id} className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
+                    <ShoppingBag className="w-16 h-16 text-rose-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
+                  <div className="flex justify-between items-center">
+                    <span className="text-2xl font-bold text-rose-600 font-display">${Number(product.precio).toFixed(2)}</span>
+                    <Link to={`/product/${product.id}`} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Ver
+                    </Link>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{product.name}</h3>
-                <div className="flex justify-between items-center">
-                  <span className="text-2xl font-bold text-rose-600 font-display">{product.price}</span>
-                  <Link to="/store" className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    Agregar
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -289,21 +338,21 @@ export default function Dashboard() {
                 icon: MessageSquare,
                 title: "Discusiones",
                 desc: "Participa en conversaciones sobre cuidado, entrenamiento y más",
-                count: "245",
+                count: String(postsTotal),
                 color: "from-rose-400 to-rose-500"
               },
               {
                 icon: ThumbsUp,
                 title: "Consejos",
                 desc: "Recibe y comparte tips de la comunidad",
-                count: "189",
+                count: String(postsTotal),
                 color: "from-amber-400 to-amber-500"
               },
               {
                 icon: Share2,
                 title: "Historias",
                 desc: "Comparte tu experiencia de adopción",
-                count: "156",
+                count: String(postsTotal),
                 color: "from-rose-400 to-amber-500"
               }
             ].map((item, index) => (
@@ -323,33 +372,36 @@ export default function Dashboard() {
 
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-6 font-display">Temas Recientes</h3>
-            <div className="space-y-4">
-              {[
-                { title: "¿Cómo ayudar a mi perro con ansiedad por separación?", author: "María G.", replies: 23, time: "hace 2 horas" },
-                { title: "Mejor alimento para cachorros de raza grande", author: "Carlos R.", replies: 15, time: "hace 5 horas" },
-                { title: "Experiencia con adopción de gatos adultos", author: "Ana L.", replies: 31, time: "hace 1 día" }
-              ].map((topic, index) => (
-                <Link key={index} to="/forum" className="block p-4 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50 hover:from-rose-100 hover:to-amber-100 transition-all duration-300 cursor-pointer">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 mb-1">{topic.title}</h4>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          {topic.author}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MessageSquare className="w-4 h-4" />
-                          {topic.replies} respuestas
-                        </span>
-                        <span>{topic.time}</span>
+            {topics.length === 0 ? (
+              <div className="text-center py-10">
+                <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">Aún no hay temas en el foro</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {topics.map((topic) => (
+                  <Link key={topic.id} to="/forum" className="block p-4 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50 hover:from-rose-100 hover:to-amber-100 transition-all duration-300 cursor-pointer">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 mb-1">{topic.titulo}</h4>
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <span className="flex items-center gap-1">
+                            <User className="w-4 h-4" />
+                            {topic.autor}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MessageSquare className="w-4 h-4" />
+                            {topic.comentarios_count} respuestas
+                          </span>
+                          <span>{tiempoRelativo(topic.creado_en)}</span>
+                        </div>
                       </div>
+                      <ArrowRight className="w-5 h-5 text-rose-500 mt-2" />
                     </div>
-                    <ArrowRight className="w-5 h-5 text-rose-500 mt-2" />
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+            )}
             <Link to="/forum" className="mt-6 inline-flex items-center px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all">
               Ver todos los temas
               <ArrowRight className="w-5 h-5 ml-2" />
