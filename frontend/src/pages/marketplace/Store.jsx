@@ -48,7 +48,7 @@ const normalizeProducto = (p) => ({
   category: p.categoria,
   price: Number(p.precio) || 0,
   rating: Number(p.rating) || 0,
-  reviews: p.ventas || 0,
+  reviews: p.resenas_count || 0,
   description: p.descripcion || "",
   stock: p.stock ?? 0,
   color: categoryColors[p.categoria] || "from-gray-400 to-gray-500",

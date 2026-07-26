@@ -33,3 +33,4 @@ class Producto(Base):
 
     categoria = relationship("CategoriaProducto", lazy="joined")
     tienda = relationship("Tienda", back_populates="productos")
+    resenas = relationship("Resena", lazy="select", cascade="all, delete-orphan")
