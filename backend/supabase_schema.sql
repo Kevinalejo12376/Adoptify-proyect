@@ -22,7 +22,7 @@ DROP TABLE IF EXISTS
     auditoria, reportes, pqrs,
     notificaciones, actividades, campanas, eventos,
     foro_reacciones, foro_comentarios, foro_post_imagenes, foro_posts,
-    pedido_items, pedidos, codigos_promocion, carrito_items,
+    historial_estados_pedido, pedido_items, pedidos, codigos_promocion, carrito_items,
     favoritos_productos, favoritos_mascotas,
     resenas_refugio, resenas, producto_caracteristicas, producto_imagenes, productos,
     tienda_imagenes, tiendas,
@@ -459,15 +459,21 @@ CREATE TABLE codigos_promocion (
 );
 
 CREATE TABLE pedidos (
-    id                 BIGSERIAL PRIMARY KEY,
-    usuario_id         BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
-    estado_id          BIGINT NOT NULL REFERENCES estados_pedido(id),
-    subtotal           NUMERIC(10,2) NOT NULL DEFAULT 0,
-    costo_envio        NUMERIC(10,2) NOT NULL DEFAULT 0,
-    descuento          NUMERIC(10,2) NOT NULL DEFAULT 0,
-    total              NUMERIC(10,2) NOT NULL DEFAULT 0,
-    codigo_promocion   VARCHAR(40),
-    creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                     BIGSERIAL PRIMARY KEY,
+    usuario_id             BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    estado_id              BIGINT NOT NULL REFERENCES estados_pedido(id),
+    subtotal               NUMERIC(10,2) NOT NULL DEFAULT 0,
+    costo_envio            NUMERIC(10,2) NOT NULL DEFAULT 0,
+    descuento              NUMERIC(10,2) NOT NULL DEFAULT 0,
+    total                  NUMERIC(10,2) NOT NULL DEFAULT 0,
+    codigo_promocion       VARCHAR(40),
+    nombre_contacto        VARCHAR(150),
+    telefono_contacto      VARCHAR(30),
+    direccion_envio        VARCHAR(255),
+    metodo_pago            VARCHAR(60),
+    notas                  TEXT,
+    fecha_estimada_entrega TIMESTAMPTZ,
+    creado_en              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE pedido_items (
@@ -476,8 +482,18 @@ CREATE TABLE pedido_items (
     producto_id     BIGINT REFERENCES productos(id) ON DELETE SET NULL,
     nombre_producto VARCHAR(150) NOT NULL,
     cantidad        INT NOT NULL DEFAULT 1 CHECK (cantidad > 0),
-    precio_unitario NUMERIC(10,2) NOT NULL DEFAULT 0
+    precio_unitario NUMERIC(10,2) NOT NULL DEFAULT 0,
+    subtotal        NUMERIC(10,2) NOT NULL DEFAULT 0
 );
+
+CREATE TABLE historial_estados_pedido (
+    id        BIGSERIAL PRIMARY KEY,
+    pedido_id BIGINT NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+    estado_id BIGINT NOT NULL REFERENCES estados_pedido(id),
+    notas     VARCHAR(255),
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_historial_pedido ON historial_estados_pedido(pedido_id);
 
 -- ============================================================
 -- 5. FORO / COMUNIDAD
@@ -659,6 +675,7 @@ ALTER TABLE carrito_items            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE codigos_promocion        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedidos                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedido_items             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE historial_estados_pedido ENABLE ROW LEVEL SECURITY;
 
 -- Foro / comunidad
 ALTER TABLE foro_posts               ENABLE ROW LEVEL SECURITY;

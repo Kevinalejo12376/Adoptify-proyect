@@ -22,10 +22,12 @@ class Pedido(Base):
     direccion_envio = Column(String(255))
     metodo_pago = Column(String(60))
     notas = Column(Text)
+    fecha_estimada_entrega = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     estado = relationship("EstadoPedido", lazy="joined")
     items = relationship("PedidoItem", back_populates="pedido", cascade="all, delete-orphan")
+    historial = relationship("HistorialEstadoPedido", back_populates="pedido", cascade="all, delete-orphan", order_by="HistorialEstadoPedido.creado_en.asc()")
 
 
 class PedidoItem(Base):
@@ -42,3 +44,16 @@ class PedidoItem(Base):
 
     pedido = relationship("Pedido", back_populates="items")
     producto = relationship("Producto", lazy="joined")
+
+
+class HistorialEstadoPedido(Base):
+    __tablename__ = "historial_estados_pedido"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pedido_id = Column(Integer, ForeignKey("pedidos.id", ondelete="CASCADE"), nullable=False)
+    estado_id = Column(Integer, ForeignKey("estados_pedido.id"), nullable=False)
+    notas = Column(String(255))
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    pedido = relationship("Pedido", back_populates="historial")
+    estado = relationship("EstadoPedido", lazy="joined")
