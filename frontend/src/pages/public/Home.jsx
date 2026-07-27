@@ -4,18 +4,41 @@ import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as Hom
 import ScrollToTop from "../../components/ScrollToTop";
 import AnimatedSection from "../../components/AnimatedSection";
 import { useAuth } from "../../context/AuthContext";
-import { estadisticasPublicas } from "../../api/refugios";
+import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
+import { listarMascotas } from "../../api/mascotas";
+import { listarProductos } from "../../api/productos";
+import { listarPosts } from "../../api/foro";
 import mascotaImg from "../../assets/Mascotas.jpg";
 import daycareImg from "../../assets/daycare.png";
+
+function tiempoRelativo(iso) {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(diff / 3600000);
+  if (h < 1) return "hace un momento";
+  if (h < 24) return `hace ${h} h`;
+  return `hace ${Math.floor(h / 24)} d`;
+}
 
 export default function Home() {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState("");
-  // Estadisticas reales de la plataforma
+  // Datos reales de la plataforma
   const [stats, setStats] = useState(null);
+  const [pets, setPets] = useState([]);
+  const [refugios, setRefugios] = useState([]);
+  const [productos, setProductos] = useState([]);
+  const [topics, setTopics] = useState([]);
+  const [postsTotal, setPostsTotal] = useState(0);
 
   useEffect(() => {
-    estadisticasPublicas().then(setStats).catch(() => setStats(null));
+    let activo = true;
+    estadisticasPublicas().then((d) => activo && setStats(d)).catch(() => setStats(null));
+    listarMascotas().then((d) => activo && setPets((d || []).slice(0, 4))).catch(() => {});
+    listarRefugios().then((d) => activo && setRefugios((d || []).slice(0, 3))).catch(() => {});
+    listarProductos().then((d) => activo && setProductos((d || []).slice(0, 3))).catch(() => {});
+    listarPosts().then((d) => { if (activo) { setPostsTotal((d || []).length); setTopics((d || []).slice(0, 3)); } }).catch(() => {});
+    return () => { activo = false; };
   }, []);
 
   useEffect(() => {
@@ -225,25 +248,27 @@ export default function Home() {
             </Link>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { name: "Max", shelter: "Refugio 'Hogar de huellas'" },
-              { name: "Thor", shelter: "Refugio 'Patitas de amor'" },
-              { name: "Matias", shelter: "Fundación 'Amigo fiel'" },
-              { name: "Leo", shelter: "Refugio 'Nueva vida'" }
-            ].map((pet, index) => (
-              <div key={index} className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-                <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                  <PawPrint className="w-16 h-16 text-rose-500" />
+          {pets.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <PawPrint className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">Aún no hay mascotas publicadas</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {pets.map((pet) => (
+                <div key={pet.id} className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
+                    <PawPrint className="w-16 h-16 text-rose-500" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">{pet.nombre}</h3>
+                  <p className="text-sm text-gray-600 mb-4">{pet.refugio_nombre || pet.raza || pet.tipo}</p>
+                  <Link to={user ? `/animal/${pet.id}` : "/login"} className="inline-block px-6 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                    Ver más
+                  </Link>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">{pet.name}</h3>
-                <p className="text-sm text-gray-600 mb-4">{pet.shelter}</p>
-                <Link to="/login" className="inline-block px-6 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
-                  Ver más
-                </Link>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -268,37 +293,35 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { name: "Hogar de Huellas", location: "Bogotá, Colombia", animals: 45, desc: "Refugio dedicado a la recuperación y adopción de perros y gatos abandonados." },
-              { name: "Patitas de Amor", location: "Medellín, Colombia", animals: 32, desc: "Brindamos atención veterinaria y un hogar temporal a animales en situación de calle." },
-              { name: "Amigo Fiel", location: "Cali, Colombia", animals: 28, desc: "Fundación sin ánimo de lucro comprometida con el bienestar y la adopción responsable." }
-            ].map((shelter, index) => (
-              <div key={index} className="group bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 hover:scale-105 border border-gray-100">
-                <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-amber-100 to-rose-100 flex items-center justify-center group-hover:from-amber-200 group-hover:to-rose-200 transition-all duration-300">
-                  <HomeIcon className="w-10 h-10 text-amber-600" />
+          {refugios.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <HomeIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">Aún no hay refugios registrados</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {refugios.map((shelter) => (
+                <div key={shelter.id} className="group bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 hover:scale-105 border border-gray-100">
+                  <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-amber-100 to-rose-100 flex items-center justify-center group-hover:from-amber-200 group-hover:to-rose-200 transition-all duration-300">
+                    <HomeIcon className="w-10 h-10 text-amber-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-1 text-center font-display">{shelter.nombre}</h3>
+                  <p className="text-sm text-amber-600 font-medium mb-3 text-center">{shelter.ubicacion || "Colombia"}</p>
+                  <p className="text-sm text-gray-600 mb-4 text-center leading-relaxed line-clamp-3">
+                    {shelter.descripcion || "Refugio comprometido con el bienestar y la adopción responsable."}
+                  </p>
+                  <div className="text-center">
+                    <Link
+                      to={user ? `/shelter/${shelter.id}` : "/login"}
+                      className="inline-block px-6 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white font-semibold rounded-full hover:from-amber-600 hover:to-rose-600 transition-all text-sm cursor-pointer"
+                    >
+                      Ver refugio
+                    </Link>
+                  </div>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-1 text-center font-display">{shelter.name}</h3>
-                <p className="text-sm text-amber-600 font-medium mb-3 text-center">{shelter.location}</p>
-                <p className="text-sm text-gray-600 mb-4 text-center leading-relaxed">{shelter.desc}</p>
-                <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-4">
-                  <PawPrint className="w-4 h-4 text-rose-500" />
-                  <span>{shelter.animals} animales esperando un hogar</span>
-                </div>
-                <div className="text-center">
-                  <button
-                    onClick={() => {
-                      const el = document.getElementById('animals');
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                    className="inline-block px-6 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white font-semibold rounded-full hover:from-amber-600 hover:to-rose-600 transition-all text-sm cursor-pointer"
-                  >
-                    Ver mascotas
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* CTA dentro de refugios */}
           <div className="mt-12 bg-gradient-to-r from-amber-50 to-rose-50 rounded-2xl p-8 text-center border border-amber-100">
@@ -333,27 +356,30 @@ export default function Home() {
             </Link>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { name: "Collar Premium", price: "$100.00" },
-              { name: "Recipiente de comida", price: "$45.00" },
-              { name: "Juguete interactivo", price: "$35.00" }
-            ].map((product, index) => (
-              <div key={index} className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
-                <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                  <ShoppingBag className="w-16 h-16 text-rose-500" />
+          {productos.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">Aún no hay productos publicados</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {productos.map((product) => (
+                <div key={product.id} className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
+                    <ShoppingBag className="w-16 h-16 text-rose-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
+                  <div className="flex justify-between items-center">
+                    <span className="text-2xl font-bold text-rose-600 font-display">${Number(product.precio).toFixed(2)}</span>
+                    <Link to={user ? `/product/${product.id}` : "/login"} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Ver
+                    </Link>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{product.name}</h3>
-                <div className="flex justify-between items-center">
-                  <span className="text-2xl font-bold text-rose-600 font-display">{product.price}</span>
-                  <Link to="/login" className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    Agregar
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
       </AnimatedSection>
@@ -406,21 +432,21 @@ export default function Home() {
                 icon: MessageSquare,
                 title: "Discusiones",
                 desc: "Participa en conversaciones sobre cuidado, entrenamiento y más",
-                count: "245",
+                count: String(postsTotal),
                 color: "from-rose-400 to-rose-500"
               },
               {
                 icon: ThumbsUp,
                 title: "Consejos",
                 desc: "Recibe y comparte tips de la comunidad",
-                count: "189",
+                count: String(postsTotal),
                 color: "from-amber-400 to-amber-500"
               },
               {
                 icon: Share2,
                 title: "Historias",
                 desc: "Comparte tu experiencia de adopción",
-                count: "156",
+                count: String(postsTotal),
                 color: "from-rose-400 to-amber-500"
               }
             ].map((item, index) => (
@@ -440,33 +466,36 @@ export default function Home() {
 
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-6 font-display">Temas Recientes</h3>
-            <div className="space-y-4">
-              {[
-                { title: "¿Cómo ayudar a mi perro con ansiedad por separación?", author: "María G.", replies: 23, time: "hace 2 horas" },
-                { title: "Mejor alimento para cachorros de raza grande", author: "Carlos R.", replies: 15, time: "hace 5 horas" },
-                { title: "Experiencia con adopción de gatos adultos", author: "Ana L.", replies: 31, time: "hace 1 día" }
-              ].map((topic, index) => (
-                <Link key={index} to="/login" className="block p-4 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50 hover:from-rose-100 hover:to-amber-100 transition-all duration-300 cursor-pointer">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 mb-1">{topic.title}</h4>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span className="flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          {topic.author}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MessageSquare className="w-4 h-4" />
-                          {topic.replies} respuestas
-                        </span>
-                        <span>{topic.time}</span>
+            {topics.length === 0 ? (
+              <div className="text-center py-10">
+                <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">Aún no hay temas en el foro</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {topics.map((topic) => (
+                  <Link key={topic.id} to={user ? "/forum" : "/login"} className="block p-4 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50 hover:from-rose-100 hover:to-amber-100 transition-all duration-300 cursor-pointer">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 mb-1">{topic.titulo}</h4>
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <span className="flex items-center gap-1">
+                            <User className="w-4 h-4" />
+                            {topic.autor}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MessageSquare className="w-4 h-4" />
+                            {topic.comentarios_count} respuestas
+                          </span>
+                          <span>{tiempoRelativo(topic.creado_en)}</span>
+                        </div>
                       </div>
+                      <ArrowRight className="w-5 h-5 text-rose-500 mt-2" />
                     </div>
-                    <ArrowRight className="w-5 h-5 text-rose-500 mt-2" />
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+            )}
             <Link to="/login" className="mt-6 inline-flex items-center px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all">
               Ver todos los temas
               <ArrowRight className="w-5 h-5 ml-2" />

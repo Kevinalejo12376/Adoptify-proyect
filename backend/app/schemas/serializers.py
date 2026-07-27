@@ -245,6 +245,7 @@ def serialize_producto(p):
         "colores": p.colores,
         "activo": p.activo,
         "ventas": p.ventas,
+        "resenas_count": len(p.resenas) if p.resenas is not None else 0,
         "rating": float(p.rating) if p.rating is not None else 0,
         "categoria": p.categoria.nombre if p.categoria else None,
         "categoria_id": p.categoria_id,
