@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, PawPrint, Search, Heart, MapPin, CheckCircle, Star, Filter, ChevronDown, X } from "lucide-react";
+import { ArrowLeft, PawPrint, Search, Heart, MapPin, CheckCircle, Filter, ChevronDown, X, Loader2 } from "lucide-react";
+import { obtenerRefugio } from "../../api/refugios";
+import { listarMascotas } from "../../api/mascotas";
 
 export default function ShelterAnimals() {
   const { id } = useParams();
@@ -13,43 +15,48 @@ export default function ShelterAnimals() {
   const [selectedGender, setSelectedGender] = useState("all");
   const [isVisible, setIsVisible] = useState(false);
 
+  const [shelter, setShelter] = useState(null);
+  const [pets, setPets] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     setIsVisible(true);
-  }, []);
+    let activo = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [r, todas] = await Promise.all([
+          obtenerRefugio(id).catch(() => null),
+          listarMascotas().catch(() => []),
+        ]);
+        if (!activo) return;
+        setShelter(r);
+        const mias = (todas || [])
+          .filter((m) => m.refugio_id === Number(id) || (r && m.refugio_id === r.id))
+          .map((m) => ({
+            id: m.id,
+            name: m.nombre,
+            type: m.tipo || "",
+            breed: m.raza || "",
+            age: m.edad || "",
+            size: m.tamano || "",
+            gender: m.genero || "",
+          }));
+        setPets(mias);
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, [id]);
 
-  // Mock data - in a real app this would come from an API
-  const shelter = {
-    id: id || 1,
-    name: "Hogar de huellas",
-    location: "Ibagué - Tolima",
-    verified: true,
-    rating: 4.8,
-    totalRatings: 127,
-    logo: null,
-    pets: [
-      { id: 1, name: "Max", type: "Perro", breed: "Golden Retriever", age: "7 meses", size: "Grande", gender: "Macho", image: null },
-      { id: 2, name: "Leo", type: "Perro", breed: "Labrador", age: "4 meses", size: "Mediano", gender: "Macho", image: null },
-      { id: 3, name: "Layla", type: "Gato", breed: "Siamés", age: "24 meses", size: "Pequeño", gender: "Hembra", image: null },
-      { id: 4, name: "Rio", type: "Perro", breed: "Beagle", age: "12 meses", size: "Mediano", gender: "Macho", image: null },
-      { id: 5, name: "Luna", type: "Gato", breed: "Persa", age: "6 meses", size: "Pequeño", gender: "Hembra", image: null },
-      { id: 6, name: "Thor", type: "Perro", breed: "Husky Siberiano", age: "18 meses", size: "Grande", gender: "Macho", image: null },
-      { id: 7, name: "Mia", type: "Gato", breed: "Bengalí", age: "8 meses", size: "Pequeño", gender: "Hembra", image: null },
-      { id: 8, name: "Rocky", type: "Perro", breed: "Bulldog", age: "36 meses", size: "Mediano", gender: "Macho", image: null },
-      { id: 9, name: "Simba", type: "Gato", breed: "Maine Coon", age: "10 meses", size: "Grande", gender: "Macho", image: null },
-      { id: 10, name: "Coco", type: "Perro", breed: "Caniche", age: "5 meses", size: "Pequeño", gender: "Hembra", image: null },
-      { id: 11, name: "Nala", type: "Gato", breed: "Angora", age: "14 meses", size: "Mediano", gender: "Hembra", image: null },
-      { id: 12, name: "Kira", type: "Perro", breed: "Pastor Alemán", age: "20 meses", size: "Grande", gender: "Hembra", image: null }
-    ]
-  };
-
-  const filteredPets = shelter.pets.filter(pet => {
+  const filteredPets = pets.filter((pet) => {
     const matchesSearch = pet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         pet.breed.toLowerCase().includes(searchTerm.toLowerCase());
+      (pet.breed || "").toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = selectedType === "all" || pet.type === selectedType;
     const matchesSize = selectedSize === "all" || pet.size === selectedSize;
-    const matchesAge = selectedAge === "all" || pet.age.includes(selectedAge);
+    const matchesAge = selectedAge === "all" || (pet.age || "").includes(selectedAge);
     const matchesGender = selectedGender === "all" || pet.gender === selectedGender;
-    
     return matchesSearch && matchesType && matchesSize && matchesAge && matchesGender;
   });
 
@@ -60,6 +67,15 @@ export default function ShelterAnimals() {
     setSelectedGender("all");
     setSearchTerm("");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-24 flex flex-col items-center justify-center text-gray-500">
+        <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+        <p>Cargando mascotas...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-rose-50 via-white to-amber-50 relative overflow-hidden">
@@ -93,22 +109,20 @@ export default function ShelterAnimals() {
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 font-display">{shelter.name}</h1>
-                  {shelter.verified && (
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 font-display">{shelter?.nombre || "Refugio"}</h1>
+                  {shelter?.verificado && (
                     <CheckCircle className="w-5 h-5 text-green-500" />
                   )}
                 </div>
                 <div className="flex items-center gap-4 text-sm text-gray-600">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4 text-rose-500" />
-                    {shelter.location}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                    {shelter.rating} ({shelter.totalRatings})
-                  </span>
+                  {shelter?.ubicacion && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-4 h-4 text-rose-500" />
+                      {shelter.ubicacion}
+                    </span>
+                  )}
                   <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-medium">
-                    {shelter.pets.length} mascotas
+                    {pets.length} {pets.length === 1 ? "mascota" : "mascotas"}
                   </span>
                 </div>
               </div>
@@ -237,26 +251,25 @@ export default function ShelterAnimals() {
                         <PawPrint className="w-20 h-20 text-rose-400 group-hover:text-rose-500 transition-colors duration-300" />
                       </div>
                     </div>
-                    <div className="absolute top-3 right-3">
-                      <button className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300 hover:scale-110">
-                        <Heart className="w-4 h-4 text-gray-400 hover:text-rose-500 transition-colors" />
-                      </button>
-                    </div>
                     <div className="absolute bottom-3 left-3 flex gap-2">
-                      <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-gray-700 shadow-sm">
-                        {pet.age}
-                      </span>
-                      <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-gray-700 shadow-sm">
-                        {pet.type}
-                      </span>
+                      {pet.age && (
+                        <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-gray-700 shadow-sm">
+                          {pet.age}
+                        </span>
+                      )}
+                      {pet.type && (
+                        <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-gray-700 shadow-sm">
+                          {pet.type}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="p-5">
                     <h3 className="text-xl font-bold text-gray-900 mb-1 font-display">{pet.name}</h3>
-                    <p className="text-sm text-gray-500 mb-2">{pet.breed}</p>
+                    <p className="text-sm text-gray-500 mb-2">{pet.breed || "Sin raza"}</p>
                     <div className="flex gap-2 mb-4">
-                      <span className="px-2 py-1 bg-rose-50 text-rose-600 rounded-lg text-xs">{pet.size}</span>
-                      <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-xs">{pet.gender}</span>
+                      {pet.size && <span className="px-2 py-1 bg-rose-50 text-rose-600 rounded-lg text-xs">{pet.size}</span>}
+                      {pet.gender && <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-xs">{pet.gender}</span>}
                     </div>
                     <Link
                       to={`/animal/${pet.id}`}
@@ -271,14 +284,20 @@ export default function ShelterAnimals() {
           ) : (
             <div className="text-center py-20">
               <PawPrint className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No se encontraron mascotas</h3>
-              <p className="text-gray-500 mb-4">Intenta con otros filtros o términos de búsqueda</p>
-              <button
-                onClick={clearFilters}
-                className="px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all"
-              >
-                Limpiar filtros
-              </button>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {pets.length === 0 ? "Este refugio aún no tiene mascotas publicadas" : "No se encontraron mascotas"}
+              </h3>
+              <p className="text-gray-500 mb-4">
+                {pets.length === 0 ? "Vuelve más tarde para ver nuevas mascotas" : "Intenta con otros filtros o términos de búsqueda"}
+              </p>
+              {pets.length > 0 && (
+                <button
+                  onClick={clearFilters}
+                  className="px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all"
+                >
+                  Limpiar filtros
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -1,113 +1,98 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
-import {
-  Bell, Heart, MessageSquare, PawPrint, ShoppingBag, AlertCircle,
-  CheckCircle2, Clock, ChevronRight, Info, X, ExternalLink
-} from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
+import {
+  listarNotificaciones, contarNoLeidas,
+  marcarLeida, marcarTodasLeidas
+} from "../api/notificaciones";
+import {
+  Bell, Heart, MessageSquare, ShoppingBag, AlertCircle,
+  CheckCircle2, Clock, X, Info, Shield,
+  CheckCheck, ChevronRight, ExternalLink, Loader2
+} from "lucide-react";
 
-// Sample notification data - in production this would come from an API/context
-const getInitialNotifications = () => [
-  {
-    id: 1,
-    type: "request",
-    title: "Nueva solicitud de adopción",
-    description: "Ana López ha solicitado adoptar a Max",
-    time: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
-    read: false,
-    icon: Heart,
-    iconColor: "text-rose-500",
-    iconBg: "bg-rose-50 dark:bg-rose-500/10",
-    link: "/refugio/solicitudes",
-  },
-  {
-    id: 2,
-    type: "comment",
-    title: "Nuevo comentario en tu publicación",
-    description: "Carlos Ruiz comentó en tu publicación del foro",
-    time: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    read: false,
-    icon: MessageSquare,
-    iconColor: "text-blue-500",
-    iconBg: "bg-blue-50 dark:bg-blue-500/10",
-    link: "/refugio/foro",
-  },
-  {
-    id: 3,
-    type: "reaction",
-    title: "Reacción a tu publicación",
-    description: "A María Fernández le gustó tu publicación",
-    time: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-    read: false,
-    icon: Heart,
-    iconColor: "text-pink-500",
-    iconBg: "bg-pink-50 dark:bg-pink-500/10",
-    link: "/refugio/foro",
-  },
-  {
-    id: 4,
-    type: "pet",
-    title: "Mascota actualizada",
-    description: "Luna ha sido marcada como adoptada",
-    time: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-    read: true,
-    icon: PawPrint,
-    iconColor: "text-amber-500",
-    iconBg: "bg-amber-50 dark:bg-amber-500/10",
-    link: "/refugio/mascotas",
-  },
-  {
-    id: 5,
-    type: "system",
-    title: "Actualización del sistema",
-    description: "Nueva versión de Adoptify disponible con mejoras",
-    time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-    read: true,
-    icon: Info,
-    iconColor: "text-violet-500",
-    iconBg: "bg-violet-50 dark:bg-violet-500/10",
-    link: "#",
-  },
-  {
-    id: 6,
-    type: "product",
-    title: "Producto vendido",
-    description: "Collar para perro ha sido comprado en tu tienda",
-    time: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-    read: true,
-    icon: ShoppingBag,
-    iconColor: "text-emerald-500",
-    iconBg: "bg-emerald-50 dark:bg-emerald-500/10",
-    link: "/refugio/tienda",
-  },
-];
-
-const getRelativeTime = (date) => {
-  const now = new Date();
-  const diffMs = now - date;
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-
-  if (diffSec < 60) return "Hace un momento";
-  if (diffMin < 60) return `Hace ${diffMin} ${diffMin === 1 ? "minuto" : "minutos"}`;
-  if (diffHour < 24) return `Hace ${diffHour} ${diffHour === 1 ? "hora" : "horas"}`;
-  if (diffDay < 7) return `Hace ${diffDay} ${diffDay === 1 ? "día" : "días"}`;
-  return date.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+const CATEGORY_ICONS = {
+  marketplace: ShoppingBag,
+  adopciones: Heart,
+  sistema: Shield,
+  comunidad: MessageSquare,
 };
 
+function getRelativeTime(iso) {
+  if (!iso) return "";
+  try {
+    const now = new Date();
+    const d = new Date(iso);
+    const diffMs = now - d;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    if (diffSec < 60) return "Ahora";
+    if (diffMin < 60) return `Hace ${diffMin} min`;
+    if (diffHour < 24) return `Hace ${diffHour} h`;
+    if (diffDay < 7) return `Hace ${diffDay} d`;
+    return d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  } catch {
+    return "";
+  }
+}
+
 export default function NotificationPanel() {
-  const { user } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const navigate = useNavigate();
+
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState(getInitialNotifications);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
   const panelRef = useRef(null);
   const buttonRef = useRef(null);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const cargarDatos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [data, countData] = await Promise.all([
+        listarNotificaciones(),
+        contarNoLeidas(),
+      ]);
+      setNotifications((data || []).slice(0, 5));
+      setUnreadCount(countData?.count || 0);
+    } catch {
+      // Silently fail - the panel should still work
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Cargar al abrir
+  useEffect(() => {
+    if (isOpen) {
+      cargarDatos();
+    }
+  }, [isOpen, cargarDatos]);
+
+  // Cargar al montar para tener el contador
+  useEffect(() => {
+    contarNoLeidas()
+      .then((data) => setUnreadCount(data?.count || 0))
+      .catch(() => {});
+  }, []);
+
+  // Polling cada 30s para actualizar contador
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const data = await contarNoLeidas();
+        setUnreadCount(data?.count || 0);
+      } catch {
+        // silent
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -121,7 +106,6 @@ export default function NotificationPanel() {
         setIsOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -135,23 +119,41 @@ export default function NotificationPanel() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, []);
 
-  const togglePanel = () => {
-    setIsOpen((prev) => !prev);
+  const handleMarkAsRead = async (notifId) => {
+    try {
+      await marcarLeida(notifId);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notifId ? { ...n, leida: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch {
+      // silent
+    }
   };
 
-  const markAsRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+  const handleMarkAllAsRead = async () => {
+    try {
+      await marcarTodasLeidas();
+      setNotifications((prev) => prev.map((n) => ({ ...n, leida: true })));
+      setUnreadCount(0);
+    } catch {
+      // silent
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const handleNotificationClick = (id) => {
-    markAsRead(id);
+  const handleNotificationClick = async (notif) => {
+    if (!notif.leida) {
+      await handleMarkAsRead(notif.id);
+    }
     setIsOpen(false);
+    if (notif.enlace) {
+      navigate(notif.enlace);
+    }
+  };
+
+  const handleViewAll = () => {
+    setIsOpen(false);
+    navigate("/notificaciones");
   };
 
   return (
@@ -159,7 +161,7 @@ export default function NotificationPanel() {
       {/* Bell Button */}
       <button
         ref={buttonRef}
-        onClick={togglePanel}
+        onClick={() => setIsOpen(!isOpen)}
         className={`relative p-2 rounded-xl transition-all duration-200 ${
           isDark
             ? "text-gray-300 hover:text-rose-400 hover:bg-white/5"
@@ -198,20 +200,16 @@ export default function NotificationPanel() {
               md:rounded-2xl md:animate-scale-in
               animate-slide-in-right
             `}
-            style={{
-              transformOrigin: "top right",
-            }}
+            style={{ transformOrigin: "top right" }}
           >
             {/* Header */}
-            <div className={`
-              flex items-center justify-between px-5 py-4 border-b shrink-0
-              ${isDark ? "border-white/5" : "border-gray-100"}
-            `}>
+            <div className={`flex items-center justify-between px-5 py-4 border-b shrink-0 ${
+              isDark ? "border-white/5" : "border-gray-100"
+            }`}>
               <div className="flex items-center gap-3">
-                <div className={`
-                  w-10 h-10 rounded-xl flex items-center justify-center
-                  ${isDark ? "bg-rose-500/10" : "bg-rose-50"}
-                `}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  isDark ? "bg-rose-500/10" : "bg-rose-50"
+                }`}>
                   <Bell className={`w-5 h-5 ${isDark ? "text-rose-400" : "text-rose-600"}`} />
                 </div>
                 <div>
@@ -228,24 +226,21 @@ export default function NotificationPanel() {
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
                   <button
-                    onClick={markAllAsRead}
-                    className={`
-                      text-xs font-semibold px-3 py-1.5 rounded-lg transition-all duration-200
-                      ${isDark
+                    onClick={handleMarkAllAsRead}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all duration-200 ${
+                      isDark
                         ? "text-rose-400 bg-rose-500/10 hover:bg-rose-500/20"
                         : "text-rose-600 bg-rose-50 hover:bg-rose-100"
-                      }
-                    `}
+                    }`}
                   >
-                    Marcar leídas
+                    <CheckCheck className="w-4 h-4" />
                   </button>
                 )}
                 <button
                   onClick={() => setIsOpen(false)}
-                  className={`
-                    p-1.5 rounded-lg transition-colors
-                    ${isDark ? "text-gray-400 hover:text-white hover:bg-white/5" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}
-                  `}
+                  className={`p-1.5 rounded-lg transition-colors ${
+                    isDark ? "text-gray-400 hover:text-white hover:bg-white/5" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                  }`}
                   aria-label="Cerrar"
                 >
                   <X className="w-4 h-4" />
@@ -253,14 +248,17 @@ export default function NotificationPanel() {
               </div>
             </div>
 
-            {/* Notifications List - max 2 visible */}
-            <div className="overflow-y-auto overscroll-contain max-h-[220px]" style={{ scrollbarWidth: "thin", scrollbarColor: isDark ? "#2a2a3a transparent" : "#e5e7eb transparent" }}>
-              {notifications.length === 0 ? (
+            {/* Notifications List */}
+            <div className="overflow-y-auto overscroll-contain max-h-[360px]" style={{ scrollbarWidth: "thin", scrollbarColor: isDark ? "#2a2a3a transparent" : "#e5e7eb transparent" }}>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className={`w-6 h-6 animate-spin ${isDark ? "text-rose-400" : "text-rose-500"}`} />
+                </div>
+              ) : notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                  <div className={`
-                    w-16 h-16 rounded-2xl flex items-center justify-center mb-4
-                    ${isDark ? "bg-gray-800/50" : "bg-gray-50"}
-                  `}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${
+                    isDark ? "bg-gray-800/50" : "bg-gray-50"
+                  }`}>
                     <Bell className={`w-7 h-7 ${isDark ? "text-gray-600" : "text-gray-400"}`} />
                   </div>
                   <p className={`text-sm font-semibold ${isDark ? "text-gray-300" : "text-gray-700"} mb-1`}>
@@ -273,15 +271,14 @@ export default function NotificationPanel() {
               ) : (
                 <div className="py-1">
                   {notifications.map((notification, index) => {
-                    const Icon = notification.icon;
-                    const isUnread = !notification.read;
+                    const Icon = CATEGORY_ICONS[notification.categoria] || Bell;
+                    const isUnread = !notification.leida;
                     return (
-                      <Link
+                      <div
                         key={notification.id}
-                        to={notification.link}
-                        onClick={() => handleNotificationClick(notification.id)}
+                        onClick={() => handleNotificationClick(notification)}
                         className={`
-                          flex items-start gap-3.5 px-5 py-4 transition-all duration-200 group
+                          flex items-start gap-3.5 px-5 py-4 transition-all duration-200 group cursor-pointer
                           ${isUnread
                             ? isDark
                               ? "bg-rose-500/[0.03] hover:bg-rose-500/[0.07]"
@@ -297,6 +294,9 @@ export default function NotificationPanel() {
                           animate-fade-in-up
                         `}
                         style={{ animationDelay: `${index * 0.03}s` }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleNotificationClick(notification); }}
                       >
                         {/* Unread indicator dot */}
                         {isUnread && (
@@ -305,11 +305,15 @@ export default function NotificationPanel() {
 
                         {/* Icon */}
                         <div className={`
-                          w-10 h-10 rounded-xl ${notification.iconBg} flex items-center justify-center shrink-0
+                          w-10 h-10 rounded-xl flex items-center justify-center shrink-0
                           transition-transform group-hover:scale-110
                           ${isUnread ? "ring-2 ring-rose-500/20" : ""}
+                          ${isDark
+                            ? `bg-${notification.categoria === "marketplace" ? "rose" : notification.categoria === "adopciones" ? "pink" : notification.categoria === "sistema" ? "violet" : "blue"}-500/10 text-${notification.categoria === "marketplace" ? "rose" : notification.categoria === "adopciones" ? "pink" : notification.categoria === "sistema" ? "violet" : "blue"}-400`
+                            : `bg-${notification.categoria === "marketplace" ? "rose" : notification.categoria === "adopciones" ? "pink" : notification.categoria === "sistema" ? "violet" : "blue"}-50 text-${notification.categoria === "marketplace" ? "rose" : notification.categoria === "adopciones" ? "pink" : notification.categoria === "sistema" ? "violet" : "blue"}-600`
+                          }
                         `}>
-                          <Icon className={`w-5 h-5 ${notification.iconColor}`} />
+                          <Icon className="w-5 h-5" />
                         </div>
 
                         {/* Content */}
@@ -321,18 +325,17 @@ export default function NotificationPanel() {
                               : isDark ? "text-gray-300" : "text-gray-700"
                             }
                           `}>
-                            {notification.title}
+                            {notification.titulo || "Notificación"}
                           </p>
-                          <p className={`
-                            text-xs mt-0.5 line-clamp-1 leading-relaxed
-                            ${isDark ? "text-gray-500" : "text-gray-500"}
-                          `}>
-                            {notification.description}
+                          <p className={`text-xs mt-0.5 line-clamp-2 leading-relaxed ${
+                            isDark ? "text-gray-500" : "text-gray-500"
+                          }`}>
+                            {notification.mensaje}
                           </p>
                           <div className="flex items-center gap-1.5 mt-1.5">
                             <Clock className={`w-3 h-3 ${isDark ? "text-gray-600" : "text-gray-400"}`} />
                             <span className={`text-xs ${isDark ? "text-gray-600" : "text-gray-400"} font-medium`}>
-                              {getRelativeTime(notification.time)}
+                              {getRelativeTime(notification.creado_en)}
                             </span>
                           </div>
                         </div>
@@ -345,7 +348,7 @@ export default function NotificationPanel() {
                         `}>
                           <ChevronRight className="w-4 h-4" />
                         </div>
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>
@@ -354,24 +357,20 @@ export default function NotificationPanel() {
 
             {/* Footer */}
             {notifications.length > 0 && (
-              <div className={`
-                px-5 py-3 border-t shrink-0
-                ${isDark ? "border-white/5" : "border-gray-100"}
-              `}>
-                <Link
-                  to="/refugio/solicitudes"
-                  onClick={() => setIsOpen(false)}
-                  className={`
-                    flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 group
-                    ${isDark
+              <div className={`px-5 py-3 border-t shrink-0 ${
+                isDark ? "border-white/5" : "border-gray-100"
+              }`}>
+                <button
+                  onClick={handleViewAll}
+                  className={`w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 group ${
+                    isDark
                       ? "text-rose-400 bg-rose-500/5 hover:bg-rose-500/10"
                       : "text-rose-600 bg-rose-50 hover:bg-rose-100"
-                    }
-                  `}
+                  }`}
                 >
                   <span>Ver todas las notificaciones</span>
                   <ExternalLink className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-                </Link>
+                </button>
               </div>
             )}
           </div>

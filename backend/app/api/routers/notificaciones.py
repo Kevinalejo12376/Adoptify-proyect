@@ -64,3 +64,15 @@ def marcar_todas(current_user: Usuario = Depends(get_current_user), db: Session 
     ).update({Notificacion.leida: True})
     db.commit()
     return {"ok": True}
+
+
+@router.delete("/{notif_id}")
+def eliminar_notificacion(notif_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    n = db.query(Notificacion).filter(
+        Notificacion.id == notif_id, Notificacion.usuario_id == current_user.id
+    ).first()
+    if not n:
+        raise HTTPException(status_code=404, detail="Notificacion no encontrada")
+    db.delete(n)
+    db.commit()
+    return {"ok": True}

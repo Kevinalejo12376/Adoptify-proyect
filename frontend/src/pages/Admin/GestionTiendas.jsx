@@ -380,6 +380,13 @@ function StoreCard({ tienda, selected, onSelect, onAction, menuOpen, onMenuToggl
               onToggle={onMenuToggle}
               onAction={onAction}
             />
+            <button
+              onClick={() => onAction("ver", tienda)}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
+              title="Ver detalles completos"
+            >
+              <Eye size={18} />
+            </button>
           </div>
         </div>
       </div>
@@ -411,6 +418,13 @@ function StoreCardMobile({ tienda, selected, onSelect, onAction, menuOpen, onMen
             <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">{tienda.ciudad || "Sin ciudad"}</p>
           </div>
           <ActionMenu tienda={tienda} isOpen={menuOpen === tienda.id} onToggle={onMenuToggle} onAction={onAction} />
+          <button
+            onClick={() => onAction("ver", tienda)}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors flex-shrink-0"
+            title="Ver detalles completos"
+          >
+            <Eye size={18} />
+          </button>
         </div>
 
         <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-dark-border">
@@ -841,6 +855,20 @@ function ModalVerTienda({ isOpen, onClose, tiendaId }) {
 
   useEffect(() => {
     if (!isOpen || !tiendaId) return;
+// MODAL: Detalle Completo de Tienda (con CRUD)
+// ========================================================
+function ModalDetalleCompleto({ isOpen, onClose, tiendaId, tienda: tiendaInicial, onAction }) {
+  const [tienda, setTienda] = useState(tiendaInicial || null);
+  const [loading, setLoading] = useState(!tiendaInicial);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (tiendaInicial) {
+      setTienda(tiendaInicial);
+      setLoading(false);
+      return;
+    }
+    if (!tiendaId) return;
     setLoading(true);
     obtenerTienda(tiendaId)
       .then(setTienda)
@@ -859,6 +887,13 @@ function ModalVerTienda({ isOpen, onClose, tiendaId }) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Detalles de la Tienda" icon={Store} size="lg">
+  const handleAction = (accion) => {
+    onClose();
+    onAction(accion, tienda);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={tienda?.nombre || "Detalles de la Tienda"} icon={Store} size="lg">
       {loading ? (
         <div className="space-y-4 animate-pulse">
           <div className="flex items-center gap-4">
@@ -880,8 +915,11 @@ function ModalVerTienda({ isOpen, onClose, tiendaId }) {
             <div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text">{tienda.nombre}</h3>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">{tienda.descripcion || "Sin descripción"}</p>
-              <div className="mt-2">
+              <div className="mt-2 flex items-center gap-2">
                 <StatusBadge estado={tienda.estado} />
+                <span className="text-xs text-gray-400 dark:text-dark-text-secondary">
+                  {tienda.total_productos || 0} productos · {tienda.total_ventas || 0} ventas
+                </span>
               </div>
             </div>
           </div>
@@ -910,6 +948,66 @@ function ModalVerTienda({ isOpen, onClose, tiendaId }) {
             <button className="px-4 py-2 rounded-xl text-xs font-semibold bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors flex items-center gap-1.5">
               <Package size={14} /> Ver productos
             </button>
+          </div>
+
+          {/* Acciones CRUD completas */}
+          <div className="pt-4 border-t border-gray-100 dark:border-dark-border">
+            <p className="text-[10px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider mb-3">Acciones</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button
+                onClick={() => handleAction("editar")}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors"
+              >
+                <Edit3 size={14} /> Editar
+              </button>
+              <button
+                onClick={() => handleAction("productos")}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors"
+              >
+                <Package size={14} /> Productos
+              </button>
+              <button
+                onClick={() => handleAction("estadisticas")}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-teal-50 text-teal-600 dark:bg-teal-500/10 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-500/20 transition-colors"
+              >
+                <BarChart3 size={14} /> Estadísticas
+              </button>
+              {tienda.estado === "suspendida" ? (
+                <button
+                  onClick={() => handleAction("reactivar")}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors"
+                >
+                  <Unlock size={14} /> Reactivar
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleAction("suspender")}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 transition-colors"
+                >
+                  <Lock size={14} /> Suspender
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+              <button
+                onClick={() => handleAction("restablecer")}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors"
+              >
+                <RefreshCw size={14} /> Restablecer contraseña
+              </button>
+              <button
+                onClick={() => handleAction("reenviar")}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors"
+              >
+                <Mail size={14} /> Reenviar credenciales
+              </button>
+              <button
+                onClick={() => handleAction("eliminar")}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+              >
+                <Trash2 size={14} /> Eliminar
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -1121,6 +1219,9 @@ export default function GestionTiendas() {
   // Modales
   const [modalCrear, setModalCrear] = useState(false);
   const [modalVer, setModalVer] = useState({ open: false, id: null });
+  // Modales
+  const [modalCrear, setModalCrear] = useState(false);
+  const [modalDetalle, setModalDetalle] = useState({ open: false, id: null, tienda: null });
   const [modalProductos, setModalProductos] = useState({ open: false, id: null, nombre: "" });
   const [confirmAction, setConfirmAction] = useState(null);
 
@@ -1210,6 +1311,10 @@ export default function GestionTiendas() {
       case "editar":
         // Por ahora redirigimos a ver detalle
         setModalVer({ open: true, id: tienda.id });
+        setModalDetalle({ open: true, id: tienda.id, tienda });
+        break;
+      case "editar":
+        setModalDetalle({ open: true, id: tienda.id, tienda });
         break;
       case "productos":
         setModalProductos({ open: true, id: tienda.id, nombre: tienda.nombre });
@@ -1236,6 +1341,15 @@ export default function GestionTiendas() {
           tipo: "restablecer",
           tiendaId: tienda.id,
           tiendaNombre: tienda.nombre,
+        });
+        break;
+      case "reenviar":
+        // Por ahora reenvía al modal de restablecer con indicación
+        setConfirmAction({
+          tipo: "restablecer",
+          tiendaId: tienda.id,
+          tiendaNombre: tienda.nombre,
+          reenviar: true,
         });
         break;
       case "eliminar":
@@ -1601,6 +1715,13 @@ export default function GestionTiendas() {
         isOpen={modalVer.open}
         onClose={() => setModalVer({ open: false, id: null })}
         tiendaId={modalVer.id}
+      {/* Modal Detalle Completo */}
+      <ModalDetalleCompleto
+        isOpen={modalDetalle.open}
+        onClose={() => setModalDetalle({ open: false, id: null, tienda: null })}
+        tiendaId={modalDetalle.id}
+        tienda={modalDetalle.tienda}
+        onAction={handleAccion}
       />
 
       {/* Modal Productos */}

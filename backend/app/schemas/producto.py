@@ -53,6 +53,7 @@ class ProductoResponse(BaseModel):
     colores: Optional[str] = None
     activo: bool = True
     ventas: int = 0
+    resenas_count: int = 0
     rating: float = 0
     categoria: Optional[str] = None
     categoria_id: Optional[int] = None

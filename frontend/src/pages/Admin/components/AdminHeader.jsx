@@ -21,8 +21,18 @@ const getTipoColor = (tipo) => {
 };
 
 export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
+// Opciones del menú de perfil
+const menuOptions = [
+  { id: "configuracion", icon: Settings, label: "Configuración", path: "/admin/configuracion" },
+  { id: "administradores", icon: Shield, label: "Administradores", path: "/admin/administradores" },
+  { id: "estadisticas", icon: BarChart3, label: "Estadísticas", path: "/admin/estadisticas" },
+  { id: "pqrs", icon: HelpCircle, label: "PQRS", path: "/admin/pqrs" },
+];
+
+export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activeMenu, onActiveMenuChange }) {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [busqueda, setBusqueda] = useState("");
   const [notifOpen, setNotifOpen] = useState(false);
   const [perfilOpen, setPerfilOpen] = useState(false);
@@ -42,12 +52,25 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
     }
   }, []);
 
+      console.error("Error al cargar notificaciones:", e);
+    }
+  }, []);
+
   // Carga inicial y refresca cada 30 segundos
   useEffect(() => {
     cargarNotifs();
     const timer = setInterval(cargarNotifs, 30000);
     return () => clearInterval(timer);
   }, [cargarNotifs]);
+
+  // Determinar opción activa basada en la ruta actual
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const active = menuOptions.find((opt) => currentPath === opt.path);
+    if (active && active.id !== activeMenu) {
+      onActiveMenuChange?.(active.id);
+    }
+  }, [location.pathname]);
 
   const handleClickNotif = async (notif) => {
     if (!notif.leida) {
@@ -81,7 +104,8 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
     }
   };
 
-  const handleNavigation = (path) => {
+  const handleNavigation = (path, id) => {
+    onActiveMenuChange?.(id);
     navigate(path);
     setPerfilOpen(false);
   };
@@ -187,11 +211,19 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
                     ))
                   )}
                 </div>
+                <div className="p-2 border-t border-gray-100 dark:border-dark-border">
+                  <button
+                    onClick={() => { navigate("/admin/dashboard"); setNotifOpen(false); }}
+                    className="w-full py-2 text-sm font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors"
+                  >
+                    Ver todas las notificaciones
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Perfil */}
+          {/* Perfil - Menú desplegable rediseñado */}
           <div className="relative" ref={perfilRef}>
             <button
               onClick={() => setPerfilOpen(!perfilOpen)}
@@ -217,6 +249,27 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
                       <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">
                         Administrador
                       </p>
+              <ChevronDown size={14} className={`text-gray-400 transition-transform duration-200 ${perfilOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {perfilOpen && (
+              <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
+                {/* Header del perfil */}
+                <div className="relative">
+                  <div className="h-16 bg-gradient-to-r from-rose-500 to-amber-500" />
+                  <div className="px-4 pb-4 -mt-8">
+                    <div className="flex items-end gap-3">
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-lg font-bold text-rose-600 dark:text-rose-400 ring-4 ring-white dark:ring-dark-card shadow-lg">
+                        {adminNombre?.[0] || "A"}
+                      </div>
+                      <div className="flex-1 min-w-0 pb-1">
+                        <p className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">
+                          {adminNombre || "Admin"}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                          Administrador
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -261,6 +314,60 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
                   <button onClick={() => { onLogout(); setPerfilOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 mt-1">
                     <LogOut size={16} /> Cerrar sesión
                   </button>
+                {/* Opciones del menú */}
+                <div className="px-2 pb-2">
+                  <div className="px-3 pt-1 pb-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
+                      Panel de gestión
+                    </p>
+                  </div>
+
+                  <nav className="space-y-0.5">
+                    {menuOptions.map((option) => {
+                      const Icono = option.icon;
+                      const isActive = activeMenu === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => handleNavigation(option.path, option.id)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative ${
+                            isActive
+                              ? "bg-gradient-to-r from-rose-50 to-amber-50 dark:from-rose-500/10 dark:to-amber-500/10 text-rose-600 dark:text-rose-400 shadow-sm"
+                              : "text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text"
+                          }`}
+                        >
+                          {/* Indicador lateral activo */}
+                          {isActive && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-rose-500 to-amber-500" />
+                          )}
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                            isActive
+                              ? "bg-rose-100 dark:bg-rose-500/20 text-rose-500"
+                              : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-dark-text"
+                          }`}>
+                            <Icono size={16} strokeWidth={isActive ? 2.5 : 1.5} />
+                          </div>
+                          <span className="flex-1 text-left">{option.label}</span>
+                          {isActive && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </nav>
+
+                  {/* Cerrar sesión */}
+                  <div className="border-t border-gray-100 dark:border-dark-border mt-3 pt-3 px-1">
+                    <button
+                      onClick={() => { onLogout(); setPerfilOpen(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 dark:text-dark-text-secondary hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-200 group"
+                    >
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 group-hover:text-red-500 transition-colors">
+                        <LogOut size={16} />
+                      </div>
+                      <span>Cerrar sesión</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

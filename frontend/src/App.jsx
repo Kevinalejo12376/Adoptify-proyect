@@ -25,6 +25,9 @@ import UserProfile from "./pages/Usuario/UserProfile";
 import AdoptionHistory from "./pages/Usuario/AdoptionHistory";
 import Settings from "./pages/Usuario/Settings";
 import Favorites from "./pages/Usuario/Favorites";
+import UserOrders from "./pages/Usuario/UserOrders";
+import UserOrderDetail from "./pages/Usuario/UserOrderDetail";
+import UserNotifications from "./pages/Usuario/UserNotifications";
 
 // ========================================================
 // IMPORTACIONES DE VISTAS DE REFUGIO
@@ -140,6 +143,9 @@ function AppContent() {
           <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
           <Route path="/adoption-history" element={<ProtectedRoute><AdoptionHistory /></ProtectedRoute>} />
           <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
+          <Route path="/mis-pedidos" element={<ProtectedRoute><UserOrders /></ProtectedRoute>} />
+          <Route path="/mis-pedidos/:id" element={<ProtectedRoute><UserOrderDetail /></ProtectedRoute>} />
+          <Route path="/notificaciones" element={<ProtectedRoute><UserNotifications /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
           {/* ================================================ */}
