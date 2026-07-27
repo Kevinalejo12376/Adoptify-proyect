@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Search, Bell, Sun, Moon, ChevronDown, LogOut, Settings,
-  Shield, BarChart3, HelpCircle, Heart, Info, UserCircle, Sliders,
+  Shield, BarChart3, HelpCircle, MessageSquareText,
 } from "lucide-react";
 import { useTheme } from "../../../context/ThemeContext";
 import { listarNotificaciones, marcarLeida, marcarTodasLeidas } from "../../../api/notificaciones";
@@ -20,9 +20,18 @@ const getTipoColor = (tipo) => {
   return map[tipo] || "bg-gray-50 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400";
 };
 
-export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
+// Opciones del menú de perfil
+const menuOptions = [
+  { id: "configuracion", icon: Settings, label: "Configuración", path: "/admin/configuracion" },
+  { id: "administradores", icon: Shield, label: "Administradores", path: "/admin/administradores" },
+  { id: "estadisticas", icon: BarChart3, label: "Estadísticas", path: "/admin/estadisticas" },
+  { id: "pqrs", icon: HelpCircle, label: "PQRS", path: "/admin/pqrs" },
+];
+
+export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activeMenu, onActiveMenuChange }) {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [busqueda, setBusqueda] = useState("");
   const [notifOpen, setNotifOpen] = useState(false);
   const [perfilOpen, setPerfilOpen] = useState(false);
@@ -48,6 +57,15 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
     const timer = setInterval(cargarNotifs, 30000);
     return () => clearInterval(timer);
   }, [cargarNotifs]);
+
+  // Determinar opción activa basada en la ruta actual
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const active = menuOptions.find((opt) => currentPath === opt.path);
+    if (active && active.id !== activeMenu) {
+      onActiveMenuChange?.(active.id);
+    }
+  }, [location.pathname]);
 
   const handleClickNotif = async (notif) => {
     if (!notif.leida) {
@@ -81,7 +99,8 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
     }
   };
 
-  const handleNavigation = (path) => {
+  const handleNavigation = (path, id) => {
+    onActiveMenuChange?.(id);
     navigate(path);
     setPerfilOpen(false);
   };
@@ -158,7 +177,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
                       <p className="text-sm text-gray-400 dark:text-dark-text-secondary">Sin notificaciones</p>
                     </div>
                   ) : (
-                    notifs.slice(0, 8).map((notif) => (
+                    notifs.slice(0, 10).map((notif) => (
                       <button
                         key={notif.id}
                         onClick={() => handleClickNotif(notif)}
@@ -199,76 +218,95 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
             )}
           </div>
 
-          {/* Perfil */}
+          {/* Perfil - Menú desplegable rediseñado */}
           <div className="relative" ref={perfilRef}>
             <button
               onClick={() => setPerfilOpen(!perfilOpen)}
-              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-200 hover:scale-105 active:scale-95"
-              title="Menú de administrador"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-200 hover:scale-105 active:scale-95"
+              title="Menú de administración"
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400">
                 {adminNombre?.[0] || "A"}
               </div>
+              <ChevronDown size={14} className={`text-gray-400 transition-transform duration-200 ${perfilOpen ? "rotate-180" : ""}`} />
             </button>
 
             {perfilOpen && (
-              <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
-                <div className="p-4 border-b border-gray-100 dark:border-dark-border">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-sm font-bold text-rose-600 dark:text-rose-400">
-                      {adminNombre?.[0] || "A"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">
-                        {adminNombre || "Admin"}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">
-                        Administrador
-                      </p>
+              <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
+                {/* Header del perfil */}
+                <div className="relative">
+                  <div className="h-16 bg-gradient-to-r from-rose-500 to-amber-500" />
+                  <div className="px-4 pb-4 -mt-8">
+                    <div className="flex items-end gap-3">
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-lg font-bold text-rose-600 dark:text-rose-400 ring-4 ring-white dark:ring-dark-card shadow-lg">
+                        {adminNombre?.[0] || "A"}
+                      </div>
+                      <div className="flex-1 min-w-0 pb-1">
+                        <p className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">
+                          {adminNombre || "Admin"}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                          Administrador
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-1.5">
-                  <div className="px-3 pt-2 pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Mi cuenta</p>
+                {/* Opciones del menú */}
+                <div className="px-2 pb-2">
+                  <div className="px-3 pt-1 pb-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
+                      Panel de gestión
+                    </p>
                   </div>
-                  <button onClick={() => handleNavigation("/admin/usuarios")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <UserCircle size={16} /> Perfil
-                  </button>
-                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <Settings size={16} /> Configuración
-                  </button>
-                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <Sliders size={16} /> Preferencias
-                  </button>
 
-                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Gestión</p>
-                  </div>
-                  <button onClick={() => handleNavigation("/admin/administradores")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <Shield size={16} /> Administradores
-                  </button>
-                  <button onClick={() => handleNavigation("/admin/estadisticas")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <BarChart3 size={16} /> Estadísticas
-                  </button>
-                  <button onClick={() => handleNavigation("/admin/pqrs")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <HelpCircle size={16} /> PQRS
-                  </button>
+                  <nav className="space-y-0.5">
+                    {menuOptions.map((option) => {
+                      const Icono = option.icon;
+                      const isActive = activeMenu === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => handleNavigation(option.path, option.id)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative ${
+                            isActive
+                              ? "bg-gradient-to-r from-rose-50 to-amber-50 dark:from-rose-500/10 dark:to-amber-500/10 text-rose-600 dark:text-rose-400 shadow-sm"
+                              : "text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text"
+                          }`}
+                        >
+                          {/* Indicador lateral activo */}
+                          {isActive && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-rose-500 to-amber-500" />
+                          )}
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                            isActive
+                              ? "bg-rose-100 dark:bg-rose-500/20 text-rose-500"
+                              : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-dark-text"
+                          }`}>
+                            <Icono size={16} strokeWidth={isActive ? 2.5 : 1.5} />
+                          </div>
+                          <span className="flex-1 text-left">{option.label}</span>
+                          {isActive && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </nav>
 
-                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sistema</p>
+                  {/* Cerrar sesión */}
+                  <div className="border-t border-gray-100 dark:border-dark-border mt-3 pt-3 px-1">
+                    <button
+                      onClick={() => { onLogout(); setPerfilOpen(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 dark:text-dark-text-secondary hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-200 group"
+                    >
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 group-hover:text-red-500 transition-colors">
+                        <LogOut size={16} />
+                      </div>
+                      <span>Cerrar sesión</span>
+                    </button>
                   </div>
-                  <button onClick={() => handleNavigation("/admin/dashboard")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <Info size={16} /> Acerca de Adoptify
-                  </button>
-
-                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sesión</p>
-                  </div>
-                  <button onClick={() => { onLogout(); setPerfilOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 mt-1">
-                    <LogOut size={16} /> Cerrar sesión
-                  </button>
                 </div>
               </div>
             )}

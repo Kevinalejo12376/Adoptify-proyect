@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { actualizarProducto } from "../../api/productos";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Package, Store, Search, X,
@@ -146,154 +148,284 @@ function Pagination({ pagina, total, porPagina, onPageChange }) {
 }
 
 // ========================================================
-// COMPONENTE: Modal de Detalle del Producto
+// COMPONENTE: Modal de Detalle del Producto (estadísticas bajo imagen)
 // ========================================================
-function ModalProducto({ isOpen, onClose, producto }) {
+function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }) {
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [form, setForm] = useState({ nombre: "", precio: "", stock: "" });
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (producto) {
+      setForm({
+        nombre: producto.nombre || "",
+        precio: String(producto.precio || ""),
+        stock: String(producto.stock ?? ""),
+      });
+    }
+    if (!isOpen) {
+      setEditando(false);
+      setGuardando(false);
+      setError("");
+    }
+  }, [producto, isOpen]);
+
   if (!isOpen || !producto) return null;
 
   const tipoVen = producto?.tipo_vendedor === "tienda" ? "tienda" : "refugio";
-  const tipoConfig = TIPO_VENDEDOR[tipoVen] || TIPO_VENDEDOR.refugio;
-  const TipoIcono = tipoConfig.icon;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGuardar = async () => {
+    setError("");
+    const precioNum = parseFloat(form.precio);
+    const stockNum = parseInt(form.stock, 10);
+    if (!form.nombre.trim()) return setError("El nombre es obligatorio");
+    if (isNaN(precioNum) || precioNum < 0) return setError("Precio inválido");
+    if (isNaN(stockNum) || stockNum < 0) return setError("Stock inválido");
+
+    setGuardando(true);
+    try {
+      const payload = { nombre: form.nombre.trim(), precio: precioNum, stock: stockNum };
+      await actualizarProducto(producto.id, payload);
+      producto.nombre = payload.nombre;
+      producto.precio = payload.precio;
+      producto.stock = payload.stock;
+      setEditando(false);
+    } catch (err) {
+      setError(err.message || "Error al guardar");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const handleCancelar = () => {
+    setForm({
+      nombre: producto.nombre || "",
+      precio: String(producto.precio || ""),
+      stock: String(producto.stock ?? ""),
+    });
+    setError("");
+    setEditando(false);
+  };
+
+  const handleToggleEstado = () => {
+    onToggleEstado(producto.id);
+    producto.estado = producto.estado === "oculto" ? "visible" : "oculto";
+  };
+
+  const handleEliminar = () => {
+    if (window.confirm(`¿Eliminar "${producto.nombre}"?`)) {
+      onEliminar(producto.id);
+      onClose();
+    }
+  };
+
+  const stats = [
+    { icon: Eye, label: "Visitas", value: producto.visitas || 0, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-500/20" },
+    { icon: Heart, label: "Favoritos", value: producto.favoritos || 0, color: "text-rose-600", bg: "bg-rose-100 dark:bg-rose-500/20" },
+    { icon: Flag, label: "Reportes", value: producto.reportes || 0, color: producto.reportes > 0 ? "text-red-600" : "text-gray-400", bg: producto.reportes > 0 ? "bg-red-100 dark:bg-red-500/20" : "bg-gray-100 dark:bg-dark-border" },
+    { icon: Share2, label: "Compartido", value: producto.compartidos || 0, color: "text-violet-600", bg: "bg-violet-100 dark:bg-violet-500/20" },
+  ];
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
-      <div className="relative w-full max-w-3xl bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <ProductAvatar src={producto.imagen} nombre={producto.nombre} />
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-dark-text">{producto.nombre}</h2>
-              <p className="text-xs text-gray-500 dark:text-dark-text-secondary">{producto.categoria} · ${Number(producto.precio).toLocaleString("es-CO")}</p>
+      <div className="relative w-full max-w-3xl bg-white dark:bg-dark-card rounded-2xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content overflow-hidden" onClick={(e) => e.stopPropagation()}>
+
+        {/* ===== HEADER ===== */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-dark-border bg-gray-50/50 dark:bg-dark-bg/30">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center flex-shrink-0">
+              <Package size={15} className="text-rose-500" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-gray-900 dark:text-dark-text truncate leading-tight">{producto.nombre}</h2>
+              <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate leading-tight">{producto.categoria || "Sin categoría"}</p>
             </div>
           </div>
-          <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors">
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <EstadoBadge estado={producto.estado} />
+            <TipoVendedorBadge tipo={tipoVen} />
+            <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors ml-1">
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto p-5 flex-1 scrollbar-hide">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Columna izquierda - Imagen */}
-            <div>
-              <div className="w-full aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-dark-border mb-3">
+        {/* ===== BODY: Image + Stats (izq) | Info (der) ===== */}
+        <div className="p-5 overflow-hidden">
+          {error && (
+            <div className="mb-3 p-2.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-5">
+            {/* ===== COLUMNA IZQUIERDA: Imagen + Estadísticas ===== */}
+            <div className="w-[220px] flex-shrink-0 flex flex-col gap-3">
+              {/* Imagen */}
+              <div className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border shadow-sm">
                 {producto.imagen ? (
                   <img src={producto.imagen} alt={producto.nombre} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center"><ImageIcon size={48} className="text-gray-300 dark:text-dark-border" /></div>
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+                    <ImageIcon size={36} className="text-gray-300 dark:text-dark-border" />
+                    <span className="text-[10px] text-gray-400 dark:text-dark-text-secondary">Sin imagen</span>
+                  </div>
                 )}
               </div>
-              <div className="flex items-center justify-between px-1">
-                <button className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-rose-500 transition-colors">
-                  <Heart size={14} /> {producto.favoritos || 0} favoritos
-                </button>
-                <button className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-violet-500 transition-colors">
-                  <Share2 size={14} /> {producto.compartidos || 0} compartido
-                </button>
-              </div>
+
             </div>
 
-            {/* Columna derecha - Info */}
-            <div className="space-y-5">
-              {/* Estado y acciones rápidas */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <EstadoBadge estado={producto.estado} />
-                <TipoVendedorBadge tipo={tipoVen} />
+            {/* ===== COLUMNA DERECHA: Información del producto ===== */}
+            <div className="flex-1 min-w-0 flex flex-col gap-3">
+
+              {/* Precio - destacado */}
+              <div className="bg-gradient-to-r from-rose-50 to-amber-50 dark:from-rose-500/10 dark:to-amber-500/10 rounded-xl px-4 py-3 border border-gray-100 dark:border-dark-border">
+                <p className="text-xs font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Precio</p>
+                {editando ? (
+                  <input name="precio" type="number" min="0" step="0.01" value={form.precio} onChange={handleChange}
+                    className="w-full text-2xl font-bold bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 mt-1 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500" />
+                ) : (
+                  <p className="text-2xl font-bold text-gray-900 dark:text-dark-text mt-1">${Number(producto.precio).toLocaleString("es-CO")}</p>
+                )}
               </div>
 
-              {/* Grid de información */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
-                  <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Precio</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-dark-text mt-0.5">${Number(producto.precio).toLocaleString("es-CO")}</p>
+              {/* Nombre editable */}
+              {editando && (
+                <div className="bg-gray-50 dark:bg-dark-bg rounded-xl px-4 py-3 border border-gray-100 dark:border-dark-border">
+                  <p className="text-[9px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Nombre</p>
+                  <input name="nombre" value={form.nombre} onChange={handleChange}
+                    className="w-full text-sm font-bold bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1.5 mt-1 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500" />
                 </div>
-                <div className="p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
-                  <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Stock</p>
-                  <p className={`text-sm font-bold mt-0.5 ${producto.stock > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{producto.stock || 0} unidades</p>
+              )}
+
+              {/* Grid: Stock | Publicación | Categoría */}
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="bg-gray-50 dark:bg-dark-bg rounded-xl px-3.5 py-3 border border-gray-100 dark:border-dark-border">
+                  <p className="text-xs font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Stock</p>
+                  {editando ? (
+                    <input name="stock" type="number" min="0" step="1" value={form.stock} onChange={handleChange}
+                      className="w-full text-base font-bold bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg px-2 py-1 mt-1 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500" />
+                  ) : (
+                    <p className={`text-base font-bold mt-1 ${producto.stock > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{producto.stock || 0}</p>
+                  )}
                 </div>
-                <div className="p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
-                  <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Categoría</p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-dark-text mt-0.5">{producto.categoria || "Sin categoría"}</p>
+                <div className="bg-gray-50 dark:bg-dark-bg rounded-xl px-3.5 py-3 border border-gray-100 dark:border-dark-border">
+                  <p className="text-xs font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Categoría</p>
+                  <p className="text-base font-bold text-gray-900 dark:text-dark-text mt-1 truncate">{producto.categoria || "—"}</p>
                 </div>
-                <div className="p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
-                  <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Publicación</p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-dark-text mt-0.5">{producto.fecha || "—"}</p>
+                <div className="bg-gray-50 dark:bg-dark-bg rounded-xl px-3.5 py-3 border border-gray-100 dark:border-dark-border">
+                  <p className="text-xs font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Publicación</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-dark-text mt-1">{producto.fecha || "—"}</p>
                 </div>
               </div>
 
               {/* Vendedor */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-rose-50/50 to-amber-50/50 dark:from-rose-500/5 dark:to-amber-500/5 border border-gray-100 dark:border-dark-border">
-                <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider mb-3">Vendedor</p>
+              <div className="bg-gradient-to-r from-rose-50/50 to-amber-50/50 dark:from-rose-500/5 dark:to-amber-500/5 rounded-xl px-4 py-3 border border-gray-100 dark:border-dark-border">
+                <p className="text-xs font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider mb-2">Vendedor</p>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/20 dark:to-amber-500/20 flex items-center justify-center text-lg font-bold text-rose-600 dark:text-rose-400 flex-shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/20 dark:to-amber-500/20 flex items-center justify-center text-sm font-bold text-rose-600 dark:text-rose-400 flex-shrink-0 shadow-sm">
                     {(producto.vendedor_nombre || "V")[0]}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">{producto.vendedor_nombre}</p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-base font-bold text-gray-900 dark:text-dark-text truncate">{producto.vendedor_nombre}</p>
                       <TipoVendedorBadge tipo={tipoVen} />
-                      <span className="text-xs text-gray-500 dark:text-dark-text-secondary flex items-center gap-0.5">
-                        <Star size={11} className="text-amber-500" /> {producto.rating || "—"}
-                      </span>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-0.5">
-                      <Package size={11} className="inline mr-0.5" />{producto.vendedor_productos || 0} productos publicados
-                    </p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <span className="text-xs text-gray-500 dark:text-dark-text-secondary flex items-center gap-1"><Star size={11} className="text-amber-500" /> {producto.rating || "—"}</span>
+                      <span className="text-xs text-gray-500 dark:text-dark-text-secondary flex items-center gap-1"><Package size={11} className="text-gray-400" /> {producto.vendedor_productos || 0} productos</span>
+                    </div>
                   </div>
-                  <button className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors flex items-center gap-1" title="Ver perfil del vendedor">
-                    <ExternalLink size={12} /> Perfil
+                  <button className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors flex items-center gap-1 border border-gray-200 dark:border-dark-border flex-shrink-0">
+                    <ExternalLink size={11} /> Perfil
                   </button>
                 </div>
               </div>
 
-              {/* Estadísticas */}
-              <div>
-                <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider mb-3">Estadísticas</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { icon: Eye, label: "Visitas", value: producto.visitas || 0, color: "text-blue-500" },
-                    { icon: Heart, label: "Favoritos", value: producto.favoritos || 0, color: "text-rose-500" },
-                    { icon: Flag, label: "Reportes", value: producto.reportes || 0, color: producto.reportes > 0 ? "text-red-500" : "text-gray-400" },
-                    { icon: Share2, label: "Compartido", value: producto.compartidos || 0, color: "text-violet-500" },
-                  ].map((stat, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
-                      <div className={`w-9 h-9 rounded-lg bg-white dark:bg-dark-card flex items-center justify-center ${stat.color}`}>
-                        <stat.icon size={16} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900 dark:text-dark-text">{stat.value}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-dark-text-secondary">{stat.label}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         </div>
 
-        {/* Acciones */}
-        <div className="flex-shrink-0 border-t border-gray-100 dark:border-dark-border p-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <button className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors">
-              <Edit3 size={14} /> Editar
-            </button>
-            <button className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors">
-              {producto.estado === "oculto" ? <RefreshCw size={14} /> : <EyeOff size={14} />}
-              {producto.estado === "oculto" ? "Publicar" : "Ocultar"}
-            </button>
-            <button className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors">
-              <Flag size={14} /> Reportes
-            </button>
-            <button className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors">
-              <Trash2 size={14} /> Eliminar
-            </button>
+        {/* ===== ESTADÍSTICAS ===== */}
+        <div className="border-t border-gray-100 dark:border-dark-border px-5 py-3">
+          <div className="grid grid-cols-4 gap-2.5">
+            <div className="flex flex-col items-center justify-center gap-1.5 py-3 px-1 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-dark-card shadow-sm">
+                <Eye size={15} className="text-blue-600" />
+              </div>
+              <p className="text-base font-bold text-gray-900 dark:text-dark-text leading-none">{producto.visitas || 0}</p>
+              <p className="text-xs font-medium text-blue-600 dark:text-blue-400 leading-none">Visitas</p>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-1.5 py-3 px-1 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-dark-card shadow-sm">
+                <Heart size={15} className="text-rose-600" />
+              </div>
+              <p className="text-base font-bold text-gray-900 dark:text-dark-text leading-none">{producto.favoritos || 0}</p>
+              <p className="text-xs font-medium text-rose-600 dark:text-rose-400 leading-none">Favoritos</p>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-1.5 py-3 px-1 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-dark-card shadow-sm">
+                <Flag size={15} className={producto.reportes > 0 ? "text-red-600" : "text-gray-400"} />
+              </div>
+              <p className="text-base font-bold text-gray-900 dark:text-dark-text leading-none">{producto.reportes || 0}</p>
+              <p className="text-xs font-medium text-red-600 dark:text-red-400 leading-none">Reportes</p>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-1.5 py-3 px-1 rounded-lg bg-violet-50 dark:bg-violet-500/10 border border-violet-100 dark:border-violet-500/20">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-dark-card shadow-sm">
+                <Share2 size={15} className="text-violet-600" />
+              </div>
+              <p className="text-base font-bold text-gray-900 dark:text-dark-text leading-none">{producto.compartidos || 0}</p>
+              <p className="text-xs font-medium text-violet-600 dark:text-violet-400 leading-none">Compartido</p>
+            </div>
           </div>
         </div>
+
+        {/* ===== ACCIONES ===== */}
+        <div className="border-t border-gray-100 dark:border-dark-border px-5 py-3">
+          {editando ? (
+            <div className="flex gap-2">
+              <button onClick={handleCancelar} disabled={guardando}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleGuardar} disabled={guardando}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 transition-all disabled:opacity-50 shadow-sm">
+                {guardando ? "Guardando..." : <><Edit3 size={14} /> Guardar</>}
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-2.5">
+              <button onClick={() => setEditando(true)}
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors">
+                <Edit3 size={14} /> Editar
+              </button>
+              <button onClick={handleToggleEstado}
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors">
+                {producto.estado === "oculto" ? <RefreshCw size={14} /> : <EyeOff size={14} />}
+                {producto.estado === "oculto" ? "Publicar" : "Ocultar"}
+              </button>
+              <button
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors">
+                <Flag size={14} /> Reportes
+              </button>
+              <button onClick={handleEliminar}
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors">
+                <Trash2 size={14} /> Eliminar
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -488,9 +620,6 @@ function VistaProductos() {
                   <button onClick={() => setModalProducto(prod)} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" title="Ver detalles">
                     <Eye size={16} />
                   </button>
-                  <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors" title="Editar producto">
-                    <Edit3 size={16} />
-                  </button>
                   <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors" title="Ver perfil del vendedor">
                     <ExternalLink size={16} />
                   </button>
@@ -515,8 +644,14 @@ function VistaProductos() {
       {/* Paginación */}
       <Pagination pagina={pagina} total={total} porPagina={porPagina} onPageChange={handlePageChange} />
 
-      {/* Modal de detalle */}
-      <ModalProducto isOpen={!!modalProducto} onClose={() => setModalProducto(null)} producto={modalProducto} />
+      {/* Modal de detalle con edición */}
+      <ModalProducto
+        isOpen={!!modalProducto}
+        onClose={() => setModalProducto(null)}
+        producto={modalProducto}
+        onToggleEstado={handleToggleEstado}
+        onEliminar={handleEliminar}
+      />
     </div>
   );
 }
@@ -528,9 +663,9 @@ function VistaTiendas() {
   return (
     <div className="text-center py-20 bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border">
       <ShoppingBag size={48} className="mx-auto text-gray-300 dark:text-dark-border mb-3" />
-      <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-2">Gestión de Tiendas Aliadas</h3>
+      <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-2">Gesti&oacute;n de Tiendas Aliadas</h3>
       <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-6 max-w-md mx-auto">
-          Administra las tiendas aliadas desde la sección dedicada en el menú lateral.
+          Administra las tiendas aliadas desde la secci&oacute;n dedicada en el men&uacute; lateral.
       </p>
       <button onClick={() => window.location.href = "/admin/tiendas"} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 transition-all shadow-sm">
           Ir a Tiendas Aliadas
@@ -564,7 +699,7 @@ function VistaEstadisticas() {
         ))}
       </div>
       <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
-        <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Distribución por categoría</h3>
+        <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Distribuci&oacute;n por categor&iacute;a</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { nombre: "Alimentos", total: 45, activas: 38 },
@@ -624,7 +759,7 @@ export default function AdminMarketplace() {
             <Store size={20} className="text-rose-500" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">Marketplace</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">Productos</h1>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
               Administra los productos del marketplace
             </p>

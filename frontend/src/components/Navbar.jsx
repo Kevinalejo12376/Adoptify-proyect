@@ -337,21 +337,10 @@ export default function Navbar() {
           <div className="hidden md:flex items-center space-x-4">
             {isAuthenticated ? (
               <>
-                {/* Notifications */}
-                {isShelter ? (
-                  <div className="relative">
-                    <NotificationPanel />
-                  </div>
-                ) : (
-                  <button className={`relative p-2 rounded-xl transition-colors ${
-                    isDark
-                      ? "text-gray-300 hover:text-orange-400 hover:bg-white/5"
-                      : "text-gray-600 hover:text-orange-600 hover:bg-orange-50"
-                  }`}>
-                    <Bell className="w-5 h-5" />
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full"></span>
-                  </button>
-                )}
+                {/* Notifications - both shelter and user */}
+                <div className="relative">
+                  <NotificationPanel />
+                </div>
 
                 {/* Cart - Solo para usuarios normales */}
                 {!isShelter && (
@@ -521,6 +510,38 @@ export default function Navbar() {
                           >
                             <Heart className="w-4 h-4" />
                             <span>{t("nav.mis_favoritos")}</span>
+                          </Link>
+                          <Link
+                            to="/mis-pedidos"
+                            onClick={() => setShowUserMenu(false)}
+                            className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                              isDark
+                                ? (location.pathname.startsWith("/mis-pedidos")
+                                  ? "text-orange-400 font-semibold bg-gradient-to-r from-orange-300/15 via-yellow-300/15 to-pink-300/15"
+                                  : "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-orange-300/15 hover:via-yellow-300/15 hover:to-pink-300/15")
+                                : (location.pathname.startsWith("/mis-pedidos")
+                                  ? "text-rose-600 font-semibold bg-rose-50"
+                                  : "text-gray-700 hover:bg-rose-50")
+                            }`}
+                          >
+                            <PackageSearch className="w-4 h-4" />
+                            <span>Mis Pedidos</span>
+                          </Link>
+                          <Link
+                            to="/notificaciones"
+                            onClick={() => setShowUserMenu(false)}
+                            className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                              isDark
+                                ? (isActive("/notificaciones")
+                                  ? "text-orange-400 font-semibold bg-gradient-to-r from-orange-300/15 via-yellow-300/15 to-pink-300/15"
+                                  : "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-orange-300/15 hover:via-yellow-300/15 hover:to-pink-300/15")
+                                : (isActive("/notificaciones")
+                                  ? "text-rose-600 font-semibold bg-rose-50"
+                                  : "text-gray-700 hover:bg-rose-50")
+                            }`}
+                          >
+                            <Bell className="w-4 h-4" />
+                            <span>Notificaciones</span>
                           </Link>
                           <Link
                             to="/settings"
@@ -804,6 +825,16 @@ export default function Navbar() {
                       className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(isActive("/favorites"))}`}>
                       <Heart className="w-4 h-4" />
                       {t("nav.mis_favoritos")}
+                    </Link>
+                    <Link to="/mis-pedidos" onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(location.pathname.startsWith("/mis-pedidos"))}`}>
+                      <PackageSearch className="w-4 h-4" />
+                      Mis Pedidos
+                    </Link>
+                    <Link to="/notificaciones" onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(isActive("/notificaciones"))}`}>
+                      <Bell className="w-4 h-4" />
+                      Notificaciones
                     </Link>
                     <Link to="/settings" onClick={() => setIsOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(isActive("/settings"))}`}>

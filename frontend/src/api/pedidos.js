@@ -12,3 +12,6 @@ export const misPedidos = () => apiFetch(`${base}/mios`);
 
 /** Detalle de un pedido propio. */
 export const obtenerPedido = (id) => apiFetch(`${base}/${id}`);
+
+/** Obtiene el historial de estados de un pedido. */
+export const historialPedido = (id) => apiFetch(`${base}/${id}/historial`);
