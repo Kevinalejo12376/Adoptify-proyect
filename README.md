@@ -1,6 +1,6 @@
 # Adoptify
 
-Plataforma de adopción de mascotas. Monorepo con dos partes:
+Plataforma para facilitar la adopcion de mascotas.con dos partes:
 
 - **`backend/`** — API REST con FastAPI + SQLAlchemy (PostgreSQL/Supabase o SQLite en local).
 - **`frontend/`** — Aplicación React (Vite) + Tailwind CSS.
