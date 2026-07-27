@@ -1,0 +1,223 @@
+"""Servicio de envio de correos electronicos via SMTP (Gmail)."""
+import smtplib
+import logging
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def _build_welcome_html(nombre: str, apellido: str | None = None) -> str:
+    """Construye el HTML del correo de bienvenida con diseño naranja."""
+    nombre_completo = f"{nombre} {apellido or ''}".strip()
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }}
+        .header {{
+            background: linear-gradient(135deg, #FF8C00, #ea580c);
+            padding: 30px 30px 25px;
+            text-align: center;
+        }}
+        .header-logo {{
+            font-size: 42px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 2px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            margin-bottom: 8px;
+        }}
+        .header-logo .paw {{
+            display: inline-block;
+            margin-right: 6px;
+        }}
+        .header h1 {{
+            color: #ffffff;
+            margin: 12px 0 0;
+            font-size: 26px;
+            font-weight: 700;
+        }}
+        .header p {{
+            color: #ffedd5;
+            margin: 8px 0 0;
+            font-size: 15px;
+        }}
+        .content {{
+            padding: 40px 30px;
+            color: #333333;
+        }}
+        .content h2 {{
+            color: #ea580c;
+            font-size: 22px;
+            margin-top: 0;
+        }}
+        .content p {{
+            line-height: 1.8;
+            font-size: 15px;
+            margin: 16px 0;
+        }}
+        .btn {{
+            display: inline-block;
+            background: linear-gradient(135deg, #FF8C00, #ea580c);
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 14px 36px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
+        }}
+        .btn:hover {{
+            box-shadow: 0 6px 20px rgba(234, 88, 12, 0.4);
+        }}
+        .features {{
+            background: linear-gradient(135deg, #fff7ed, #fffbeb);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #FF8C00;
+        }}
+        .features li {{
+            margin: 10px 0;
+            font-size: 14px;
+            color: #555555;
+        }}
+        .footer {{
+            background-color: #f4f4f4;
+            padding: 25px 30px;
+            text-align: center;
+            color: #888888;
+            font-size: 13px;
+        }}
+        .footer a {{
+            color: #ea580c;
+            text-decoration: none;
+        }}
+        .footer a:hover {{
+            text-decoration: underline;
+        }}
+        @media only screen and (max-width: 480px) {{
+            .header {{ padding: 25px 20px; }}
+            .header h1 {{ font-size: 22px; }}
+            .content {{ padding: 30px 20px; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-logo">
+                <span class="paw">🐾</span> ADOPTIFY
+            </div>
+            <h1>&iexcl;Bienvenido a la familia!</h1>
+            <p>Un hogar para cada mascota</p>
+        </div>
+
+        <div class="content">
+            <h2>&iexcl;Hola, {nombre_completo}! 👋</h2>
+
+            <p>
+                Gracias por registrarte en <strong>Adoptify</strong>, la plataforma que conecta
+                mascotas en busca de un hogar con personas amorosas como t&uacute;.
+            </p>
+
+            <p>Estamos emocionados de tenerte en nuestra comunidad. Con tu nueva cuenta puedes:</p>
+
+            <div class="features">
+                <ul>
+                    <li>🐶 <strong>Explorar mascotas</strong> disponibles para adopci&oacute;n cerca de ti</li>
+                    <li>🏪 <strong>Visitar tiendas aliadas</strong> y encontrar productos para tu mascota</li>
+                    <li>💬 <strong>Participar en el foro</strong> y compartir experiencias con otros amantes de los animales</li>
+                    <li>❤️ <strong>Guardar tus favoritos</strong> y dar el primer paso hacia una adopci&oacute;n</li>
+                </ul>
+            </div>
+
+            <p style="text-align: center;">
+                <a href="{settings.FRONTEND_URL}" class="btn" target="_blank">
+                    Explorar Adoptify
+                </a>
+            </p>
+
+            <p>
+                Si tienes alguna pregunta o necesitas ayuda, no dudes en contactarnos.
+                &iexcl;Estamos aqu&iacute; para ayudarte!
+            </p>
+
+            <p>Con cari&ntilde;o,<br><strong>El equipo de Adoptify</strong></p>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2026 Adoptify. Todos los derechos reservados.</p>
+            <p>
+                <a href="{settings.FRONTEND_URL}/privacy">Pol&iacute;tica de privacidad</a> &bull;
+                <a href="{settings.FRONTEND_URL}/terms">T&eacute;rminos de servicio</a>
+            </p>
+            <p style="margin-top:10px; font-size:11px;">
+                Este correo fue enviado autom&aacute;ticamente al registrarte en Adoptify.
+                Por favor no respondas a este mensaje.
+            </p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+
+def enviar_correo_bienvenida(email_destino: str, nombre: str, apellido: str | None = None) -> bool:
+    """Envía el correo de bienvenida al usuario recién registrado.
+
+    Args:
+        email_destino: Dirección de correo del destinatario.
+        nombre: Nombre del usuario.
+        apellido: Apellido del usuario (opcional).
+
+    Returns:
+        True si se envió correctamente, False en caso contrario.
+    """
+    if not settings.SMTP_HOST or not settings.SMTP_PASSWORD:
+        logger.warning("SMTP no configurado — no se envió correo de bienvenida a %s", email_destino)
+        return False
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["From"] = settings.SMTP_FROM
+        msg["To"] = email_destino
+        msg["Subject"] = "🐾 ¡Bienvenido a Adoptify! Estamos felices de tenerte"
+
+        html = _build_welcome_html(nombre, apellido)
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.sendmail(settings.SMTP_FROM, email_destino, msg.as_string())
+
+        logger.info("Correo de bienvenida enviado a %s", email_destino)
+        return True
+
+    except smtplib.SMTPAuthenticationError:
+        logger.error("Error de autenticacion SMTP — verifica usuario/contraseña de aplicacion")
+        return False
+    except smtplib.SMTPException as exc:
+        logger.error("Error SMTP al enviar correo a %s: %s", email_destino, exc)
+        return False
+    except Exception as exc:
+        logger.error("Error inesperado al enviar correo a %s: %s", email_destino, exc)
+        return False

@@ -270,7 +270,7 @@ export default function Footer() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Email</p>
-                  <span className="text-gray-300 group-hover:text-white transition-colors duration-300 font-medium">contacto@adoptify.org</span>
+                  <span className="text-gray-300 group-hover:text-white transition-colors duration-300 font-medium">adoptifyOficial@gmail.com</span>
                 </div>
               </li>
             </ul>
