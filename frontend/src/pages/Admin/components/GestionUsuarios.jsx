@@ -158,7 +158,7 @@ function Toast({ message, type = "success", isOpen, onClose }) {
 // ========================================================
 // MODAL VIEW USER (con acciones avanzadas internas)
 // ========================================================
-function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPassword, onChangeRole, onSendEmail }) {
+function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPassword, onChangeRole, onSendEmail, soloVisualizacion = false }) {
   if (!user) return null;
 
   const infoRows = [
@@ -305,33 +305,35 @@ function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPass
         </div>
 
         {/* Botones rápidos: Editar, Suspender, Eliminar */}
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-dark-border flex items-center gap-2">
-          <button
-            onClick={() => { onClose(); onEdit(user); }}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-200 text-sm"
-          >
-            <Edit3 size={15} />
-            Editar
-          </button>
-          <button
-            onClick={() => { onClose(); onSuspend(user); }}
-            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 text-sm border ${
-              user.activo
-                ? "border-amber-200 dark:border-amber-500/20 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10"
-                : "border-emerald-200 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
-            }`}
-          >
-            {user.activo ? <Lock size={15} /> : <Unlock size={15} />}
-            {user.activo ? "Suspender" : "Reactivar"}
-          </button>
-          <button
-            onClick={() => { onClose(); onDelete(user); }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 text-sm border border-red-200 dark:border-red-500/20 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
-            title="Eliminar"
-          >
-            <Trash2 size={15} />
-          </button>
-        </div>
+        {!soloVisualizacion && (
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-dark-border flex items-center gap-2">
+            <button
+              onClick={() => { onClose(); onEdit(user); }}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-200 text-sm"
+            >
+              <Edit3 size={15} />
+              Editar
+            </button>
+            <button
+              onClick={() => { onClose(); onSuspend(user); }}
+              className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 text-sm border ${
+                user.activo
+                  ? "border-amber-200 dark:border-amber-500/20 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                  : "border-emerald-200 dark:border-emerald-500/20 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+              }`}
+            >
+              {user.activo ? <Lock size={15} /> : <Unlock size={15} />}
+              {user.activo ? "Suspender" : "Reactivar"}
+            </button>
+            <button
+              onClick={() => { onClose(); onDelete(user); }}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 text-sm border border-red-200 dark:border-red-500/20 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+              title="Eliminar"
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -535,6 +537,7 @@ function ActionConfirmModal({ config, onClose, onConfirm, loading }) {
 export default function GestionUsuarios({
   titulo, descripcion, rolCrear, rolesFiltro,
   esRefugio = false, emptyMessage = "No se encontraron registros",
+  esAdminPrincipal = true, soloVisualizacion = false,
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -732,12 +735,14 @@ export default function GestionUsuarios({
             </div>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary ml-12">{descripcion}</p>
           </div>
-          <button
-            onClick={() => { setShowCreate(true); }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-200 active:scale-95"
-          >
-            <Plus size={18} /> Nuevo usuario
-          </button>
+          {!soloVisualizacion && (
+            <button
+              onClick={() => { setShowCreate(true); }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-200 active:scale-95"
+            >
+              <Plus size={18} /> Nuevo administrador
+            </button>
+          )}
         </div>
       </div>
 
@@ -821,22 +826,26 @@ export default function GestionUsuarios({
                       >
                         <Eye size={13} /> Ver
                       </button>
-                      <button
-                        onClick={() => handleConfirmSuspend(user)}
-                        className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 ${
-                          user.activo
-                            ? "text-amber-600 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20"
-                            : "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
-                        }`}
-                      >
-                        {user.activo ? <Lock size={13} /> : <Unlock size={13} />}
-                      </button>
-                      <button
-                        onClick={() => handleConfirmDelete(user)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      {!soloVisualizacion && (
+                        <>
+                          <button
+                            onClick={() => handleConfirmSuspend(user)}
+                            className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 ${
+                              user.activo
+                                ? "text-amber-600 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                                : "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
+                            }`}
+                          >
+                            {user.activo ? <Lock size={13} /> : <Unlock size={13} />}
+                          </button>
+                          <button
+                            onClick={() => handleConfirmDelete(user)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -936,36 +945,40 @@ export default function GestionUsuarios({
                             <Eye size={15} strokeWidth={1.5} />
                           </button>
 
-                          {/* Editar */}
-                          <button
-                            onClick={() => setEditUser(user)}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-200"
-                            title="Editar"
-                          >
-                            <Edit3 size={15} strokeWidth={1.5} />
-                          </button>
+                          {!soloVisualizacion && (
+                            <>
+                              {/* Editar */}
+                              <button
+                                onClick={() => setEditUser(user)}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-200"
+                                title="Editar"
+                              >
+                                <Edit3 size={15} strokeWidth={1.5} />
+                              </button>
 
-                          {/* Suspender / Reactivar */}
-                          <button
-                            onClick={() => handleConfirmSuspend(user)}
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                              user.activo
-                                ? "text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10"
-                                : "text-emerald-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
-                            }`}
-                            title={user.activo ? "Suspender" : "Reactivar"}
-                          >
-                            {user.activo ? <Lock size={15} strokeWidth={1.5} /> : <Unlock size={15} strokeWidth={1.5} />}
-                          </button>
+                              {/* Suspender / Reactivar */}
+                              <button
+                                onClick={() => handleConfirmSuspend(user)}
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                                  user.activo
+                                    ? "text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                                    : "text-emerald-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+                                }`}
+                                title={user.activo ? "Suspender" : "Reactivar"}
+                              >
+                                {user.activo ? <Lock size={15} strokeWidth={1.5} /> : <Unlock size={15} strokeWidth={1.5} />}
+                              </button>
 
-                          {/* Eliminar */}
-                          <button
-                            onClick={() => handleConfirmDelete(user)}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-200"
-                            title="Eliminar"
-                          >
-                            <Trash2 size={15} strokeWidth={1.5} />
-                          </button>
+                              {/* Eliminar */}
+                              <button
+                                onClick={() => handleConfirmDelete(user)}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-200"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={15} strokeWidth={1.5} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1003,6 +1016,7 @@ export default function GestionUsuarios({
         onResetPassword={handleResetPassword}
         onChangeRole={handleChangeRole}
         onSendEmail={handleSendEmail}
+        soloVisualizacion={soloVisualizacion}
       />
 
       {/* Modal Crear Usuario */}
