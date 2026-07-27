@@ -7,7 +7,6 @@ from app.models import catalogos as cat
 DATOS = {
     cat.TipoDocumento: [
         ("CC", "Cedula de ciudadania"),
-        ("TI", "Tarjeta de identidad"),
         ("CE", "Cedula de extranjeria"),
         ("PA", "Pasaporte"),
         ("NIT", "NIT"),
