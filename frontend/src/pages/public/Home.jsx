@@ -3,7 +3,18 @@ import { Link } from "react-router-dom";
 import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User } from "lucide-react";
 import ScrollToTop from "../../components/ScrollToTop";
 import AnimatedSection from "../../components/AnimatedSection";
+import AutoFadingImage from "../../components/AutoFadingImage";
 import { useAuth } from "../../context/AuthContext";
+import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
+import mascotaImg from "../../assets/Mascotas.jpg";
+import daycareImg from "../../assets/daycare.png";
+
+// Imágenes del carrusel automático (assets extras)
+import carrusel1 from "../../assets/assets extras/collaje-mascotas-muy-bonito-aislado_23-2150007407.avif";
+import carrusel2 from "../../assets/assets extras/images.jpg";
+import carrusel3 from "../../assets/assets extras/Perro-sosteniendo-un-plano-y-un-gato-sonriendo.jpg";
+
+const carruselImages = [carrusel1, carrusel2, carrusel3];
 import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
 import { listarMascotas } from "../../api/mascotas";
 import { listarProductos } from "../../api/productos";
@@ -23,22 +34,11 @@ function tiempoRelativo(iso) {
 export default function Home() {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState("");
-  // Datos reales de la plataforma
+  // Estadisticas reales de la plataforma
   const [stats, setStats] = useState(null);
-  const [pets, setPets] = useState([]);
-  const [refugios, setRefugios] = useState([]);
-  const [productos, setProductos] = useState([]);
-  const [topics, setTopics] = useState([]);
-  const [postsTotal, setPostsTotal] = useState(0);
 
   useEffect(() => {
-    let activo = true;
-    estadisticasPublicas().then((d) => activo && setStats(d)).catch(() => setStats(null));
-    listarMascotas().then((d) => activo && setPets((d || []).slice(0, 4))).catch(() => {});
-    listarRefugios().then((d) => activo && setRefugios((d || []).slice(0, 3))).catch(() => {});
-    listarProductos().then((d) => activo && setProductos((d || []).slice(0, 3))).catch(() => {});
-    listarPosts().then((d) => { if (activo) { setPostsTotal((d || []).length); setTopics((d || []).slice(0, 3)); } }).catch(() => {});
-    return () => { activo = false; };
+    estadisticasPublicas().then(setStats).catch(() => setStats(null));
   }, []);
 
   useEffect(() => {
@@ -127,13 +127,16 @@ export default function Home() {
               </div>
             </div>
             <div className="relative">
-              <img
-                src={mascotaImg}
-                alt="Perro y gato juntos"
+              <AutoFadingImage
+                images={carruselImages}
+                alt="Perros y gatos - Adoptify"
                 className="rounded-3xl shadow-2xl w-full object-cover"
+                wrapperClassName="rounded-3xl"
+                interval={5000}
+                fadeDuration={1000}
               />
               {!user && (
-                <div className="absolute -bottom-4 -right-4 bg-white rounded-2xl shadow-xl p-4 flex items-center gap-3">
+                <div className="absolute -bottom-4 -right-4 bg-white rounded-2xl shadow-xl p-4 flex items-center gap-3 z-10">
                   <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-amber-500 rounded-full flex items-center justify-center">
                     <Heart className="w-6 h-6 text-white" />
                   </div>

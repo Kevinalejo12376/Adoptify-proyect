@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Search, Bell, Sun, Moon, ChevronDown, LogOut, Settings,
-  Shield, BarChart3, HelpCircle, MessageSquareText,
+  Shield, BarChart3, HelpCircle, Heart, Info, UserCircle, Sliders,
 } from "lucide-react";
 import { useTheme } from "../../../context/ThemeContext";
 import { listarNotificaciones, marcarLeida, marcarTodasLeidas } from "../../../api/notificaciones";
@@ -20,6 +20,7 @@ const getTipoColor = (tipo) => {
   return map[tipo] || "bg-gray-50 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400";
 };
 
+export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
 // Opciones del menú de perfil
 const menuOptions = [
   { id: "configuracion", icon: Settings, label: "Configuración", path: "/admin/configuracion" },
@@ -47,6 +48,10 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
       const data = await listarNotificaciones();
       setNotifs(data || []);
     } catch (e) {
+      // sin notificaciones si falla
+    }
+  }, []);
+
       console.error("Error al cargar notificaciones:", e);
     }
   }, []);
@@ -177,7 +182,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
                       <p className="text-sm text-gray-400 dark:text-dark-text-secondary">Sin notificaciones</p>
                     </div>
                   ) : (
-                    notifs.slice(0, 10).map((notif) => (
+                    notifs.slice(0, 8).map((notif) => (
                       <button
                         key={notif.id}
                         onClick={() => handleClickNotif(notif)}
@@ -222,12 +227,28 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
           <div className="relative" ref={perfilRef}>
             <button
               onClick={() => setPerfilOpen(!perfilOpen)}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-200 hover:scale-105 active:scale-95"
-              title="Menú de administración"
+              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-200 hover:scale-105 active:scale-95"
+              title="Menú de administrador"
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400">
                 {adminNombre?.[0] || "A"}
               </div>
+            </button>
+
+            {perfilOpen && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
+                <div className="p-4 border-b border-gray-100 dark:border-dark-border">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-sm font-bold text-rose-600 dark:text-rose-400">
+                      {adminNombre?.[0] || "A"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">
+                        {adminNombre || "Admin"}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">
+                        Administrador
+                      </p>
               <ChevronDown size={14} className={`text-gray-400 transition-transform duration-200 ${perfilOpen ? "rotate-180" : ""}`} />
             </button>
 
@@ -253,6 +274,46 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
                   </div>
                 </div>
 
+                <div className="p-1.5">
+                  <div className="px-3 pt-2 pb-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Mi cuenta</p>
+                  </div>
+                  <button onClick={() => handleNavigation("/admin/usuarios")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <UserCircle size={16} /> Perfil
+                  </button>
+                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Settings size={16} /> Configuración
+                  </button>
+                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Sliders size={16} /> Preferencias
+                  </button>
+
+                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Gestión</p>
+                  </div>
+                  <button onClick={() => handleNavigation("/admin/administradores")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Shield size={16} /> Administradores
+                  </button>
+                  <button onClick={() => handleNavigation("/admin/estadisticas")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <BarChart3 size={16} /> Estadísticas
+                  </button>
+                  <button onClick={() => handleNavigation("/admin/pqrs")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <HelpCircle size={16} /> PQRS
+                  </button>
+
+                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sistema</p>
+                  </div>
+                  <button onClick={() => handleNavigation("/admin/dashboard")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Info size={16} /> Acerca de Adoptify
+                  </button>
+
+                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sesión</p>
+                  </div>
+                  <button onClick={() => { onLogout(); setPerfilOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 mt-1">
+                    <LogOut size={16} /> Cerrar sesión
+                  </button>
                 {/* Opciones del menú */}
                 <div className="px-2 pb-2">
                   <div className="px-3 pt-1 pb-2">

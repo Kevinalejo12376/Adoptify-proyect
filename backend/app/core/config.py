@@ -12,6 +12,19 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     CORS_ORIGINS: Union[str, List[str]] = ["*"]
 
+    # --- Correo SMTP (Gmail) ---
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+
+    # --- Frontend ---
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # --- Google OAuth ---
+    GOOGLE_CLIENT_ID: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @property

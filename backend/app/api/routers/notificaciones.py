@@ -68,14 +68,10 @@ TIPO_CATEGORIAS = {
     "sistema": "sistema",
 }
 
-
 def _serialize(n: Notificacion) -> dict:
-    tipo = n.tipo or "sistema"
     return {
         "id": n.id,
-        "tipo": tipo,
-        "categoria": TIPO_CATEGORIAS.get(tipo, "sistema"),
-        "titulo": TIPO_TITULOS.get(tipo, "Notificación"),
+        "tipo": n.tipo,
         "mensaje": n.mensaje,
         "enlace": n.enlace,
         "leida": n.leida,
@@ -89,7 +85,7 @@ def listar(current_user: Usuario = Depends(get_current_user), db: Session = Depe
         db.query(Notificacion)
         .filter(Notificacion.usuario_id == current_user.id)
         .order_by(Notificacion.creado_en.desc())
-        .limit(100)
+        .limit(50)
         .all()
     )
     return [_serialize(n) for n in notifs]

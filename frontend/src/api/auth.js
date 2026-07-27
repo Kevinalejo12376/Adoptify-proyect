@@ -35,6 +35,17 @@ export async function updateProfile(payload) {
   return apiFetch("/api/auth/profile", { method: "PUT", body: payload });
 }
 
+/** Inicia sesion con Google. Envia el credential token al backend. */
+export async function googleLoginRequest(credential) {
+  const data = await apiFetch("/api/auth/google", {
+    method: "POST",
+    body: { credential },
+    auth: false,
+  });
+  setToken(data.access_token);
+  return fetchMe();
+}
+
 /** Cierra sesion (limpia el token local). */
 export function logoutRequest() {
   clearToken();

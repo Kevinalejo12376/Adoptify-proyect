@@ -59,9 +59,6 @@ function ProductAvatar({ src, nombre }) {
           {(nombre || "P")[0].toUpperCase()}
         </div>
       )}
-    </div>
-  );
-}
 
 // ========================================================
 // COMPONENTE: Badge de estado
@@ -148,6 +145,13 @@ function Pagination({ pagina, total, porPagina, onPageChange }) {
 }
 
 // ========================================================
+// COMPONENTE: Badge de estado
+// ========================================================
+function EstadoBadge({ estado }) {
+  const config = {
+    visible: { bg: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400", dot: "bg-emerald-500", label: "Visible" },
+    pausado: { bg: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", dot: "bg-amber-500", label: "Pausado" },
+    oculto: { bg: "bg-gray-100 text-gray-500 dark:bg-dark-border dark:text-dark-text-secondary", dot: "bg-gray-400", label: "Oculto" },
 // COMPONENTE: Modal de Detalle del Producto (estadísticas bajo imagen)
 // ========================================================
 function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }) {
@@ -217,7 +221,230 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
     onToggleEstado(producto.id);
     producto.estado = producto.estado === "oculto" ? "visible" : "oculto";
   };
+  const c = config[estado] || config.visible;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${c.bg}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+      {c.label}
+    </span>
+  );
+}
 
+// ========================================================
+// COMPONENTE: Badge de tipo vendedor
+// ========================================================
+function TipoVendedorBadge({ tipo }) {
+  const c = TIPO_VENDEDOR[tipo] || TIPO_VENDEDOR.refugio;
+  const Icono = c.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold ${c.color}`}>
+      <Icono size={11} />
+      {c.label}
+    </span>
+  );
+}
+
+// ========================================================
+// COMPONENTE: Paginación
+// ========================================================
+function Pagination({ pagina, total, porPagina, onPageChange }) {
+  const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
+  const desde = total > 0 ? (pagina - 1) * porPagina + 1 : 0;
+  const hasta = Math.min(pagina * porPagina, total);
+
+  return (
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-4">
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-gray-500 dark:text-dark-text-secondary">Filas por página:</span>
+        <select
+          value={porPagina}
+          onChange={(e) => onPageChange(Number(e.target.value), true)}
+          className="px-2 py-1.5 text-xs bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+        >
+          {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+          {total > 0
+            ? <><span className="font-medium text-gray-700 dark:text-dark-text">{desde}</span>–<span className="font-medium text-gray-700 dark:text-dark-text">{hasta}</span> de <span className="font-medium text-gray-700 dark:text-dark-text">{total}</span></>
+            : "Sin resultados"}
+        </p>
+      </div>
+      <div className="flex items-center gap-1">
+        <button onClick={() => onPageChange(pagina - 1)} disabled={pagina <= 1}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          <ChevronLeft size={15} />
+        </button>
+        {Array.from({ length: Math.min(totalPaginas, 5) }, (_, i) => {
+          let p;
+          if (totalPaginas <= 5) p = i + 1;
+          else if (pagina <= 3) p = i + 1;
+          else if (pagina >= totalPaginas - 2) p = totalPaginas - 4 + i;
+          else p = pagina - 2 + i;
+          return (
+            <button key={p} onClick={() => onPageChange(p)}
+              className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${pagina === p ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-dark-border"}`}>
+              {p}
+            </button>
+          );
+        })}
+        <button onClick={() => onPageChange(pagina + 1)} disabled={pagina >= totalPaginas}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          <ChevronRight size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ========================================================
+// COMPONENTE: Modal de Detalle del Producto
+// ========================================================
+function ModalProducto({ isOpen, onClose, producto }) {
+  if (!isOpen || !producto) return null;
+
+  const tipoVen = producto?.tipo_vendedor === "tienda" ? "tienda" : "refugio";
+  const tipoConfig = TIPO_VENDEDOR[tipoVen] || TIPO_VENDEDOR.refugio;
+  const TipoIcono = tipoConfig.icon;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+      <div className="relative w-full max-w-3xl bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <ProductAvatar src={producto.imagen} nombre={producto.nombre} />
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-dark-text">{producto.nombre}</h2>
+              <p className="text-xs text-gray-500 dark:text-dark-text-secondary">{producto.categoria} · ${Number(producto.precio).toLocaleString("es-CO")}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto p-5 flex-1 scrollbar-hide">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Columna izquierda - Imagen */}
+            <div>
+              <div className="w-full aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-dark-border mb-3">
+                {producto.imagen ? (
+                  <img src={producto.imagen} alt={producto.nombre} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center"><ImageIcon size={48} className="text-gray-300 dark:text-dark-border" /></div>
+                )}
+              </div>
+              <div className="flex items-center justify-between px-1">
+                <button className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-rose-500 transition-colors">
+                  <Heart size={14} /> {producto.favoritos || 0} favoritos
+                </button>
+                <button className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-violet-500 transition-colors">
+                  <Share2 size={14} /> {producto.compartidos || 0} compartido
+                </button>
+              </div>
+            </div>
+
+            {/* Columna derecha - Info */}
+            <div className="space-y-5">
+              {/* Estado y acciones rápidas */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <EstadoBadge estado={producto.estado} />
+                <TipoVendedorBadge tipo={tipoVen} />
+              </div>
+
+              {/* Grid de información */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
+                  <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Precio</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-dark-text mt-0.5">${Number(producto.precio).toLocaleString("es-CO")}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
+                  <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Stock</p>
+                  <p className={`text-sm font-bold mt-0.5 ${producto.stock > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>{producto.stock || 0} unidades</p>
+                </div>
+                <div className="p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
+                  <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Categoría</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-dark-text mt-0.5">{producto.categoria || "Sin categoría"}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
+                  <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Publicación</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-dark-text mt-0.5">{producto.fecha || "—"}</p>
+                </div>
+              </div>
+
+              {/* Vendedor */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-rose-50/50 to-amber-50/50 dark:from-rose-500/5 dark:to-amber-500/5 border border-gray-100 dark:border-dark-border">
+                <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider mb-3">Vendedor</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/20 dark:to-amber-500/20 flex items-center justify-center text-lg font-bold text-rose-600 dark:text-rose-400 flex-shrink-0">
+                    {(producto.vendedor_nombre || "V")[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">{producto.vendedor_nombre}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <TipoVendedorBadge tipo={tipoVen} />
+                      <span className="text-xs text-gray-500 dark:text-dark-text-secondary flex items-center gap-0.5">
+                        <Star size={11} className="text-amber-500" /> {producto.rating || "—"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-0.5">
+                      <Package size={11} className="inline mr-0.5" />{producto.vendedor_productos || 0} productos publicados
+                    </p>
+                  </div>
+                  <button className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors flex items-center gap-1" title="Ver perfil del vendedor">
+                    <ExternalLink size={12} /> Perfil
+                  </button>
+                </div>
+              </div>
+
+              {/* Estadísticas */}
+              <div>
+                <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider mb-3">Estadísticas</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { icon: Eye, label: "Visitas", value: producto.visitas || 0, color: "text-blue-500" },
+                    { icon: Heart, label: "Favoritos", value: producto.favoritos || 0, color: "text-rose-500" },
+                    { icon: Flag, label: "Reportes", value: producto.reportes || 0, color: producto.reportes > 0 ? "text-red-500" : "text-gray-400" },
+                    { icon: Share2, label: "Compartido", value: producto.compartidos || 0, color: "text-violet-500" },
+                  ].map((stat, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-dark-bg">
+                      <div className={`w-9 h-9 rounded-lg bg-white dark:bg-dark-card flex items-center justify-center ${stat.color}`}>
+                        <stat.icon size={16} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900 dark:text-dark-text">{stat.value}</p>
+                        <p className="text-[10px] text-gray-500 dark:text-dark-text-secondary">{stat.label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Acciones */}
+        <div className="flex-shrink-0 border-t border-gray-100 dark:border-dark-border p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors">
+              <Edit3 size={14} /> Editar
+            </button>
+            <button className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors">
+              {producto.estado === "oculto" ? <RefreshCw size={14} /> : <EyeOff size={14} />}
+              {producto.estado === "oculto" ? "Publicar" : "Ocultar"}
+            </button>
+            <button className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors">
+              <Flag size={14} /> Reportes
+            </button>
+            <button className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors">
+              <Trash2 size={14} /> Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   const handleEliminar = () => {
     if (window.confirm(`¿Eliminar "${producto.nombre}"?`)) {
       onEliminar(producto.id);
@@ -545,6 +772,264 @@ function VistaProductos() {
         </div>
       </div>
 
+      {/* Tabla de productos */}
+      {paginados.length === 0 ? (
+        <div className="text-center py-20 bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border">
+          <Package size={48} className="mx-auto text-gray-300 dark:text-dark-border mb-3" />
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">No se encontraron productos</p>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm overflow-hidden">
+          {/* Tabla con grid para perfecta alineación */}
+          <div className="hidden lg:grid grid-cols-[2fr_1fr_0.6fr_1.5fr_1fr_1fr_1fr_1.8fr] gap-3 px-6 py-3.5 border-b border-gray-100 dark:border-dark-border bg-gray-50/50 dark:bg-dark-bg/30">
+            <span className="text-[11px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Producto</span>
+            <span className="text-[11px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Precio</span>
+            <span className="text-[11px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider text-center">Stock</span>
+            <span className="text-[11px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Vendedor</span>
+            <span className="text-[11px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Tipo</span>
+            <span className="text-[11px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider text-center">Estado</span>
+            <span className="text-[11px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider text-center">Categoría</span>
+            <span className="text-[11px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider text-right">Acciones</span>
+          </div>
+
+          {/* Filas */}
+          <div className="divide-y divide-gray-50 dark:divide-dark-border">
+            {paginados.map((prod) => (
+              <div key={prod.id} className="group lg:grid lg:grid-cols-[2fr_1fr_0.6fr_1.5fr_1fr_1fr_1fr_1.8fr] lg:gap-3 px-6 py-4 hover:bg-gray-50/50 dark:hover:bg-dark-bg/30 transition-colors duration-150">
+                {/* Nombre producto */}
+                <div className="flex items-center min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-dark-text truncate group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                    {prod.nombre}
+                  </p>
+                </div>
+
+                {/* Precio */}
+                <div className="flex items-center">
+                  <span className="text-xs text-gray-400 lg:hidden font-medium mr-1">Precio:</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-dark-text">${Number(prod.precio).toLocaleString("es-CO")}</span>
+                </div>
+
+                {/* Stock */}
+                <div className="flex items-center justify-center lg:justify-center">
+                  <span className="text-xs text-gray-400 lg:hidden font-medium mr-1">Stock:</span>
+                  <span className={`text-sm font-semibold ${prod.stock > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                    {prod.stock || 0}
+                  </span>
+                </div>
+
+                {/* Vendedor */}
+                <div className="flex items-center min-w-0">
+                  <span className="text-xs text-gray-400 lg:hidden font-medium mr-1">Vendedor:</span>
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/20 dark:to-amber-500/20 flex items-center justify-center text-[9px] font-bold text-rose-600 dark:text-rose-400 flex-shrink-0 mr-2">
+                    {(prod.vendedor_nombre || "V")[0]}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-dark-text truncate">{prod.vendedor_nombre}</span>
+                </div>
+
+                {/* Tipo */}
+                <div className="flex items-center">
+                  <TipoVendedorBadge tipo={prod.tipo_vendedor || "refugio"} />
+                </div>
+
+                {/* Estado */}
+                <div className="flex items-center justify-center lg:justify-center">
+                  <EstadoBadge estado={prod.estado || "visible"} />
+                </div>
+
+                {/* Categoría */}
+                <div className="flex items-center justify-center lg:justify-center">
+                  <span className="text-xs text-gray-400 lg:hidden font-medium mr-1">Cat:</span>
+                  <span className="text-sm text-gray-500 dark:text-dark-text-secondary">{prod.categoria || "—"}</span>
+                </div>
+
+                {/* Acciones */}
+                <div className="flex items-center justify-end gap-1">
+                  <button onClick={() => setModalProducto(prod)} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" title="Ver detalles">
+                    <Eye size={16} />
+                  </button>
+                  <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors" title="Editar producto">
+                    <Edit3 size={16} />
+                  </button>
+                  <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors" title="Ver perfil del vendedor">
+                    <ExternalLink size={16} />
+                  </button>
+                  <button onClick={() => handleToggleEstado(prod.id)} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors" title={prod.estado === "oculto" ? "Publicar" : "Ocultar"}>
+                    {prod.estado === "oculto" ? <RefreshCw size={16} /> : <EyeOff size={16} />}
+                  </button>
+                  {prod.reportes > 0 && (
+                    <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" title="Revisar reportes">
+                      <Flag size={16} />
+                    </button>
+                  )}
+                  <button onClick={() => handleEliminar(prod.id)} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" title="Eliminar producto">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Paginación */}
+      <Pagination pagina={pagina} total={total} porPagina={porPagina} onPageChange={handlePageChange} />
+
+      {/* Modal de detalle */}
+      <ModalProducto isOpen={!!modalProducto} onClose={() => setModalProducto(null)} producto={modalProducto} />
+    </div>
+  );
+}
+
+// ========================================================
+// COMPONENTE: Tiendas Aliadas (vista simplificada)
+// ========================================================
+function VistaTiendas() {
+  return (
+    <div className="text-center py-20 bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border">
+      <ShoppingBag size={48} className="mx-auto text-gray-300 dark:text-dark-border mb-3" />
+      <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-2">Gestión de Tiendas Aliadas</h3>
+      <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-6 max-w-md mx-auto">
+          Administra las tiendas aliadas desde la sección dedicada en el menú lateral.
+      </p>
+      <button onClick={() => window.location.href = "/admin/tiendas"} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 transition-all shadow-sm">
+          Ir a Tiendas Aliadas
+      </button>
+    </div>
+  );
+}
+
+// ========================================================
+// COMPONENTE: Estadísticas
+// ========================================================
+function VistaEstadisticas() {
+  const stats = [
+    { label: "Productos Totales", value: "158", change: "+12", color: "text-rose-500" },
+    { label: "Productos Visibles", value: "134", change: "+8", color: "text-emerald-500" },
+    { label: "Tiendas Activas", value: "24", change: "+3", color: "text-blue-500" },
+    { label: "Ventas Totales", value: "1,847", change: "+22%", color: "text-violet-500" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((s) => (
+          <div key={s.label} className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 hover:shadow-md transition-all duration-300">
+            <p className="text-sm text-gray-500 dark:text-dark-text-secondary font-medium mb-1">{s.label}</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-bold text-gray-900 dark:text-dark-text">{s.value}</p>
+              <span className={`text-xs font-semibold ${s.color}`}>{s.change}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
+        <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Distribución por categoría</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[
+            { nombre: "Alimentos", total: 45, activas: 38 },
+            { nombre: "Accesorios", total: 32, activas: 28 },
+            { nombre: "Juguetes", total: 28, activas: 24 },
+            { nombre: "Salud", total: 18, activas: 15 },
+            { nombre: "Higiene", total: 22, activas: 20 },
+            { nombre: "Ropa", total: 15, activas: 12 },
+          ].map((cat) => (
+            <div key={cat.nombre} className="p-4 rounded-xl bg-gray-50 dark:bg-dark-bg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">{cat.nombre}</span>
+                <span className="text-xs text-gray-500 dark:text-dark-text-secondary">{cat.total} productos</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 rounded-full bg-gray-200 dark:bg-dark-border overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-rose-500 to-amber-500" style={{ width: `${(cat.activas / cat.total) * 100}%` }} />
+                </div>
+                <span className="text-[10px] font-medium text-gray-500 dark:text-dark-text-secondary">{cat.activas} activas</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========================================================
+// COMPONENTE PRINCIPAL: AdminMarketplace
+// ========================================================
+export default function AdminMarketplace() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const pathToTab = {
+    "/admin/marketplace": "productos",
+    "/admin/marketplace/estadisticas": "estadisticas",
+  };
+  const tabActivo = pathToTab[location.pathname] || "productos";
+
+  const handleTabChange = (tabId) => {
+    const routes = {
+      productos: "/admin/marketplace",
+      tiendas: "/admin/tiendas",
+      estadisticas: "/admin/marketplace/estadisticas",
+    };
+    navigate(routes[tabId] || "/admin/marketplace");
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="animate-fade-in">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
+            <Store size={20} className="text-rose-500" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">Marketplace</h1>
+            <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+              Administra los productos del marketplace
+            </p>
+
+  return (
+    <div className="space-y-4">
+      {/* Barra de herramientas */}
+      <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1 relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input type="text" value={busqueda} onChange={(e) => {
+              setBusqueda(e.target.value);
+              if (searchTimeout.current) clearTimeout(searchTimeout.current);
+              searchTimeout.current = setTimeout(() => setPagina(1), 300);
+            }} placeholder="Buscar productos o vendedor..." className="w-full pl-9 pr-4 py-2.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all" />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <select value={filtroTipo} onChange={(e) => { setFiltroTipo(e.target.value); setPagina(1); }}
+              className="px-3 py-2.5 text-xs bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20">
+              <option value="todos">Todos</option>
+              <option value="refugio">Refugios</option>
+              <option value="tienda">Tiendas</option>
+            </select>
+            <select value={filtroEstado} onChange={(e) => { setFiltroEstado(e.target.value); setPagina(1); }}
+              className="px-3 py-2.5 text-xs bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20">
+              <option value="todos">Estados</option>
+              <option value="visible">Visible</option>
+              <option value="pausado">Pausado</option>
+              <option value="oculto">Oculto</option>
+            </select>
+            <select value={filtroCategoria} onChange={(e) => { setFiltroCategoria(e.target.value); setPagina(1); }}
+              className="px-3 py-2.5 text-xs bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20">
+              <option value="todos">Categorías</option>
+              {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Contenido según subruta */}
+      <div className="animate-fade-in" key={tabActivo}>
+        {tabActivo === "productos" && <VistaProductos />}
+        {tabActivo === "tiendas" && <VistaTiendas />}
+        {tabActivo === "estadisticas" && <VistaEstadisticas />}
+      </div>
       {/* Tabla de productos */}
       {paginados.length === 0 ? (
         <div className="text-center py-20 bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border">
