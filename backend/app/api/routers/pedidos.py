@@ -145,31 +145,6 @@ def mis_pedidos(current_user: Usuario = Depends(get_current_user), db: Session =
 
 @router.get("/{pedido_id}")
 def obtener_pedido(pedido_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    pedido = (
-        db.query(Pedido)
-        .filter(Pedido.id == pedido_id)
-        .first()
-    )
-    if not pedido:
-        raise HTTPException(status_code=404, detail="Pedido no encontrado")
-    if pedido.usuario_id != current_user.id and current_user.rol_codigo not in ("administrador", "administrador_principal"):
-        raise HTTPException(status_code=403, detail="No puedes ver este pedido")
-    return serialize_pedido(pedido)
-
-
-@router.get("/mios")
-def mis_pedidos(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    pedidos = (
-        db.query(Pedido)
-        .filter(Pedido.usuario_id == current_user.id)
-        .order_by(Pedido.creado_en.desc())
-        .all()
-    )
-    return [serialize_pedido(p) for p in pedidos]
-
-
-@router.get("/{pedido_id}")
-def obtener_pedido(pedido_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")

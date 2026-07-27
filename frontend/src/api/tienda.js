@@ -37,9 +37,12 @@ export const misPedidosTienda = () => apiFetch(`${base}/pedidos`);
 /** Detalle de un pedido (solo items de mi tienda). */
 export const obtenerPedidoTienda = (id) => apiFetch(`${base}/pedidos/${id}`);
 
-/** Cambia el estado de un pedido. */
-export const cambiarEstadoPedidoTienda = (id, estado) =>
-  apiFetch(`${base}/pedidos/${id}/estado`, { method: "PATCH", body: { estado } });
+/** Cambia el estado de un pedido. Opcionalmente adjunta numero de guia y transportadora. */
+export const cambiarEstadoPedidoTienda = (id, estado, extra = {}) =>
+  apiFetch(`${base}/pedidos/${id}/estado`, {
+    method: "PATCH",
+    body: { estado, ...extra },
+  });
 
 /** Cambia la contraseña del responsable de la tienda. */
 export const cambiarPasswordTienda = (payload) =>

@@ -23,6 +23,9 @@ class Pedido(Base):
     metodo_pago = Column(String(60))
     notas = Column(Text)
     fecha_estimada_entrega = Column(DateTime(timezone=True))
+    # Datos de envio proporcionados por la tienda/refugio al despachar
+    numero_guia = Column(String(80))
+    empresa_transportadora = Column(String(120))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     estado = relationship("EstadoPedido", lazy="joined")

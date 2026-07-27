@@ -23,3 +23,7 @@ export const comentar = (postId, payload) =>
 /** Alterna una reaccion en una publicacion (toggle). */
 export const reaccionar = (postId, tipo = "like") =>
   apiFetch(`${base}/posts/${postId}/reacciones`, { method: "POST", body: { tipo } });
+
+/** Alterna el "me gusta" de un comentario (toggle). Devuelve { activo, likes }. */
+export const reaccionarComentario = (comentarioId) =>
+  apiFetch(`${base}/comentarios/${comentarioId}/like`, { method: "POST" });

@@ -392,6 +392,43 @@ export default function UserOrderDetail() {
               </div>
             )}
 
+            {/* Seguimiento del envío: número de guía y transportadora */}
+            {(order.numero_guia || order.empresa_transportadora) && (
+              <div className={`rounded-2xl border p-6 ${
+                isDark ? "bg-dark-card border-dark-border" : "bg-white border-gray-100"
+              }`}>
+                <h2 className={`text-lg font-bold font-display mb-5 flex items-center gap-2 ${
+                  isDark ? "text-white" : "text-gray-900"
+                }`}>
+                  <Truck className={`w-5 h-5 ${isDark ? "text-amber-400" : "text-amber-600"}`} />
+                  Seguimiento del envío
+                </h2>
+                {order.empresa_transportadora && (
+                  <div className="mb-4">
+                    <p className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+                      Empresa transportadora
+                    </p>
+                    <p className={`text-sm font-semibold mt-0.5 ${isDark ? "text-white" : "text-gray-900"}`}>
+                      {order.empresa_transportadora}
+                    </p>
+                  </div>
+                )}
+                {order.numero_guia && (
+                  <div className={`rounded-xl p-4 ${isDark ? "bg-amber-500/10" : "bg-amber-50"}`}>
+                    <p className={`text-xs flex items-center gap-1 ${isDark ? "text-amber-400" : "text-amber-700"}`}>
+                      <Hash className="w-3 h-3" />
+                      Su número de guía es:
+                    </p>
+                    <p className={`text-lg font-bold font-display tracking-wide mt-1 select-all ${
+                      isDark ? "text-amber-300" : "text-amber-800"
+                    }`}>
+                      {order.numero_guia}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Información del vendedor */}
             {order.vendedor && (
               <div className={`rounded-2xl border p-6 ${
