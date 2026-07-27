@@ -32,7 +32,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Share2,
-  Eye,
   Maximize2,
   Loader2,
 } from "lucide-react";
@@ -187,7 +186,7 @@ export default function ProductProfile() {
           features: [],
           careInstructions: null,
           rating: Number(p.rating) || 0,
-          reviews: p.ventas || 0,
+          reviews: p.resenas_count || 0,
           stock: p.stock ?? 0,
         });
       } catch (e) {
@@ -426,13 +425,8 @@ export default function ProductProfile() {
                     {averageRating}
                   </span>
                   <span className="text-sm text-gray-400 dark:text-dark-text-secondary">
-                    ({comments.length > 0 ? comments.length : product.reviews} {comments.length === 1 ? "reseña" : "reseñas"})
+                    ({comments.length} {comments.length === 1 ? "reseña" : "reseñas"})
                   </span>
-                </div>
-                <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
-                <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-dark-text-secondary">
-                  <Eye className="w-4 h-4" />
-                  <span>{(product.stock * 7 + 23).toLocaleString()} vistas</span>
                 </div>
               </div>
 

@@ -291,7 +291,7 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
 
 // ─── Main Component ───
 export default function UserProfile() {
-  const { user: authUser } = useAuth();
+  const { user: authUser, profileCompleted, openProfileModal } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
