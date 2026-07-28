@@ -846,15 +846,6 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
   );
 }
 
-// ========================================================
-// MODAL: Ver Tienda (detalles)
-// ========================================================
-function ModalVerTienda({ isOpen, onClose, tiendaId }) {
-  const [tienda, setTienda] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!isOpen || !tiendaId) return;
 // MODAL: Detalle Completo de Tienda (con CRUD)
 // ========================================================
 function ModalDetalleCompleto({ isOpen, onClose, tiendaId, tienda: tiendaInicial, onAction }) {
@@ -885,8 +876,6 @@ function ModalDetalleCompleto({ isOpen, onClose, tiendaId, tienda: tiendaInicial
     </div>
   );
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Detalles de la Tienda" icon={Store} size="lg">
   const handleAction = (accion) => {
     onClose();
     onAction(accion, tienda);
@@ -1217,7 +1206,6 @@ export default function GestionTiendas() {
   const [menuOpen, setMenuOpen] = useState(null);
 
   // Modales
-  const [modalCrear, setModalCrear] = useState(false);
   const [modalVer, setModalVer] = useState({ open: false, id: null });
   // Modales
   const [modalCrear, setModalCrear] = useState(false);
@@ -1710,11 +1698,6 @@ export default function GestionTiendas() {
         onCreated={handleCreated}
       />
 
-      {/* Modal Ver Tienda */}
-      <ModalVerTienda
-        isOpen={modalVer.open}
-        onClose={() => setModalVer({ open: false, id: null })}
-        tiendaId={modalVer.id}
       {/* Modal Detalle Completo */}
       <ModalDetalleCompleto
         isOpen={modalDetalle.open}

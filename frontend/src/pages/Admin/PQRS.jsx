@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Loader2, CheckCircle, MessageSquare } from "lucide-react";
+import {
+  Loader2, CheckCircle, MessageSquare, FileText, AlertCircle, HelpCircle, ThumbsUp,
+  Clock, Check, Calendar, Mail, Search, Filter, ChevronDown, X,
+} from "lucide-react";
 import DataTable from "../../components/admin/DataTable";
 import { listarPqrs, actualizarPqrs } from "../../api/admin";
 
 const ESTADOS = ["pendiente", "en_proceso", "resuelto", "cerrado"];
-const TIPOS = { peticion: "Petición", queja: "Queja", reclamo: "Reclamo", sugerencia: "Sugerencia" };
-
-const ESTADOS = ["pendiente", "en_proceso", "resuelto", "cerrado"];
 const TIPOS = {
-  peticion: { label: "Petición", icon: FileText, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-500/10" },
+  peticion: { label: "Petici\u00f3n", icon: FileText, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-500/10" },
   queja: { label: "Queja", icon: AlertCircle, color: "text-red-500", bg: "bg-red-50 dark:bg-red-500/10" },
   reclamo: { label: "Reclamo", icon: HelpCircle, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-500/10" },
   sugerencia: { label: "Sugerencia", icon: ThumbsUp, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-500/10" },
@@ -79,7 +79,6 @@ function PqrsDetailModal({ item, onClose, onResponder, onCambiarEstado }) {
         className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="relative h-24 bg-gradient-to-r from-rose-500 to-amber-500 rounded-t-2xl" />
         <button
           onClick={onClose}
@@ -115,7 +114,6 @@ function PqrsDetailModal({ item, onClose, onResponder, onCambiarEstado }) {
             </div>
           </div>
 
-          {/* Mensaje del usuario */}
           <div className="mb-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary mb-2">
               Mensaje del usuario
@@ -133,7 +131,6 @@ function PqrsDetailModal({ item, onClose, onResponder, onCambiarEstado }) {
             )}
           </div>
 
-          {/* Respuesta existente */}
           {item.respuesta && (
             <div className="mb-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary mb-2">
@@ -147,7 +144,6 @@ function PqrsDetailModal({ item, onClose, onResponder, onCambiarEstado }) {
             </div>
           )}
 
-          {/* Acciones */}
           <div className="flex items-center gap-2 pt-4 border-t border-gray-100 dark:border-dark-border">
             {item.estado !== "cerrado" && item.estado !== "resuelto" && (
               <button
@@ -257,6 +253,7 @@ export default function AdminPQRS() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [responderItem, setResponderItem] = useState(null);
   const [respuesta, setRespuesta] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState("todos");
@@ -278,16 +275,15 @@ export default function AdminPQRS() {
   };
 
   const handleResponder = async () => {
-    if (!selected || !respuesta.trim()) return;
+    if (!responderItem || !respuesta.trim()) return;
     setGuardando(true);
     try {
-      await actualizarPqrs(selected.id, { estado: "resuelto", respuesta });
-      setSelected(null); setRespuesta(""); await cargar();
+      await actualizarPqrs(responderItem.id, { estado: "resuelto", respuesta });
+      setResponderItem(null); setRespuesta(""); await cargar();
     } catch (e) { setError(e?.message); }
     finally { setGuardando(false); }
   };
 
-  // Filtros
   const itemsFiltrados = items.filter((item) => {
     if (filtroTipo !== "todos" && item.tipo !== filtroTipo) return false;
     if (filtroEstado !== "todos" && item.estado !== filtroEstado) return false;
@@ -330,53 +326,6 @@ export default function AdminPQRS() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text">PQRS</h1>
-        <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">Peticiones, quejas, reclamos y sugerencias</p>
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
-            <MessageSquare size={20} className="text-rose-500" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text">PQRS</h1>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-              Gestiona las peticiones, quejas, reclamos y sugerencias
-            </p>
-          </div>
-        </div>
-      </div>
-      {error && <div className="p-3 rounded-xl bg-red-50 text-red-700 text-sm border border-red-100">{error}</div>}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-          <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-2" /><p>Cargando PQRS...</p>
-        </div>
-      ) : (
-        <DataTable columnas={columnas} datos={items} placeholder="Buscar PQRS..." emptyMessage="No hay PQRS registrados" />
-      )}
-
-      {selected && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{selected.asunto}</h3>
-            <p className="text-xs text-gray-500 mb-3">{TIPOS[selected.tipo] || selected.tipo} · {selected.estado}</p>
-            <div className="p-3 bg-gray-50 dark:bg-dark-bg/50 rounded-xl text-sm text-gray-700 dark:text-gray-300 mb-4">{selected.mensaje}</div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Respuesta</label>
-            <textarea rows={4} value={respuesta} onChange={(e) => setRespuesta(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-xl text-sm bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none mb-4"
-              placeholder="Escribe tu respuesta..." />
-            <div className="flex gap-2">
-              <button onClick={handleResponder} disabled={guardando || !respuesta.trim()}
-                className="flex-1 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl disabled:opacity-60">
-                {guardando ? "Guardando..." : "Responder y resolver"}
-              </button>
-              <button onClick={() => setSelected(null)} className="px-5 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-gray-600 dark:text-gray-400">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Error */}
       {error && (
         <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm border border-red-100 dark:border-red-500/20 flex items-center gap-2">
@@ -384,6 +333,19 @@ export default function AdminPQRS() {
           {error}
         </div>
       )}
+
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-1">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
+          <MessageSquare size={20} className="text-rose-500" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text">PQRS</h1>
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            Gestiona las peticiones, quejas, reclamos y sugerencias
+          </p>
+        </div>
+      </div>
 
       {/* Tarjetas de resumen */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
