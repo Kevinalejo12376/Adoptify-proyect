@@ -12,6 +12,62 @@ from app.models.soporte import Notificacion
 router = APIRouter()
 
 
+TIPO_TITULOS = {
+    "pedido_realizado": "Pedido Realizado",
+    "pago_confirmado": "Pago Confirmado",
+    "pedido_enviado": "Pedido Enviado",
+    "pedido_entregado": "Pedido Entregado",
+    "pedido_cancelado": "Pedido Cancelado",
+    "reembolso": "Reembolso",
+    "pedido_actualizado": "Pedido Actualizado",
+    "nueva_solicitud": "Nueva Solicitud de Adopción",
+    "solicitud_enviada": "Solicitud de Adopción",
+    "solicitud_aceptada": "Solicitud Aceptada",
+    "solicitud_rechazada": "Solicitud Rechazada",
+    "actualizacion_refugio": "Actualización del Refugio",
+    "cambio_password": "Cambio de Contraseña",
+    "nuevo_login": "Nuevo Inicio de Sesión",
+    "actualizacion_perfil": "Actualización de Perfil",
+    "nueva_publicacion": "Nueva Publicación",
+    "nuevo_evento": "Nuevo Evento",
+    "nueva_mascota": "Nueva Mascota Disponible",
+    "respuesta_foro": "Respuesta en Publicación",
+    "comentario": "Nuevo Comentario",
+    "reaccion": "Nueva Reacción",
+    "like_publicacion": "Le gustó tu publicación",
+    "like_comentario": "Le gustó tu comentario",
+    "venta": "Nueva Venta",
+    "sistema": "Notificación del Sistema",
+}
+
+TIPO_CATEGORIAS = {
+    "pedido_realizado": "marketplace",
+    "pago_confirmado": "marketplace",
+    "pedido_enviado": "marketplace",
+    "pedido_entregado": "marketplace",
+    "pedido_cancelado": "marketplace",
+    "pedido_actualizado": "marketplace",
+    "reembolso": "marketplace",
+    "nueva_solicitud": "adopciones",
+    "solicitud_enviada": "adopciones",
+    "solicitud_aceptada": "adopciones",
+    "solicitud_rechazada": "adopciones",
+    "actualizacion_refugio": "adopciones",
+    "cambio_password": "sistema",
+    "nuevo_login": "sistema",
+    "actualizacion_perfil": "sistema",
+    "nueva_publicacion": "comunidad",
+    "nuevo_evento": "comunidad",
+    "nueva_mascota": "adopciones",
+    "respuesta_foro": "comunidad",
+    "comentario": "comunidad",
+    "reaccion": "comunidad",
+    "like_publicacion": "comunidad",
+    "like_comentario": "comunidad",
+    "venta": "marketplace",
+    "sistema": "sistema",
+}
+
 def _serialize(n: Notificacion) -> dict:
     return {
         "id": n.id,

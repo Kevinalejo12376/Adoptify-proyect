@@ -16,8 +16,6 @@ const authCarouselImages = [loginDog, mascotasImg, daycareImg];
 const REMEMBER_KEY = "adoptify_remembered_email";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-const REMEMBER_KEY = "adoptify_remembered_email";
-
 export default function Login() {
   const navigate = useNavigate();
   const { apiLogin, googleLogin } = useAuth();

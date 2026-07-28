@@ -13,10 +13,10 @@ from typing import Optional, List
 from app.db.database import get_db
 from app.core.security import get_current_user
 from app.core.lookups import id_por_codigo
-from app.core.notificaciones import registrar_auditoria
+from app.core.notificaciones import registrar_auditoria, crear_notificacion
 from app.models.usuario import Usuario
 from app.models.foro import ForoPost
-from app.models.interaccion import ForoComentario, ForoReaccion
+from app.models.interaccion import ForoComentario, ForoReaccion, ForoComentarioLike
 from app.models.catalogos import ForoCategoria, TipoPostForo, EstadoPostForo, TipoReaccion
 
 router = APIRouter()
@@ -157,6 +157,9 @@ def comentar(post_id: int, payload: ComentarioCreate, current_user: Usuario = De
 
 @router.post("/posts/{post_id}/reacciones")
 def reaccionar(post_id: int, payload: ReaccionCreate, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    post = db.query(ForoPost).filter(ForoPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Publicacion no encontrada")
     tipo_id = id_por_codigo(db, TipoReaccion, payload.tipo, requerido=True)
     existe = db.query(ForoReaccion).filter(
         ForoReaccion.post_id == post_id,
@@ -168,5 +171,48 @@ def reaccionar(post_id: int, payload: ReaccionCreate, current_user: Usuario = De
         db.commit()
         return {"activo": False, "reacciones": _reacciones_de(db, post_id)}
     db.add(ForoReaccion(post_id=post_id, usuario_id=current_user.id, tipo_reaccion_id=tipo_id))
+    # Notifica al autor de la publicacion (si no es el mismo que reacciona)
+    if post.autor_id and post.autor_id != current_user.id:
+        quien = f"{current_user.nombre} {current_user.apellido or ''}".strip()
+        crear_notificacion(
+            db, post.autor_id, "like_publicacion",
+            f"A {quien} le gustó tu publicación \"{post.titulo}\".",
+            "/forum",
+        )
     db.commit()
     return {"activo": True, "reacciones": _reacciones_de(db, post_id)}
+
+
+@router.post("/comentarios/{comentario_id}/like")
+def dar_like_comentario(comentario_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Alterna el 'me gusta' de un comentario (toggle) y notifica a su autor."""
+    comentario = db.query(ForoComentario).filter(ForoComentario.id == comentario_id).first()
+    if not comentario:
+        raise HTTPException(status_code=404, detail="Comentario no encontrado")
+    existe = db.query(ForoComentarioLike).filter(
+        ForoComentarioLike.comentario_id == comentario_id,
+        ForoComentarioLike.usuario_id == current_user.id,
+    ).first()
+    if existe:
+        db.delete(existe)
+        activo = False
+    else:
+        db.add(ForoComentarioLike(comentario_id=comentario_id, usuario_id=current_user.id))
+        activo = True
+        # Notifica al autor del comentario (si no es quien reacciona)
+        if comentario.autor_id and comentario.autor_id != current_user.id:
+            quien = f"{current_user.nombre} {current_user.apellido or ''}".strip()
+            enlace = f"/forum?post={comentario.post_id}"
+            crear_notificacion(
+                db, comentario.autor_id, "like_comentario",
+                f"A {quien} le gustó tu comentario.",
+                enlace,
+            )
+    db.flush()
+    # Recalcula el contador de likes del comentario
+    total = db.query(func.count(ForoComentarioLike.id)).filter(
+        ForoComentarioLike.comentario_id == comentario_id
+    ).scalar()
+    comentario.likes = total
+    db.commit()
+    return {"activo": activo, "likes": total}

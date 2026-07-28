@@ -21,7 +21,7 @@
 DROP TABLE IF EXISTS
     auditoria, reportes, pqrs,
     notificaciones, actividades, campanas, eventos,
-    foro_reacciones, foro_comentarios, foro_post_imagenes, foro_posts,
+    foro_comentario_likes, foro_reacciones, foro_comentarios, foro_post_imagenes, foro_posts,
     historial_estados_pedido, pedido_items, pedidos, codigos_promocion, carrito_items,
     favoritos_productos, favoritos_mascotas,
     resenas_refugio, resenas, producto_caracteristicas, producto_imagenes, productos,
@@ -473,6 +473,8 @@ CREATE TABLE pedidos (
     metodo_pago            VARCHAR(60),
     notas                  TEXT,
     fecha_estimada_entrega TIMESTAMPTZ,
+    numero_guia            VARCHAR(80),
+    empresa_transportadora VARCHAR(120),
     creado_en              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -539,6 +541,14 @@ CREATE TABLE foro_reacciones (
     usuario_id        BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     tipo_reaccion_id  BIGINT NOT NULL REFERENCES tipos_reaccion(id),
     UNIQUE (post_id, usuario_id, tipo_reaccion_id)
+);
+
+CREATE TABLE foro_comentario_likes (
+    id             BIGSERIAL PRIMARY KEY,
+    comentario_id  BIGINT NOT NULL REFERENCES foro_comentarios(id) ON DELETE CASCADE,
+    usuario_id     BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (comentario_id, usuario_id)
 );
 
 -- ============================================================
