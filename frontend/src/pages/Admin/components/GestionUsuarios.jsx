@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, X, Eye, Edit3, Lock, Unlock,
   Trash2, KeyRound, Shield, Mail, UserCheck, Search,
   Calendar, Phone, MapPin, Clock, PawPrint, Heart,
-  FileText, AlertTriangle, Loader2,
+  FileText, AlertTriangle, Loader2, Building2, Image as ImageIcon,
+  Globe, RefreshCw, User, Home,
 } from "lucide-react";
 import Badge from "../../../components/admin/Badge";
 import { listarUsuarios, crearUsuario, actualizarUsuario, eliminarUsuario } from "../../../api/admin";
@@ -497,6 +498,352 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
 }
 
 // ========================================================
+// LOGO UPLOAD (drag & drop + preview)
+// ========================================================
+function LogoUpload({ value, onChange }) {
+  const [preview, setPreview] = useState(value || null);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleFile = (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      setPreview(dataUrl);
+      onChange(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    handleFile(file);
+  };
+
+  const handleDragOver = (e) => { e.preventDefault(); setDragging(true); };
+  const handleDragLeave = () => setDragging(false);
+
+  const handleClick = () => fileInputRef.current?.click();
+
+  const handleFileInput = (e) => {
+    const file = e.target.files[0];
+    if (file) handleFile(file);
+  };
+
+  const handleRemove = (e) => {
+    e.stopPropagation();
+    setPreview(null);
+    onChange("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  return (
+    <div className="md:col-span-2">
+      <label className="block text-xs font-semibold text-gray-600 dark:text-dark-text-secondary mb-1.5">Logo del refugio</label>
+      <div
+        onClick={handleClick}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        className={`
+          relative cursor-pointer rounded-2xl border-2 border-dashed transition-all duration-200
+          ${dragging
+            ? "border-rose-500 bg-rose-50 dark:bg-rose-500/10"
+            : preview
+              ? "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-500/5"
+              : "border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-500/30 hover:bg-rose-50/30 dark:hover:bg-rose-500/5"
+          }
+        `}
+      >
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInput} />
+
+        {preview ? (
+          <div className="p-4 flex items-center gap-4">
+            <div className="w-20 h-20 rounded-xl overflow-hidden bg-white dark:bg-dark-card shadow-sm flex-shrink-0">
+              <img src={preview} alt="Logo preview" className="w-full h-full object-cover" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 dark:text-dark-text truncate">Logo cargado</p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-0.5">Haz clic para cambiar la imagen</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRemove}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex-shrink-0"
+              title="Eliminar logo"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center mx-auto mb-3">
+              <ImageIcon size={24} className="text-rose-400 dark:text-rose-500/50" />
+            </div>
+            <p className="text-sm font-semibold text-gray-700 dark:text-dark-text mb-1">
+              Sube el logo del refugio
+            </p>
+            <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-3">
+              Arrastra una imagen aquí o haz clic para seleccionar
+            </p>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors"
+            >
+              <ImageIcon size={14} />
+              Subir logo
+            </button>
+            <p className="text-[10px] text-gray-400 dark:text-dark-text-secondary mt-3">
+              PNG, JPG o WEBP · Máx 2MB
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ========================================================
+// MODAL: Crear Refugio (completo, similar a crear tienda)
+// ========================================================
+function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
+  const [formData, setFormData] = useState({
+    nombre_refugio: "", descripcion: "", logo_url: "", email: "", telefono: "",
+    ubicacion: "", direccion: "", website: "", facebook: "", instagram: "",
+    anio_fundacion: "",
+    responsable_nombre: "", responsable_email: "", responsable_telefono: "",
+    password: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const generarPasswordAuto = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
+    let pwd = "";
+    for (let i = 0; i < 12; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+    return pwd;
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      const pwd = generarPasswordAuto();
+      setFormData((prev) => ({ ...prev, password: pwd }));
+      setError("");
+      setSuccessMsg("");
+    }
+    if (!isOpen) {
+      setFormData({
+        nombre_refugio: "", descripcion: "", logo_url: "", email: "", telefono: "",
+        ubicacion: "", direccion: "", website: "", facebook: "", instagram: "",
+        anio_fundacion: "",
+        responsable_nombre: "", responsable_email: "", responsable_telefono: "",
+        password: "",
+      });
+      setError("");
+      setSuccessMsg("");
+    }
+  }, [isOpen]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.nombre_refugio.trim()) {
+      setError("El nombre del refugio es obligatorio");
+      return;
+    }
+    if (!formData.responsable_nombre.trim()) {
+      setError("El nombre del responsable es obligatorio");
+      return;
+    }
+    if (!formData.responsable_email.trim()) {
+      setError("El correo del responsable es obligatorio");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      // Llamar al API de crearUsuario con rol refugio
+      await onSave({
+        nombre: formData.responsable_nombre,
+        apellido: "",
+        email: formData.responsable_email,
+        password: formData.password,
+        telefono: formData.responsable_telefono || formData.telefono,
+        ubicacion: formData.ubicacion,
+        rol: "refugio",
+        nombre_refugio: formData.nombre_refugio,
+        descripcion: formData.descripcion,
+        logo_url: formData.logo_url,
+        direccion: formData.direccion,
+        website: formData.website,
+        facebook: formData.facebook,
+        instagram: formData.instagram,
+        anio_fundacion: formData.anio_fundacion ? parseInt(formData.anio_fundacion) : undefined,
+        email_contacto: formData.email,
+      });
+      setSuccessMsg("Refugio creado exitosamente");
+      setTimeout(() => {
+        onCreated();
+        onClose();
+      }, 1200);
+    } catch (err) {
+      setError(err?.message || "Error al crear el refugio");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputClass = "w-full px-3 py-2.5 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-gray-900 dark:text-dark-text placeholder-gray-400";
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+      <div
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 pb-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
+              <Building2 size={20} className="text-rose-500" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-dark-text">Crear Refugio</h2>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-6" noValidate>
+          {successMsg && (
+            <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-sm font-semibold flex items-center gap-3 animate-fade-in">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500 flex-shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="16 8 11 15 8 12"/></svg>
+              {successMsg}
+            </div>
+          )}
+          {error && (
+            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm font-medium flex items-center gap-2">
+              <AlertTriangle size={15} />
+              {error}
+            </div>
+          )}
+
+          {/* Sección: Información del Refugio */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-3 flex items-center gap-2">
+              <Home size={16} className="text-rose-500" />
+              Información del Refugio
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Nombre del refugio *</label>
+                <input required value={formData.nombre_refugio} onChange={(e) => setFormData({ ...formData, nombre_refugio: e.target.value })} className={inputClass} placeholder="Ej: Patitas Felices" />
+              </div>
+              <LogoUpload value={formData.logo_url} onChange={(val) => setFormData((prev) => ({ ...prev, logo_url: val }))} />
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Descripción</label>
+                <textarea value={formData.descripcion} onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })} className={`${inputClass} min-h-[80px] resize-none`} placeholder="Breve descripción del refugio, su misión y visión..." />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Correo de contacto</label>
+                <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={inputClass} placeholder="contacto@refugio.com" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono</label>
+                <input value={formData.telefono} onChange={(e) => setFormData({ ...formData, telefono: e.target.value })} className={inputClass} placeholder="+57 300 123 4567" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Ciudad / Ubicación</label>
+                <input value={formData.ubicacion} onChange={(e) => setFormData({ ...formData, ubicacion: e.target.value })} className={inputClass} placeholder="Ej: Bogotá" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Dirección</label>
+                <input value={formData.direccion} onChange={(e) => setFormData({ ...formData, direccion: e.target.value })} className={inputClass} placeholder="Calle 123 #45-67" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Sitio web</label>
+                <input value={formData.website} onChange={(e) => setFormData({ ...formData, website: e.target.value })} className={inputClass} placeholder="https://refugio.com" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Año de fundación</label>
+                <input type="number" min="1900" max="2030" value={formData.anio_fundacion} onChange={(e) => setFormData({ ...formData, anio_fundacion: e.target.value })} className={inputClass} placeholder="Ej: 2020" />
+              </div>
+            </div>
+          </div>
+
+          {/* Redes sociales */}
+          <div className="border-t border-gray-100 dark:border-dark-border pt-5">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-3 flex items-center gap-2">
+              <Globe size={16} className="text-amber-500" />
+              Redes Sociales
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Facebook</label>
+                <input value={formData.facebook} onChange={(e) => setFormData({ ...formData, facebook: e.target.value })} className={inputClass} placeholder="https://facebook.com/refugio" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Instagram</label>
+                <input value={formData.instagram} onChange={(e) => setFormData({ ...formData, instagram: e.target.value })} className={inputClass} placeholder="@refugio" />
+              </div>
+            </div>
+          </div>
+
+          {/* Sección: Responsable */}
+          <div className="border-t border-gray-100 dark:border-dark-border pt-5">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-1 flex items-center gap-2">
+              <User size={16} className="text-emerald-500" />
+              Datos del Responsable
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-3">
+              El correo del responsable es el que usará para <span className="font-semibold">iniciar sesión</span> en la plataforma.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Nombre completo *</label>
+                <input required value={formData.responsable_nombre} onChange={(e) => setFormData({ ...formData, responsable_nombre: e.target.value })} className={inputClass} placeholder="Nombre del encargado" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Correo (inicio de sesión) *</label>
+                <input required type="email" value={formData.responsable_email} onChange={(e) => setFormData({ ...formData, responsable_email: e.target.value })} className={inputClass} placeholder="responsable@email.com" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono del responsable</label>
+                <input value={formData.responsable_telefono} onChange={(e) => setFormData({ ...formData, responsable_telefono: e.target.value })} className={inputClass} placeholder="+57 300 123 4567" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Contraseña temporal</label>
+                <div className="flex gap-2">
+                  <input type="text" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className={inputClass} />
+                  <button type="button" onClick={() => setFormData((prev) => ({ ...prev, password: generarPasswordAuto() }))} className="px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-dark-border text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors flex-shrink-0" title="Generar nueva contraseña">
+                    <RefreshCw size={16} />
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400 dark:text-dark-text-secondary">Se genera automáticamente. Compártela con el responsable.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Botones */}
+          <div className="flex gap-3 pt-2 border-t border-gray-100 dark:border-dark-border">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 dark:text-dark-text-secondary bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors">Cancelar</button>
+            <button type="submit" disabled={loading} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 transition-all disabled:opacity-50 shadow-sm">
+              {loading ? "Creando refugio..." : "Crear Refugio"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ========================================================
 // MODAL DE CONFIRMACIÓN (suspender / eliminar)
 // ========================================================
 function ActionConfirmModal({ config, onClose, onConfirm, loading }) {
@@ -566,6 +913,16 @@ export default function GestionUsuarios({
   esRefugio = false, emptyMessage = "No se encontraron registros",
   esAdminPrincipal = true, soloVisualizacion = false,
 }) {
+  // Determinar la etiqueta del botón de crear según el rol
+  const botonCrearLabel = {
+    usuario: "Nuevo usuario",
+    administrador: "Nuevo administrador",
+    refugio: "Nuevo refugio",
+  }[rolCrear] || "Nuevo usuario";
+
+  // El botón de crear se muestra siempre excepto para administradores
+  // cuando el admin actual NO es admin principal (solo visualización)
+  const mostrarBotonCrear = rolCrear === "administrador" ? !soloVisualizacion : true;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -633,11 +990,21 @@ export default function GestionUsuarios({
         telefono: form.telefono,
         ubicacion: form.ubicacion,
         rol: rolCrear,
-        ...(esRefugio ? { nombre_refugio: form.nombre_refugio || form.nombre } : {}),
+        ...(esRefugio ? {
+          nombre_refugio: form.nombre_refugio || form.nombre,
+          descripcion: form.descripcion,
+          logo_url: form.logo_url,
+          direccion: form.direccion,
+          website: form.website,
+          facebook: form.facebook,
+          instagram: form.instagram,
+          anio_fundacion: form.anio_fundacion,
+          email_contacto: form.email_contacto || form.email,
+        } : {}),
       });
       setShowCreate(false);
       await cargar();
-      showToast("Usuario creado exitosamente");
+      showToast(esRefugio ? "Refugio creado exitosamente" : "Usuario creado exitosamente");
     } catch (err) {
       throw err;
     } finally {
@@ -762,18 +1129,12 @@ export default function GestionUsuarios({
             </div>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary ml-12">{descripcion}</p>
           </div>
-          <button
-            onClick={() => { setShowCreate(true); }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-200 active:scale-95"
-          >
-            <Plus size={18} /> Nuevo usuario
-          </button>
-          {!soloVisualizacion && (
+          {mostrarBotonCrear && (
             <button
               onClick={() => { setShowCreate(true); }}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-200 active:scale-95"
             >
-              <Plus size={18} /> Nuevo administrador
+              <Plus size={18} /> {botonCrearLabel}
             </button>
           )}
         </div>
@@ -1098,13 +1459,22 @@ export default function GestionUsuarios({
         soloVisualizacion={soloVisualizacion}
       />
 
-      {/* Modal Crear Usuario */}
-      <UserFormModal
-        isOpen={showCreate}
-        onClose={() => setShowCreate(false)}
-        onSave={handleCreate}
-        loading={formLoading}
-      />
+      {/* Modal Crear Usuario / Refugio */}
+      {rolCrear === "refugio" ? (
+        <ModalCrearRefugio
+          isOpen={showCreate}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => { cargar(); }}
+          onSave={handleCreate}
+        />
+      ) : (
+        <UserFormModal
+          isOpen={showCreate}
+          onClose={() => setShowCreate(false)}
+          onSave={handleCreate}
+          loading={formLoading}
+        />
+      )}
 
       {/* Modal Editar Usuario */}
       <UserFormModal

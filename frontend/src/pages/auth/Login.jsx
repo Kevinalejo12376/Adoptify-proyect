@@ -8,9 +8,10 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import logo from "../../assets/logo.png";
-import loginDog from "../../assets/loginDog.jpg";
-import mascotasImg from "../../assets/Mascotas.jpg";
-import daycareImg from "../../assets/daycare.png";
+// Imágenes estáticas servidas desde Cloudinary
+const loginDog = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347014/frontend-assets/login-dog/loginDog.jpg";
+const mascotasImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015/frontend-assets/mascotas/mascotas.jpg";
+const daycareImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347013/frontend-assets/daycare/daycare.jpg";
 import {
   forgotPasswordRequest,
   resetPasswordRequest,

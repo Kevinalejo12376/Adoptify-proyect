@@ -257,9 +257,15 @@ def crear_usuario(
             usuario_id=user.id,
             nombre=nombre_refugio,
             slug=slug,
+            descripcion=payload.descripcion,
             telefono=payload.telefono,
-            email=payload.email,
+            email=payload.email_contacto or payload.email,
             ubicacion=payload.ubicacion,
+            direccion=payload.direccion,
+            website=payload.website,
+            facebook=payload.facebook,
+            instagram=payload.instagram,
+            anio_fundacion=payload.anio_fundacion,
         ))
 
     db.commit()

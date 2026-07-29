@@ -16,6 +16,15 @@ class AdminUsuarioCreate(BaseModel):
     rol: str = "usuario"
     ubicacion: Optional[str] = None
     nombre_refugio: Optional[str] = None
+    # Campos adicionales para refugios
+    descripcion: Optional[str] = None
+    logo_url: Optional[str] = None
+    direccion: Optional[str] = None
+    website: Optional[str] = None
+    facebook: Optional[str] = None
+    instagram: Optional[str] = None
+    anio_fundacion: Optional[int] = None
+    email_contacto: Optional[str] = None
 
 
 class AdminUsuarioUpdate(BaseModel):
