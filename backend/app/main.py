@@ -1,11 +1,9 @@
 # pyrefly: ignore [missing-import]
-import os
 from contextlib import asynccontextmanager
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.db.database import Base, engine
 # Importa todos los modelos para registrarlos en Base.metadata
@@ -67,11 +65,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Servir archivos estáticos (uploads de imágenes)
-uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")
-os.makedirs(uploads_dir, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 # Routers (endpoints)
 app.include_router(catalogos.router, prefix="/api/catalogos", tags=["Catalogos"])
