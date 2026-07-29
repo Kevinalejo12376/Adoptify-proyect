@@ -92,3 +92,40 @@ class UsuarioResponse(BaseModel):
     tipo_documento: Optional[str] = None
     numero_documento: Optional[str] = None
     ubicacion: Optional[str] = None
+
+
+# ─── Esquemas para verificación de email / recuperación de contraseña ───
+
+class EnviarCodigoRequest(BaseModel):
+    """Solicitud para enviar un código de verificación de 6 dígitos al correo."""
+    email: str
+    tipo: str = "registro"  # 'registro' | 'reset_password'
+    nombre: Optional[str] = None
+
+
+class VerificarCodigoRequest(BaseModel):
+    """Verifica un código de 6 dígitos."""
+    email: str
+    codigo: str
+
+
+class RegistrarConCodigoRequest(BaseModel):
+    """Registra un usuario validando primero el código de verificación."""
+    nombre: str
+    apellido: Optional[str] = None
+    email: str
+    password: str
+    codigo_verificacion: str
+    telefono: Optional[str] = None
+    tipo_documento: Optional[str] = None
+    numero_documento: Optional[str] = None
+    rol: str = "usuario"
+    ubicacion: Optional[str] = None
+    nombre_refugio: Optional[str] = None
+
+
+class ResetPasswordRequest(BaseModel):
+    """Restablece la contraseña usando un código de verificación."""
+    email: str
+    codigo: str
+    new_password: str

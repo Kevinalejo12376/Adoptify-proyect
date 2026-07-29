@@ -26,6 +26,7 @@ from app.models.foro import ForoPost
 from app.models.interaccion import (
     Configuracion, FavoritoMascota, FavoritoProducto, ForoComentario, ForoReaccion, Resena,
 )
+from app.models.verificacion import CodigoVerificacion
 
 __all__ = [
     "TipoDocumento", "Rol", "TipoMascota", "TamanoMascota", "GeneroMascota",
@@ -34,4 +35,5 @@ __all__ = [
     "Usuario", "Refugio", "Mascota", "SolicitudAdopcion", "Tienda", "Producto",
     "ProductoImagen",
     "Notificacion", "Pqrs", "Reporte", "Auditoria", "Pedido", "PedidoItem", "ForoPost",
+    "CodigoVerificacion",
 ]
