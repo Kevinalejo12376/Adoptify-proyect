@@ -64,6 +64,16 @@ class ForoReaccion(Base):
     tipo_reaccion_id = Column(Integer, ForeignKey("tipos_reaccion.id"), nullable=False)
 
 
+class ForoComentarioLike(Base):
+    """Me gusta de un usuario sobre un comentario del foro (uno por usuario)."""
+    __tablename__ = "foro_comentario_likes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    comentario_id = Column(Integer, ForeignKey("foro_comentarios.id", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Resena(Base):
     """Reseña/valoración de un producto hecha por un usuario."""
     __tablename__ = "resenas"

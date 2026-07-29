@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { loginRequest, registerRequest, fetchMe, logoutRequest, fetchProfile } from "../api/auth";
+import { loginRequest, registerRequest, fetchMe, logoutRequest, fetchProfile, googleLoginRequest } from "../api/auth";
 import { getToken } from "../api/client";
 import {
   listarMascotasFavoritas,
@@ -36,16 +36,13 @@ export const AuthProvider = ({ children }) => {
       const isComplete = profile.perfil_completo === true;
       setProfileCompleted(isComplete);
 
-      // Solo mostrar el modal UNA VEZ en la primera sesion despues del registro.
-      // Usamos localStorage para recordar si ya se mostro el modal introductorio.
-      const alreadyShown = localStorage.getItem("profile_intro_shown");
-      if (!isComplete && getToken() && !alreadyShown) {
+      // Solo mostrar modal automaticamente a usuarios con JWT real
+      // que NO tengan el perfil completo y que NO sean admin/store mock
+      if (!isComplete && getToken()) {
         const role = user?.role || user?.rol;
         // Solo para usuarios normales y refugios
         if (role === "usuario" || role === "refugio") {
           setShowProfileModal(true);
-          // Marcar que ya se mostro para que no vuelva a aparecer
-          localStorage.setItem("profile_intro_shown", "true");
         }
       }
     } catch {
@@ -103,6 +100,17 @@ export const AuthProvider = ({ children }) => {
   /** Registro real de usuario/refugio en la base de datos. */
   const apiRegister = async (payload) => {
     return registerRequest(payload);
+  };
+
+  /** Login con Google. Recibe el credential token de Google Identity Services. */
+  const googleLogin = async (credential) => {
+    const me = await googleLoginRequest(credential);
+    setUser(me);
+    try {
+      const favs = await listarMascotasFavoritas();
+      setFavorites((favs || []).map(mapMascotaFav));
+    } catch { /* sin favoritos */ }
+    return me;
   };
 
   /** Marcar perfil como completado (llamar desde el modal). */
@@ -169,7 +177,7 @@ export const AuthProvider = ({ children }) => {
         user, loading, favorites,
         showProfileModal, setShowProfileModal,
         profileCompleted,
-        apiLogin, apiRegister,       // reales (usuario/refugio)
+        apiLogin, apiRegister, googleLogin,  // reales (usuario/refugio/google)
         login, register, logout,     // mock setters
         isAdmin, isStore,
         addFavorite, removeFavorite, isFavorite,

@@ -2,12 +2,11 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Search, Bell, Sun, Moon, ChevronDown, LogOut, Settings,
-  Shield, BarChart3, HelpCircle, MessageSquareText,
+  Shield, BarChart3, HelpCircle, Heart, Info, UserCircle, Sliders,
 } from "lucide-react";
 import { useTheme } from "../../../context/ThemeContext";
 import { listarNotificaciones, marcarLeida, marcarTodasLeidas } from "../../../api/notificaciones";
 
-// Color segun el tipo de notificacion
 const getTipoColor = (tipo) => {
   const map = {
     nuevo_refugio: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
@@ -20,15 +19,14 @@ const getTipoColor = (tipo) => {
   return map[tipo] || "bg-gray-50 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400";
 };
 
-// Opciones del menú de perfil
-const menuOptions = [
-  { id: "configuracion", icon: Settings, label: "Configuración", path: "/admin/configuracion" },
-  { id: "administradores", icon: Shield, label: "Administradores", path: "/admin/administradores" },
-  { id: "estadisticas", icon: BarChart3, label: "Estadísticas", path: "/admin/estadisticas" },
-  { id: "pqrs", icon: HelpCircle, label: "PQRS", path: "/admin/pqrs" },
-];
-
 export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activeMenu, onActiveMenuChange }) {
+  const menuOptions = [
+    { id: "configuracion", icon: Settings, label: "Configuracion", path: "/admin/configuracion" },
+    { id: "administradores", icon: Shield, label: "Administradores", path: "/admin/administradores" },
+    { id: "estadisticas", icon: BarChart3, label: "Estadisticas", path: "/admin/estadisticas" },
+    { id: "pqrs", icon: HelpCircle, label: "PQRS", path: "/admin/pqrs" },
+  ];
+
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -38,7 +36,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
   const notifRef = useRef(null);
   const perfilRef = useRef(null);
 
-  // --- Notificaciones reales ---
   const [notifs, setNotifs] = useState([]);
   const noLeidas = notifs.filter((n) => !n.leida).length;
 
@@ -47,18 +44,16 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
       const data = await listarNotificaciones();
       setNotifs(data || []);
     } catch (e) {
-      console.error("Error al cargar notificaciones:", e);
+      // sin notificaciones si falla
     }
   }, []);
 
-  // Carga inicial y refresca cada 30 segundos
   useEffect(() => {
     cargarNotifs();
     const timer = setInterval(cargarNotifs, 30000);
     return () => clearInterval(timer);
   }, [cargarNotifs]);
 
-  // Determinar opción activa basada en la ruta actual
   useEffect(() => {
     const currentPath = location.pathname;
     const active = menuOptions.find((opt) => currentPath === opt.path);
@@ -81,7 +76,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
     setNotifs((prev) => prev.map((n) => ({ ...n, leida: true })));
   };
 
-  // Cerrar al hacer click fuera
   useEffect(() => {
     const h = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
@@ -108,7 +102,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
   return (
     <header className="sticky top-0 z-40 bg-white/80 dark:bg-dark-card/80 backdrop-blur-xl border-b border-gray-100 dark:border-dark-border">
       <div className="flex items-center justify-between h-16 px-4 lg:px-6">
-        {/* Botón menú hamburguesa (móvil) + Buscador */}
         <div className="flex items-center gap-3 flex-1">
           <button
             onClick={onMenuToggle}
@@ -135,9 +128,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
           </form>
         </div>
 
-        {/* Acciones derecha */}
         <div className="flex items-center gap-1.5 ml-4">
-          {/* Modo oscuro */}
           <button
             onClick={toggleTheme}
             className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-all duration-200 hover:scale-105 active:scale-95"
@@ -146,7 +137,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
-          {/* Notificaciones reales */}
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setNotifOpen(!notifOpen)}
@@ -166,7 +156,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
                   <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Notificaciones</h3>
                   {noLeidas > 0 && (
                     <button onClick={handleMarcarTodas} className="text-xs text-rose-500 hover:text-rose-600 font-medium">
-                      Marcar todas leídas
+                      Marcar todas leidas
                     </button>
                   )}
                 </div>
@@ -177,7 +167,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
                       <p className="text-sm text-gray-400 dark:text-dark-text-secondary">Sin notificaciones</p>
                     </div>
                   ) : (
-                    notifs.slice(0, 10).map((notif) => (
+                    notifs.slice(0, 8).map((notif) => (
                       <button
                         key={notif.id}
                         onClick={() => handleClickNotif(notif)}
@@ -190,7 +180,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm ${!notif.leida ? "font-semibold" : "font-medium"} text-gray-900 dark:text-dark-text truncate`}>
-                            {notif.titulo || notif.tipo || "Notificación"}
+                            {notif.titulo || notif.tipo || "Notificacion"}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-0.5 line-clamp-2">
                             {notif.mensaje}
@@ -218,22 +208,19 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
             )}
           </div>
 
-          {/* Perfil - Menú desplegable rediseñado */}
           <div className="relative" ref={perfilRef}>
             <button
               onClick={() => setPerfilOpen(!perfilOpen)}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-200 hover:scale-105 active:scale-95"
-              title="Menú de administración"
+              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-200 hover:scale-105 active:scale-95"
+              title="Menu de administrador"
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400">
                 {adminNombre?.[0] || "A"}
               </div>
-              <ChevronDown size={14} className={`text-gray-400 transition-transform duration-200 ${perfilOpen ? "rotate-180" : ""}`} />
             </button>
 
             {perfilOpen && (
               <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
-                {/* Header del perfil */}
                 <div className="relative">
                   <div className="h-16 bg-gradient-to-r from-rose-500 to-amber-500" />
                   <div className="px-4 pb-4 -mt-8">
@@ -253,11 +240,52 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
                   </div>
                 </div>
 
-                {/* Opciones del menú */}
+                <div className="p-1.5">
+                  <div className="px-3 pt-2 pb-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Mi cuenta</p>
+                  </div>
+                  <button onClick={() => handleNavigation("/admin/usuarios")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <UserCircle size={16} /> Perfil
+                  </button>
+                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Settings size={16} /> Configuracion
+                  </button>
+                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Sliders size={16} /> Preferencias
+                  </button>
+
+                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Gestion</p>
+                  </div>
+                  <button onClick={() => handleNavigation("/admin/administradores")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Shield size={16} /> Administradores
+                  </button>
+                  <button onClick={() => handleNavigation("/admin/estadisticas")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <BarChart3 size={16} /> Estadisticas
+                  </button>
+                  <button onClick={() => handleNavigation("/admin/pqrs")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <HelpCircle size={16} /> PQRS
+                  </button>
+
+                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sistema</p>
+                  </div>
+                  <button onClick={() => handleNavigation("/admin/dashboard")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
+                    <Info size={16} /> Acerca de Adoptify
+                  </button>
+
+                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sesion</p>
+                  </div>
+                  <button onClick={() => { onLogout(); setPerfilOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 mt-1">
+                    <LogOut size={16} /> Cerrar sesion
+                  </button>
+                </div>
+
                 <div className="px-2 pb-2">
                   <div className="px-3 pt-1 pb-2">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
-                      Panel de gestión
+                      Panel de gestion
                     </p>
                   </div>
 
@@ -275,7 +303,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
                               : "text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text"
                           }`}
                         >
-                          {/* Indicador lateral activo */}
                           {isActive && (
                             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-rose-500 to-amber-500" />
                           )}
@@ -295,7 +322,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
                     })}
                   </nav>
 
-                  {/* Cerrar sesión */}
                   <div className="border-t border-gray-100 dark:border-dark-border mt-3 pt-3 px-1">
                     <button
                       onClick={() => { onLogout(); setPerfilOpen(false); }}
@@ -304,7 +330,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 group-hover:text-red-500 transition-colors">
                         <LogOut size={16} />
                       </div>
-                      <span>Cerrar sesión</span>
+                      <span>Cerrar sesion</span>
                     </button>
                   </div>
                 </div>

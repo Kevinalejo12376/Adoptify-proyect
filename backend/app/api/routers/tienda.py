@@ -23,10 +23,11 @@ from typing import List
 from app.db.database import get_db
 from app.core.security import get_current_tienda, verify_password, get_password_hash
 from app.core.lookups import id_por_codigo
+from app.core.notificaciones import crear_notificacion
 from app.models.usuario import Usuario
 from app.models.tienda import Tienda
 from app.models.producto import Producto, ProductoImagen
-from app.models.pedido import Pedido, PedidoItem
+from app.models.pedido import Pedido, PedidoItem, HistorialEstadoPedido
 from app.models.catalogos import CategoriaProducto, EstadoPedido
 from app.schemas.producto import ProductoCreate, ProductoUpdate, ProductoCreateConImagenes, AnalisisRequest
 from app.schemas.tienda_self import TiendaPerfilUpdate, PasswordUpdate
@@ -46,6 +47,14 @@ def _mi_tienda(current_user: Usuario, db: Session) -> Tienda:
     if not tienda:
         raise HTTPException(status_code=404, detail="No tienes una tienda asociada")
     return tienda
+
+
+def _registrar_historial_pedido(db: Session, pedido_id: int, estado_id: int, notas: str = None):
+    """Agrega una entrada al historial de estados del pedido (si la tabla existe)."""
+    try:
+        db.add(HistorialEstadoPedido(pedido_id=pedido_id, estado_id=estado_id, notas=notas))
+    except Exception as exc:
+        print(f"[tienda] No se pudo registrar historial del pedido: {exc}")
 
 
 def _serialize_tienda(t: Tienda, u: Usuario) -> dict:
@@ -355,6 +364,15 @@ def obtener_mi_pedido(pedido_id: int, current_user: Usuario = Depends(get_curren
     return serialize_pedido(pedido, solo_tienda_id=tienda.id)
 
 
+# Mensajes de notificacion al comprador segun el estado del pedido.
+_NOTIF_ESTADO_PEDIDO = {
+    "pagado": ("pago_confirmado", "El pago de tu pedido {num} fue confirmado."),
+    "enviado": ("pedido_enviado", "¡Tu pedido {num} ha sido enviado!"),
+    "entregado": ("pedido_entregado", "Tu pedido {num} fue entregado. ¡Gracias por tu compra!"),
+    "cancelado": ("pedido_cancelado", "Tu pedido {num} ha sido cancelado."),
+}
+
+
 @router.patch("/pedidos/{pedido_id}/estado")
 def cambiar_estado_pedido(
     pedido_id: int,
@@ -369,7 +387,35 @@ def cambiar_estado_pedido(
     if estado_id is None:
         raise HTTPException(status_code=400, detail="Estado de pedido invalido")
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    estado_anterior = pedido.estado_id
     pedido.estado_id = estado_id
+
+    # Guarda numero de guia y transportadora si la tienda los envia
+    if payload.numero_guia is not None:
+        pedido.numero_guia = payload.numero_guia.strip() or None
+    if payload.empresa_transportadora is not None:
+        pedido.empresa_transportadora = payload.empresa_transportadora.strip() or None
+
+    # Registra el cambio en el historial del pedido
+    numero = f"PED-{pedido.id:05d}"
+    _registrar_historial_pedido(db, pedido.id, estado_id, f"Estado actualizado a '{payload.estado}'")
+
+    # Notifica al comprador si el estado cambio realmente
+    if pedido.usuario_id and estado_anterior != estado_id:
+        tipo, plantilla = _NOTIF_ESTADO_PEDIDO.get(
+            payload.estado, ("pedido_actualizado", "El estado de tu pedido {num} ha cambiado.")
+        )
+        mensaje = plantilla.format(num=numero)
+        # Adjunta datos de envio en la notificacion de envio
+        if payload.estado == "enviado" and (pedido.empresa_transportadora or pedido.numero_guia):
+            extras = []
+            if pedido.empresa_transportadora:
+                extras.append(f"Transportadora: {pedido.empresa_transportadora}")
+            if pedido.numero_guia:
+                extras.append(f"guía: {pedido.numero_guia}")
+            mensaje += " " + ", ".join(extras) + "."
+        crear_notificacion(db, pedido.usuario_id, tipo, mensaje, f"/mis-pedidos/{pedido.id}")
+
     db.commit()
     db.refresh(pedido)
     return serialize_pedido(pedido, solo_tienda_id=tienda.id)

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useTheme } from "../../../context/ThemeContext";
+import { reaccionarComentario } from "../../../api/foro";
 import {
   X,
   Heart,
@@ -34,8 +35,33 @@ function CommentItem({ comment, depth = 0, isDark }) {
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(comment.likes || 0);
+  const [likeBusy, setLikeBusy] = useState(false);
 
   const isShelter = comment.isShelter;
+
+  const handleLikeComment = async () => {
+    if (!comment.id || likeBusy) return;
+    setLikeBusy(true);
+    // Actualizacion optimista
+    const prevLiked = liked;
+    const prevCount = likeCount;
+    setLiked(!prevLiked);
+    setLikeCount(prevLiked ? Math.max(0, prevCount - 1) : prevCount + 1);
+    try {
+      const res = await reaccionarComentario(comment.id);
+      if (res) {
+        setLiked(!!res.activo);
+        if (typeof res.likes === "number") setLikeCount(res.likes);
+      }
+    } catch {
+      // revierte si falla
+      setLiked(prevLiked);
+      setLikeCount(prevCount);
+    } finally {
+      setLikeBusy(false);
+    }
+  };
 
   return (
     <div className={`${depth > 0 ? "ml-8 pl-4 border-l-2 border-gray-100 dark:border-dark-border" : ""}`}>
@@ -90,8 +116,9 @@ function CommentItem({ comment, depth = 0, isDark }) {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setLiked(!liked)}
-              className={`flex items-center gap-1 text-xs font-medium transition-all ${
+              onClick={handleLikeComment}
+              disabled={likeBusy || !comment.id}
+              className={`flex items-center gap-1 text-xs font-medium transition-all disabled:opacity-60 ${
                 liked
                   ? "text-rose-500"
                   : isDark
@@ -100,7 +127,7 @@ function CommentItem({ comment, depth = 0, isDark }) {
               }`}
             >
               <Heart className={`w-3.5 h-3.5 ${liked ? "fill-rose-500" : ""}`} />
-              {comment.likes || 0}
+              {likeCount}
             </button>
             <button
               onClick={() => setShowReplyInput(!showReplyInput)}

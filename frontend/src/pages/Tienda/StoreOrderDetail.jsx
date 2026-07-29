@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft, ShoppingCart, Package, MapPin, CreditCard, Phone, Mail,
-  User, Loader2, CheckCircle,
+  User, Loader2, CheckCircle, Truck, Save, Hash,
 } from "lucide-react";
 import { obtenerPedidoTienda, cambiarEstadoPedidoTienda } from "../../api/tienda";
 
@@ -27,11 +27,16 @@ export default function StoreOrderDetail() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [numeroGuia, setNumeroGuia] = useState("");
+  const [transportadora, setTransportadora] = useState("");
+  const [guiaSaved, setGuiaSaved] = useState(false);
 
   const cargar = async () => {
     try {
       const data = await obtenerPedidoTienda(id);
       setOrder(data);
+      setNumeroGuia(data?.numero_guia || "");
+      setTransportadora(data?.empresa_transportadora || "");
     } catch (e) {
       setOrder(null);
     } finally {
@@ -44,8 +49,27 @@ export default function StoreOrderDetail() {
   const cambiarEstado = async (estado) => {
     setSaving(true);
     try {
-      const actualizado = await cambiarEstadoPedidoTienda(id, estado);
+      const actualizado = await cambiarEstadoPedidoTienda(id, estado, {
+        numero_guia: numeroGuia || null,
+        empresa_transportadora: transportadora || null,
+      });
       setOrder(actualizado);
+    } catch (e) { /* noop */ }
+    finally { setSaving(false); }
+  };
+
+  const guardarGuia = async () => {
+    if (!order) return;
+    setSaving(true);
+    setGuiaSaved(false);
+    try {
+      const actualizado = await cambiarEstadoPedidoTienda(id, order.estado, {
+        numero_guia: numeroGuia || null,
+        empresa_transportadora: transportadora || null,
+      });
+      setOrder(actualizado);
+      setGuiaSaved(true);
+      setTimeout(() => setGuiaSaved(false), 2500);
     } catch (e) { /* noop */ }
     finally { setSaving(false); }
   };
@@ -113,6 +137,60 @@ export default function StoreOrderDetail() {
                   {e.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Datos de envio: numero de guia y transportadora */}
+          <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-1 flex items-center gap-2">
+              <Truck size={16} className="text-rose-500" /> Datos de envío
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-4">
+              Ingresa la empresa transportadora y el número de guía para que el cliente pueda rastrear su pedido.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-dark-text-secondary mb-1.5">
+                  Empresa transportadora
+                </label>
+                <input
+                  type="text"
+                  value={transportadora}
+                  onChange={(e) => setTransportadora(e.target.value)}
+                  placeholder="Ej: Servientrega, Coordinadora..."
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-400 outline-none focus:border-rose-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-dark-text-secondary mb-1.5">
+                  Número de guía
+                </label>
+                <div className="relative">
+                  <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={numeroGuia}
+                    onChange={(e) => setNumeroGuia(e.target.value)}
+                    placeholder="Ej: 123456789"
+                    className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-400 outline-none focus:border-rose-400"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                onClick={guardarGuia}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 transition-all disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Guardar guía
+              </button>
+              {guiaSaved && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle size={14} /> Guardado
+                </span>
+              )}
             </div>
           </div>
 

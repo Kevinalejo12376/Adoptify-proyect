@@ -19,6 +19,8 @@ TIPO_TITULOS = {
     "pedido_entregado": "Pedido Entregado",
     "pedido_cancelado": "Pedido Cancelado",
     "reembolso": "Reembolso",
+    "pedido_actualizado": "Pedido Actualizado",
+    "nueva_solicitud": "Nueva Solicitud de Adopción",
     "solicitud_enviada": "Solicitud de Adopción",
     "solicitud_aceptada": "Solicitud Aceptada",
     "solicitud_rechazada": "Solicitud Rechazada",
@@ -32,6 +34,8 @@ TIPO_TITULOS = {
     "respuesta_foro": "Respuesta en Publicación",
     "comentario": "Nuevo Comentario",
     "reaccion": "Nueva Reacción",
+    "like_publicacion": "Le gustó tu publicación",
+    "like_comentario": "Le gustó tu comentario",
     "venta": "Nueva Venta",
     "sistema": "Notificación del Sistema",
 }
@@ -42,7 +46,9 @@ TIPO_CATEGORIAS = {
     "pedido_enviado": "marketplace",
     "pedido_entregado": "marketplace",
     "pedido_cancelado": "marketplace",
+    "pedido_actualizado": "marketplace",
     "reembolso": "marketplace",
+    "nueva_solicitud": "adopciones",
     "solicitud_enviada": "adopciones",
     "solicitud_aceptada": "adopciones",
     "solicitud_rechazada": "adopciones",
@@ -56,18 +62,16 @@ TIPO_CATEGORIAS = {
     "respuesta_foro": "comunidad",
     "comentario": "comunidad",
     "reaccion": "comunidad",
+    "like_publicacion": "comunidad",
+    "like_comentario": "comunidad",
     "venta": "marketplace",
     "sistema": "sistema",
 }
 
-
 def _serialize(n: Notificacion) -> dict:
-    tipo = n.tipo or "sistema"
     return {
         "id": n.id,
-        "tipo": tipo,
-        "categoria": TIPO_CATEGORIAS.get(tipo, "sistema"),
-        "titulo": TIPO_TITULOS.get(tipo, "Notificación"),
+        "tipo": n.tipo,
         "mensaje": n.mensaje,
         "enlace": n.enlace,
         "leida": n.leida,
@@ -81,7 +85,7 @@ def listar(current_user: Usuario = Depends(get_current_user), db: Session = Depe
         db.query(Notificacion)
         .filter(Notificacion.usuario_id == current_user.id)
         .order_by(Notificacion.creado_en.desc())
-        .limit(100)
+        .limit(50)
         .all()
     )
     return [_serialize(n) for n in notifs]

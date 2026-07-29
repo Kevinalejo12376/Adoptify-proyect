@@ -103,6 +103,15 @@ def solicitudes_recibidas(current_user: Usuario = Depends(get_current_refugio), 
     return [_enrich(s, db) for s in solicitudes]
 
 
+# Notificacion al solicitante segun el nuevo estado de su solicitud.
+_NOTIF_ESTADO_SOLICITUD = {
+    "en_revision": ("solicitud_enviada", "Tu solicitud de adopción para {m} está en revisión."),
+    "contactado": ("solicitud_enviada", "El refugio te contactó sobre tu solicitud de adopción para {m}."),
+    "finalizada": ("solicitud_aceptada", "¡Felicidades! Tu proceso de adopción para {m} ha finalizado con éxito."),
+    "cerrada": ("solicitud_rechazada", "Tu solicitud de adopción para {m} ha sido cerrada."),
+}
+
+
 @router.patch("/{solicitud_id}/estado", response_model=SolicitudResponse)
 def actualizar_estado(
     solicitud_id: int,
@@ -118,7 +127,20 @@ def actualizar_estado(
     mascota = db.query(Mascota).filter(Mascota.id == solicitud.mascota_id).first()
     if not refugio or not mascota or mascota.refugio_id != refugio.id:
         raise HTTPException(status_code=403, detail="No puedes gestionar esta solicitud")
+    estado_anterior = solicitud.estado_id
     solicitud.estado_id = nuevo_estado_id
+
+    # Notifica al solicitante sobre el cambio de estado
+    if solicitud.usuario_id and estado_anterior != nuevo_estado_id:
+        tipo, plantilla = _NOTIF_ESTADO_SOLICITUD.get(
+            payload.estado,
+            ("solicitud_enviada", "El estado de tu solicitud de adopción para {m} ha cambiado."),
+        )
+        crear_notificacion(
+            db, solicitud.usuario_id, tipo,
+            plantilla.format(m=mascota.nombre),
+            "/adoption-history",
+        )
     db.commit()
     db.refresh(solicitud)
     return _enrich(solicitud, db)

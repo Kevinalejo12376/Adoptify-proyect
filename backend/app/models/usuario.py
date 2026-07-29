@@ -16,6 +16,7 @@ class Usuario(Base):
     telefono = Column(String(30))
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(Text, nullable=False)
+    google_id = Column(String(255), nullable=True, index=True)
     rol_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     activo = Column(Boolean, nullable=False, default=True)
     ubicacion = Column(String(150))

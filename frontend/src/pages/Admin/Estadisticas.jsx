@@ -2,13 +2,47 @@ import React, { useState, useEffect } from "react";
 import {
   Users, Building2, PawPrint, Heart, Store, ShoppingCart,
   MessageSquare, Flag, HelpCircle, Shield, ClipboardList, Loader2, Star,
-  TrendingUp, TrendingDown, Activity, Calendar,
+  TrendingUp, TrendingDown, Activity,
 } from "lucide-react";
 import {
   getEstadisticas, listarPedidos, listarReportes, listarPqrs, listarForoAdmin,
 } from "../../api/admin";
 
-// ===== COMPONENTE DE BARRA DE PROGRESO =====
+// ========================================================
+// Gráfica de barras simple con etiquetas (usa datos reales)
+// ========================================================
+function LabeledBarChart({ items, height = 180 }) {
+  const max = Math.max(...items.map((i) => i.value), 1);
+  return (
+    <div>
+      <div className="flex items-end gap-3" style={{ height }}>
+        {items.map((it, i) => {
+          const altura = (it.value / max) * 100;
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1 justify-end">
+              <span className="text-xs font-semibold text-gray-600 dark:text-dark-text-secondary">{it.value}</span>
+              <div
+                style={{ height: `${Math.max(altura, 4)}%` }}
+                className={`w-full rounded-lg bg-gradient-to-t ${it.color} transition-all duration-500`}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-3 mt-2">
+        {items.map((it, i) => (
+          <span key={i} className="flex-1 text-center text-[11px] text-gray-400 dark:text-dark-text-secondary">
+            {it.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ========================================================
+// Barra de progreso
+// ========================================================
 function ProgressBar({ value, max, color = "rose", label, showValue = true }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   const colorMap = {
@@ -47,7 +81,33 @@ function ProgressBar({ value, max, color = "rose", label, showValue = true }) {
   );
 }
 
-// ===== TARJETA DE ESTADÍSTICA PRINCIPAL =====
+// ========================================================
+// Widget de estadística (icono + label + total)
+// ========================================================
+const StatWidget = ({ icon: Icono, label, total, color }) => (
+  <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-4 shadow-sm flex items-center gap-3">
+    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+      color === "rose" ? "bg-rose-50 dark:bg-rose-500/10 text-rose-500" :
+      color === "emerald" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500" :
+      color === "amber" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" :
+      color === "blue" ? "bg-blue-50 dark:bg-blue-500/10 text-blue-500" :
+      color === "violet" ? "bg-violet-50 dark:bg-violet-500/10 text-violet-500" :
+      color === "orange" ? "bg-orange-50 dark:bg-orange-500/10 text-orange-500" :
+      color === "cyan" ? "bg-cyan-50 dark:bg-cyan-500/10 text-cyan-500" :
+      "bg-gray-50 dark:bg-gray-500/10 text-gray-500"
+    }`}>
+      <Icono size={18} strokeWidth={1.5} />
+    </div>
+    <div>
+      <p className="text-xs text-gray-500 dark:text-dark-text-secondary font-medium">{label}</p>
+      <p className="text-lg font-bold text-gray-900 dark:text-dark-text">{total}</p>
+    </div>
+  </div>
+);
+
+// ========================================================
+// Tarjeta de estadística principal
+// ========================================================
 function StatCard({ icon: Icono, label, total, color, trend, trendValue, subtitle }) {
   const colorMap = {
     rose: {
@@ -115,7 +175,9 @@ function StatCard({ icon: Icono, label, total, color, trend, trendValue, subtitl
   );
 }
 
-// ===== GRÁFICO DE BARRAS MEJORADO =====
+// ========================================================
+// Gráfico de barras mejorado
+// ========================================================
 function BarChart({ items, height = 200, title }) {
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
@@ -148,7 +210,9 @@ function BarChart({ items, height = 200, title }) {
   );
 }
 
-// ===== GRÁFICO DE DONUT SIMPLE =====
+// ========================================================
+// Gráfico de donut simple
+// ========================================================
 function DonutChart({ items, size = 160 }) {
   const total = items.reduce((sum, it) => sum + it.value, 0) || 1;
   const colors = ["#f43f5e", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#06b6d4"];
@@ -202,7 +266,9 @@ function DonutChart({ items, size = 160 }) {
   );
 }
 
-// ===== COMPONENTE PRINCIPAL =====
+// ========================================================
+// COMPONENTE PRINCIPAL
+// ========================================================
 export default function AdminEstadisticas() {
   const [stats, setStats] = useState(null);
   const [counts, setCounts] = useState({ pedidos: 0, reportes: 0, pqrs: 0, foro: 0 });
@@ -308,7 +374,7 @@ export default function AdminEstadisticas() {
       {/* Tarjetas principales */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {statsPrincipal.map((stat, i) => (
-          <div key={i} className={`animate-fade-in animation-delay-${(i % 8) * 100}`}>
+          <div key={i} className="animate-fade-in">
             <StatCard {...stat} />
           </div>
         ))}

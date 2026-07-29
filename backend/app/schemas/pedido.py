@@ -23,3 +23,5 @@ class PedidoCreate(BaseModel):
 
 class EstadoPedidoUpdate(BaseModel):
     estado: str
+    numero_guia: Optional[str] = None
+    empresa_transportadora: Optional[str] = None

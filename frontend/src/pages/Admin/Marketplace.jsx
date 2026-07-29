@@ -39,30 +39,6 @@ const TIPO_VENDEDOR = {
   tienda: { label: "Tienda Aliada", icon: Store, color: "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400" },
 };
 
-const TABS = [
-  { id: "productos", label: "Productos", icon: Package },
-  { id: "tiendas", label: "Tiendas Aliadas", icon: ShoppingBag },
-  { id: "estadisticas", label: "Estadísticas", icon: BarChart3 },
-];
-
-// ========================================================
-// COMPONENTE: Avatar de producto
-// ========================================================
-function ProductAvatar({ src, nombre }) {
-  const [error, setError] = useState(false);
-  return (
-    <div className="w-11 h-11 rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border flex-shrink-0 shadow-xs">
-      {src && !error ? (
-        <img src={src} alt={nombre} className="w-full h-full object-cover" onError={() => setError(true)} />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-sm font-bold text-gray-400 dark:text-dark-text-secondary">
-          {(nombre || "P")[0].toUpperCase()}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ========================================================
 // COMPONENTE: Badge de estado
 // ========================================================
@@ -148,7 +124,7 @@ function Pagination({ pagina, total, porPagina, onPageChange }) {
 }
 
 // ========================================================
-// COMPONENTE: Modal de Detalle del Producto (estadísticas bajo imagen)
+// COMPONENTE: Modal de Detalle del Producto
 // ========================================================
 function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }) {
   const [editando, setEditando] = useState(false);
@@ -213,24 +189,12 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
     setEditando(false);
   };
 
-  const handleToggleEstado = () => {
-    onToggleEstado(producto.id);
-    producto.estado = producto.estado === "oculto" ? "visible" : "oculto";
-  };
-
   const handleEliminar = () => {
     if (window.confirm(`¿Eliminar "${producto.nombre}"?`)) {
       onEliminar(producto.id);
       onClose();
     }
   };
-
-  const stats = [
-    { icon: Eye, label: "Visitas", value: producto.visitas || 0, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-500/20" },
-    { icon: Heart, label: "Favoritos", value: producto.favoritos || 0, color: "text-rose-600", bg: "bg-rose-100 dark:bg-rose-500/20" },
-    { icon: Flag, label: "Reportes", value: producto.reportes || 0, color: producto.reportes > 0 ? "text-red-600" : "text-gray-400", bg: producto.reportes > 0 ? "bg-red-100 dark:bg-red-500/20" : "bg-gray-100 dark:bg-dark-border" },
-    { icon: Share2, label: "Compartido", value: producto.compartidos || 0, color: "text-violet-600", bg: "bg-violet-100 dark:bg-violet-500/20" },
-  ];
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
@@ -267,9 +231,8 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
           )}
 
           <div className="flex gap-5">
-            {/* ===== COLUMNA IZQUIERDA: Imagen + Estadísticas ===== */}
+            {/* ===== COLUMNA IZQUIERDA: Imagen ===== */}
             <div className="w-[220px] flex-shrink-0 flex flex-col gap-3">
-              {/* Imagen */}
               <div className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border shadow-sm">
                 {producto.imagen ? (
                   <img src={producto.imagen} alt={producto.nombre} className="w-full h-full object-cover" />
@@ -280,12 +243,10 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
                   </div>
                 )}
               </div>
-
             </div>
 
             {/* ===== COLUMNA DERECHA: Información del producto ===== */}
             <div className="flex-1 min-w-0 flex flex-col gap-3">
-
               {/* Precio - destacado */}
               <div className="bg-gradient-to-r from-rose-50 to-amber-50 dark:from-rose-500/10 dark:to-amber-500/10 rounded-xl px-4 py-3 border border-gray-100 dark:border-dark-border">
                 <p className="text-xs font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Precio</p>
@@ -349,7 +310,6 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
                   </button>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
@@ -407,7 +367,7 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
                 className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors">
                 <Edit3 size={14} /> Editar
               </button>
-              <button onClick={handleToggleEstado}
+              <button onClick={onToggleEstado}
                 className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors">
                 {producto.estado === "oculto" ? <RefreshCw size={14} /> : <EyeOff size={14} />}
                 {producto.estado === "oculto" ? "Publicar" : "Ocultar"}
@@ -620,6 +580,9 @@ function VistaProductos() {
                   <button onClick={() => setModalProducto(prod)} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" title="Ver detalles">
                     <Eye size={16} />
                   </button>
+                  <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors" title="Editar producto">
+                    <Edit3 size={16} />
+                  </button>
                   <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors" title="Ver perfil del vendedor">
                     <ExternalLink size={16} />
                   </button>
@@ -644,12 +607,12 @@ function VistaProductos() {
       {/* Paginación */}
       <Pagination pagina={pagina} total={total} porPagina={porPagina} onPageChange={handlePageChange} />
 
-      {/* Modal de detalle con edición */}
+      {/* Modal de detalle */}
       <ModalProducto
         isOpen={!!modalProducto}
         onClose={() => setModalProducto(null)}
         producto={modalProducto}
-        onToggleEstado={handleToggleEstado}
+        onToggleEstado={() => handleToggleEstado(modalProducto?.id)}
         onEliminar={handleEliminar}
       />
     </div>
@@ -663,9 +626,9 @@ function VistaTiendas() {
   return (
     <div className="text-center py-20 bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border">
       <ShoppingBag size={48} className="mx-auto text-gray-300 dark:text-dark-border mb-3" />
-      <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-2">Gesti&oacute;n de Tiendas Aliadas</h3>
+      <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-2">Gestión de Tiendas Aliadas</h3>
       <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-6 max-w-md mx-auto">
-          Administra las tiendas aliadas desde la secci&oacute;n dedicada en el men&uacute; lateral.
+          Administra las tiendas aliadas desde la sección dedicada en el menú lateral.
       </p>
       <button onClick={() => window.location.href = "/admin/tiendas"} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 transition-all shadow-sm">
           Ir a Tiendas Aliadas
@@ -699,7 +662,7 @@ function VistaEstadisticas() {
         ))}
       </div>
       <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
-        <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Distribuci&oacute;n por categor&iacute;a</h3>
+        <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Distribución por categoría</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { nombre: "Alimentos", total: 45, activas: 38 },
@@ -759,7 +722,7 @@ export default function AdminMarketplace() {
             <Store size={20} className="text-rose-500" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">Productos</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">Marketplace</h1>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
               Administra los productos del marketplace
             </p>

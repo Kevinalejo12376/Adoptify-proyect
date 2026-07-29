@@ -21,15 +21,26 @@ def main():
 
     try:
         with engine.connect() as conn:
-            version = conn.execute(text("SELECT version();")).scalar()
+            if url.startswith("sqlite"):
+                version = conn.execute(text("SELECT sqlite_version();")).scalar()
+            else:
+                version = conn.execute(text("SELECT version();")).scalar()
             print("CONEXION OK")
             print("Motor:", version)
 
-            # Lista las tablas creadas (solo Postgres).
+            # Lista las tablas creadas.
             if url.startswith("postgresql"):
                 filas = conn.execute(text(
                     "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
                 )).fetchall()
+            elif url.startswith("sqlite"):
+                filas = conn.execute(text(
+                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+                )).fetchall()
+            else:
+                filas = []
+
+            if filas:
                 print(f"\nTablas encontradas ({len(filas)}):")
                 for (t,) in filas:
                     print("  -", t)

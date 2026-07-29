@@ -1,4 +1,6 @@
 # pyrefly: ignore [missing-import]
+import logging
+# pyrefly: ignore [missing-import]
 from datetime import timedelta
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,7 +9,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
+# pyrefly: ignore [missing-import]
+from google.oauth2 import id_token
+# pyrefly: ignore [missing-import]
+from google.auth.transport import requests as google_requests
+
+logger = logging.getLogger(__name__)
 
 from app.db.database import get_db
 from app.core.config import settings
@@ -19,12 +27,17 @@ from app.core.security import (
 )
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import notificar_admins, registrar_auditoria
+from app.core.email import enviar_correo_bienvenida
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.catalogos import Rol, TipoDocumento
 from app.schemas.usuario import UsuarioCreate, UsuarioResponse, ProfileUpdate, ProfileResponse
 from app.schemas.token import Token
 from app.schemas.serializers import serialize_usuario
+
+
+class GoogleLoginRequest(BaseModel):
+    credential: str
 
 router = APIRouter()
 
@@ -98,6 +111,21 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
     )
     registrar_auditoria(db, user.id, "registro", "usuarios", user.id, f"Registro como {etiqueta}")
     db.commit()
+
+    # Envia correo de bienvenida al usuario
+    try:
+        ok = enviar_correo_bienvenida(
+            email_destino=user.email,
+            nombre=payload.nombre,
+            apellido=payload.apellido,
+        )
+        if ok:
+            logger.info("Correo de bienvenida ENVIADO a %s", user.email)
+        else:
+            logger.warning("Correo de bienvenida NO enviado a %s (SMTP no configurado?)", user.email)
+    except Exception as exc:
+        logger.error("Error al enviar correo de bienvenida a %s: %s", user.email, exc)
+
     return serialize_usuario(user)
 
 
@@ -249,3 +277,109 @@ def update_profile(
         instagram=current_user.instagram,
         perfil_completo=current_user.perfil_completo,
     )
+
+
+@router.post("/google", response_model=Token)
+def google_login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
+    """Intercambia un credential token de Google Identity Services por un JWT de Adoptify.
+
+    - Verifica el token con google-auth.
+    - Si el email ya existe en la BD, vincula el google_id (si no lo está ya).
+    - Si no existe, crea un usuario nuevo con los datos de Google.
+    - Devuelve un access_token JWT estándar.
+    """
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="El inicio de sesion con Google no esta configurado en el servidor",
+        )
+
+    try:
+        # Verificar el token de Google usando google-auth
+        info = id_token.verify_oauth2_token(
+            payload.credential,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token de Google invalido: {exc}",
+        )
+
+    google_sub = info.get("sub")
+    google_email = info.get("email", "")
+    google_name = info.get("name", "")
+    google_picture = info.get("picture", "")
+
+    if not google_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google no proporciono un correo electronico",
+        )
+
+    # Dividir nombre completo en nombre y apellido
+    parts = google_name.split(" ", 1)
+    given_name = parts[0] if parts else google_email.split("@")[0]
+    family_name = parts[1] if len(parts) > 1 else ""
+
+    # Buscar por google_id primero, luego por email
+    user = db.query(Usuario).filter(Usuario.google_id == google_sub).first()
+    if not user:
+        user = db.query(Usuario).filter(Usuario.email == google_email).first()
+        if user:
+            # Vincular google_id al usuario existente
+            user.google_id = google_sub
+            if google_picture:
+                user.avatar_url = google_picture
+            db.commit()
+            db.refresh(user)
+        else:
+            # Crear usuario nuevo con datos de Google
+            rol_obj = db.query(Rol).filter(Rol.codigo == "usuario").first()
+            if rol_obj is None:
+                raise HTTPException(status_code=500, detail="Catalogo de roles no inicializado")
+
+            user = Usuario(
+                nombre=given_name,
+                apellido=family_name,
+                email=google_email,
+                hashed_password="",  # Sin password; solo autenticacion Google
+                google_id=google_sub,
+                avatar_url=google_picture,
+                rol_id=rol_obj.id,
+                activo=True,
+            )
+            db.add(user)
+            db.flush()
+
+            notificar_admins(
+                db,
+                tipo="nuevo_usuario",
+                mensaje=f"Nuevo usuario registrado via Google: {google_name}",
+                enlace="/admin/usuarios",
+            )
+            registrar_auditoria(db, user.id, "registro", "usuarios", user.id, "Registro via Google")
+            db.commit()
+            db.refresh(user)
+
+            # Envia correo de bienvenida al usuario registrado con Google
+            try:
+                ok = enviar_correo_bienvenida(
+                    email_destino=user.email,
+                    nombre=given_name,
+                    apellido=family_name,
+                )
+                if ok:
+                    logger.info("Correo de bienvenida ENVIADO a %s (Google)", user.email)
+                else:
+                    logger.warning("Correo de bienvenida NO enviado a %s (Google - SMTP no configurado?)", user.email)
+            except Exception as exc:
+                logger.error("Error al enviar correo de bienvenida a %s (Google): %s", user.email, exc)
+
+    # Generar JWT de Adoptify
+    access_token = create_access_token(
+        data={"sub": user.email},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    return {"access_token": access_token, "token_type": "bearer"}

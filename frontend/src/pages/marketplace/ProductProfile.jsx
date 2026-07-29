@@ -186,6 +186,7 @@ export default function ProductProfile() {
           features: [],
           careInstructions: null,
           rating: Number(p.rating) || 0,
+          reviews: p.ventas || 0,
           reviews: p.resenas_count || 0,
           stock: p.stock ?? 0,
         });

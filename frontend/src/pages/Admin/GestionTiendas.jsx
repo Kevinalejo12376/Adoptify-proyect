@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Store, Plus, Search, X, SlidersHorizontal,
+  Store, Plus, Search, X, SlidersHorizontal, ChevronDown, MoreVertical,
   Eye, Edit3, Package, BarChart3, Lock, Unlock, RefreshCw, Mail, Trash2,
   Building2, CheckCircle, Clock, AlertTriangle, ShoppingBag, TrendingUp,
   ChevronLeft, ChevronRight, Image as ImageIcon, ExternalLink, MapPin,
@@ -142,7 +142,7 @@ function Modal({ isOpen, onClose, title, children, size = "md", icon: Icono }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center pt-20 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
       <div
         className={`relative w-full ${sizes[size] || sizes.md} bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content max-h-[90vh] flex flex-col`}
@@ -222,9 +222,80 @@ function ConfirmModal({ isOpen, onClose, onConfirm, title, message, icon: Icono,
 }
 
 // ========================================================
+// COMPONENTE: Menú de acciones (tres puntos)
+// ========================================================
+function ActionMenu({ tienda, onAction, isOpen, onToggle }) {
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        onToggle(null);
+      }
+    };
+    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen, onToggle]);
+
+  const items = [
+    { id: "ver", icon: Eye, label: "Ver detalles", color: "text-blue-600" },
+    { id: "editar", icon: Edit3, label: "Editar tienda", color: "text-amber-600" },
+    { id: "productos", icon: Package, label: "Ver productos", color: "text-violet-600" },
+    { id: "estadisticas", icon: BarChart3, label: "Ver estadísticas", color: "text-teal-600" },
+    { type: "divider" },
+  ];
+
+  if (tienda.estado === "suspendida") {
+    items.push({ id: "reactivar", icon: Unlock, label: "Reactivar", color: "text-emerald-600" });
+  } else if (tienda.estado === "activa") {
+    items.push({ id: "suspender", icon: Lock, label: "Suspender", color: "text-orange-600" });
+  }
+
+  items.push(
+    { type: "divider" },
+    { id: "restablecer", icon: RefreshCw, label: "Restablecer contraseña", color: "text-gray-600" },
+    { id: "reenviar", icon: Mail, label: "Reenviar credenciales", color: "text-gray-600" },
+    { type: "divider" },
+    { id: "eliminar", icon: Trash2, label: "Eliminar", color: "text-red-600" },
+  );
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggle(isOpen ? null : tienda.id); }}
+        className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors"
+      >
+        <MoreVertical size={18} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden z-30 py-1">
+          {items.map((item, idx) => {
+            if (item.type === "divider") {
+              return <div key={idx} className="border-t border-gray-100 dark:border-dark-border my-1" />;
+            }
+            const Icono = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={(e) => { e.stopPropagation(); onAction(item.id, tienda); onToggle(null); }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-gray-50 dark:hover:bg-dark-border ${item.color}`}
+              >
+                <Icono size={16} />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ========================================================
 // COMPONENTE: Tarjeta de tienda (Desktop)
 // ========================================================
-function StoreCard({ tienda, selected, onSelect, onAction }) {
+function StoreCard({ tienda, selected, onSelect, onAction, menuOpen, onMenuToggle }) {
   return (
     <div
       className={`group bg-white dark:bg-dark-card rounded-2xl border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
@@ -303,6 +374,12 @@ function StoreCard({ tienda, selected, onSelect, onAction }) {
 
           {/* Acciones */}
           <div className="flex-shrink-0">
+            <ActionMenu
+              tienda={tienda}
+              isOpen={menuOpen === tienda.id}
+              onToggle={onMenuToggle}
+              onAction={onAction}
+            />
             <button
               onClick={() => onAction("ver", tienda)}
               className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
@@ -320,7 +397,7 @@ function StoreCard({ tienda, selected, onSelect, onAction }) {
 // ========================================================
 // COMPONENTE: Tarjeta de tienda (Mobile)
 // ========================================================
-function StoreCardMobile({ tienda, selected, onSelect, onAction }) {
+function StoreCardMobile({ tienda, selected, onSelect, onAction, menuOpen, onMenuToggle }) {
   return (
     <div
       className={`bg-white dark:bg-dark-card rounded-2xl border transition-all duration-200 ${
@@ -340,6 +417,7 @@ function StoreCardMobile({ tienda, selected, onSelect, onAction }) {
             <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">{tienda.nombre}</h3>
             <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">{tienda.ciudad || "Sin ciudad"}</p>
           </div>
+          <ActionMenu tienda={tienda} isOpen={menuOpen === tienda.id} onToggle={onMenuToggle} onAction={onAction} />
           <button
             onClick={() => onAction("ver", tienda)}
             className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors flex-shrink-0"
@@ -768,7 +846,6 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
   );
 }
 
-// ========================================================
 // MODAL: Detalle Completo de Tienda (con CRUD)
 // ========================================================
 function ModalDetalleCompleto({ isOpen, onClose, tiendaId, tienda: tiendaInicial, onAction }) {
@@ -788,7 +865,7 @@ function ModalDetalleCompleto({ isOpen, onClose, tiendaId, tienda: tiendaInicial
       .then(setTienda)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [isOpen, tiendaId, tiendaInicial]);
+  }, [isOpen, tiendaId]);
 
   if (!isOpen) return null;
 
@@ -848,6 +925,18 @@ function ModalDetalleCompleto({ isOpen, onClose, tiendaId, tienda: tiendaInicial
             <InfoRow label="Tel. responsable" value={tienda.responsable_telefono} />
             <InfoRow label="Fecha de creación" value={tienda.creado_en ? new Date(tienda.creado_en).toLocaleDateString("es-CO", { dateStyle: "long" }) : "—"} />
             <InfoRow label="Último login" value={tienda.ultimo_login ? new Date(tienda.ultimo_login).toLocaleDateString("es-CO", { dateStyle: "long", timeStyle: "short" }) : "Nunca"} />
+            <InfoRow label="Productos" value={String(tienda.total_productos || 0)} />
+            <InfoRow label="Ventas realizadas" value={String(tienda.total_ventas || 0)} />
+          </div>
+
+          {/* Botones rápidos */}
+          <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100 dark:border-dark-border">
+            <button className="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors flex items-center gap-1.5">
+              <Edit3 size={14} /> Editar
+            </button>
+            <button className="px-4 py-2 rounded-xl text-xs font-semibold bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors flex items-center gap-1.5">
+              <Package size={14} /> Ver productos
+            </button>
           </div>
 
           {/* Acciones CRUD completas */}
@@ -1113,6 +1202,11 @@ export default function GestionTiendas() {
   // Selección múltiple
   const [selectedIds, setSelectedIds] = useState([]);
 
+  // Menú de acciones
+  const [menuOpen, setMenuOpen] = useState(null);
+
+  // Modales
+  const [modalVer, setModalVer] = useState({ open: false, id: null });
   // Modales
   const [modalCrear, setModalCrear] = useState(false);
   const [modalDetalle, setModalDetalle] = useState({ open: false, id: null, tienda: null });
@@ -1200,6 +1294,11 @@ export default function GestionTiendas() {
   const handleAccion = (accion, tienda) => {
     switch (accion) {
       case "ver":
+        setModalVer({ open: true, id: tienda.id });
+        break;
+      case "editar":
+        // Por ahora redirigimos a ver detalle
+        setModalVer({ open: true, id: tienda.id });
         setModalDetalle({ open: true, id: tienda.id, tienda });
         break;
       case "editar":
@@ -1557,6 +1656,8 @@ export default function GestionTiendas() {
                   selected={selectedIds.includes(tienda.id)}
                   onSelect={handleSelect}
                   onAction={handleAccion}
+                  menuOpen={menuOpen}
+                  onMenuToggle={setMenuOpen}
                 />
               </div>
             ))}
@@ -1571,6 +1672,8 @@ export default function GestionTiendas() {
                   selected={selectedIds.includes(tienda.id)}
                   onSelect={handleSelect}
                   onAction={handleAccion}
+                  menuOpen={menuOpen}
+                  onMenuToggle={setMenuOpen}
                 />
               </div>
             ))}
