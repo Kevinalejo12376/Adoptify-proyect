@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     CORS_ORIGINS: Union[str, List[str]] = ["*"]
     GEMINI_API_KEY: str = ""
 
+    # --- Cloudinary (imágenes temporales y permanentes) ---
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
+
     # --- Correo SMTP (Gmail) ---
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587

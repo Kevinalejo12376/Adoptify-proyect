@@ -5,14 +5,10 @@ identifican por tienda_id. No existe (aun) modelo de items de pedido ni de
 reseñas, por eso pedidos/reseñas se entregan vacios de forma honesta.
 """
 # pyrefly: ignore [missing-import]
-import base64
-import io
 import json
-import uuid
-import os
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
@@ -34,12 +30,13 @@ from app.schemas.tienda_self import TiendaPerfilUpdate, PasswordUpdate
 from app.schemas.pedido import EstadoPedidoUpdate
 from app.schemas.serializers import serialize_producto, serialize_pedido
 from app.services.gemini import analizar_producto
+from app.services.cloudinary_service import (
+    subir_imagenes_temporales,
+    limpiar_imagenes_temporales,
+    subir_imagen_producto,
+)
 
 router = APIRouter()
-
-# Directorio para guardar imágenes subidas
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def _mi_tienda(current_user: Usuario, db: Session) -> Tienda:
@@ -98,33 +95,9 @@ def mis_productos(current_user: Usuario = Depends(get_current_tienda), db: Sessi
     return [serialize_producto(p) for p in productos]
 
 
-def _guardar_imagen_base64(base64_str: str, etiqueta: str = None) -> str:
-    """Guarda una imagen en base64 en el disco y devuelve la URL/ruta."""
-    try:
-        # Eliminar el prefijo data:image/...;base64,
-        if "," in base64_str:
-            header, data = base64_str.split(",", 1)
-        else:
-            data = base64_str
-
-        missing_padding = len(data) % 4
-        if missing_padding:
-            data += "=" * (4 - missing_padding)
-
-        image_bytes = base64.b64decode(data)
-        ext = "png"
-        filename = f"prod_{uuid.uuid4().hex}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
-        filepath = os.path.join(UPLOAD_DIR, filename)
-        with open(filepath, "wb") as f:
-            f.write(image_bytes)
-        # Devolver la ruta relativa para servirla
-        return f"/uploads/{filename}"
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Error al procesar imagen: {str(exc)}")
-
-
 # ============================================================
 # ENDPOINT: Analizar producto con IA
+# FLUJO: TEMPORAL → sube a Cloudinary temp/, llama a Gemini, limpia en finally
 # ============================================================
 @router.post("/productos/analizar-ia")
 async def analizar_producto_con_ia(
@@ -132,25 +105,46 @@ async def analizar_producto_con_ia(
     current_user: Usuario = Depends(get_current_tienda),
     db: Session = Depends(get_db),
 ):
-    """Recibe imágenes base64 del producto, las envía a Gemini API y devuelve datos estructurados."""
+    """
+    Recibe imágenes base64 del producto, las sube TEMPORALMENTE a
+    Cloudinary (carpeta ``temp/producto-ia/``), las envía a Gemini
+    API y devuelve datos estructurados.
+
+    Las imágenes se eliminan automáticamente de Cloudinary en el
+    bloque ``finally``, tanto si el análisis fue exitoso como si
+    ocurrió una excepción. Nunca quedan archivos huérfanos.
+    """
     if not payload.imagenes or len(payload.imagenes) == 0:
         raise HTTPException(status_code=400, detail="Se requiere al menos una imagen del producto")
 
+    public_ids_temporales: List[str] = []
+    imagenes_urls: List[dict] = []
+
     try:
-        # Llamar a Gemini API para analizar las imágenes
+        # 1. Subir imágenes a Cloudinary (carpeta temporal)
+        etiquetas = ["frontal", "trasera", "izquierda", "derecha"]
+        resultados = subir_imagenes_temporales(
+            payload.imagenes,
+            etiquetas,
+            carpeta_temp="TEMP_PRODUCTO",
+        )
+
+        # Guardar public_id para limpieza y URLs para la respuesta
+        for r in resultados:
+            public_ids_temporales.append(r["public_id"])
+            imagenes_urls.append({"url": r["url"], "etiqueta": r["etiqueta"]})
+
+        # 2. Llamar a Gemini API (recibe base64, sin cambios)
         datos_ia = await analizar_producto(payload.imagenes)
+
     except ValueError as e:
         raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error inesperado al analizar con IA: {str(e)}")
-
-    # Guardar las imágenes temporalmente y agregar sus URLs
-    etiquetas = ["frontal", "trasera", "izquierda", "derecha"]
-    imagenes_urls = []
-    for i, img_base64 in enumerate(payload.imagenes):
-        etiqueta = etiquetas[i] if i < len(etiquetas) else f"vista_{i+1}"
-        url = _guardar_imagen_base64(img_base64, etiqueta)
-        imagenes_urls.append({"url": url, "etiqueta": etiqueta})
+    finally:
+        # 3. Limpiar imágenes temporales de Cloudinary
+        #    SE EJECUTA SIEMPRE, incluso si ocurrió una excepción
+        limpiar_imagenes_temporales(public_ids_temporales)
 
     return {
         "status": "success",
@@ -164,7 +158,7 @@ async def analizar_producto_con_ia(
 
 
 # ============================================================
-# ENDPOINT: Crear producto con imágenes
+# ENDPOINT: Crear producto (sin imágenes)
 # ============================================================
 @router.post("/productos", status_code=status.HTTP_201_CREATED)
 def crear_producto(
@@ -198,13 +192,27 @@ def crear_producto(
     return serialize_producto(producto)
 
 
+# ============================================================
+# ENDPOINT: Crear producto CON imágenes
+# FLUJO: PERMANENTE → sube a Cloudinary productos/imagenes/, guarda URL en DB
+# ============================================================
 @router.post("/productos/con-imagenes", status_code=status.HTTP_201_CREATED)
 def crear_producto_con_imagenes(
     payload: ProductoCreateConImagenes,
     current_user: Usuario = Depends(get_current_tienda),
     db: Session = Depends(get_db),
 ):
-    """Crea un producto con sus imágenes (base64)."""
+    """
+    Crea un producto con sus imágenes (base64).
+
+    Las imágenes se suben a Cloudinary (carpeta ``productos/imagenes/``)
+    como imágenes PERMANENTES. Las URLs públicas se almacenan en los
+    registros de ``ProductoImagen`` en PostgreSQL.
+
+    Si ocurre una excepción durante la subida o el commit, se hace
+    ``db.rollback()`` y se eliminan de Cloudinary las imágenes que
+    ya se hubieran subido.
+    """
     tienda = _mi_tienda(current_user, db)
 
     producto = Producto(
@@ -229,21 +237,36 @@ def crear_producto_con_imagenes(
     db.add(producto)
     db.flush()  # Obtener ID sin commit final
 
-    # Guardar imágenes
-    etiquetas = ["frontal", "trasera", "izquierda", "derecha"]
-    for i, img_base64 in enumerate(payload.imagenes):
-        etiqueta = etiquetas[i] if i < len(etiquetas) else f"vista_{i+1}"
-        url = _guardar_imagen_base64(img_base64, etiqueta)
-        imagen = ProductoImagen(
-            producto_id=producto.id,
-            url=url,
-            etiqueta=etiqueta,
-            orden=i,
-        )
-        db.add(imagen)
+    # Subir imágenes a Cloudinary (PERMANENTES) y crear registros ProductoImagen
+    public_ids_permanentes: List[str] = []
+    try:
+        etiquetas = ["frontal", "trasera", "izquierda", "derecha"]
+        for i, img_base64 in enumerate(payload.imagenes):
+            etiqueta = etiquetas[i] if i < len(etiquetas) else f"vista_{i+1}"
+            # Usar función PERMANENTE para imágenes de producto
+            resultado = subir_imagen_producto(img_base64, etiqueta)
+            public_ids_permanentes.append(resultado["public_id"])
 
-    db.commit()
-    db.refresh(producto)
+            imagen = ProductoImagen(
+                producto_id=producto.id,
+                url=resultado["url"],
+                etiqueta=resultado["etiqueta"],
+                orden=i,
+            )
+            db.add(imagen)
+
+        db.commit()
+        db.refresh(producto)
+    except Exception:
+        # Rollback de la transacción de BD
+        db.rollback()
+        # Limpiar imágenes que ya se subieron a Cloudinary
+        # (se usa eliminar_imagen_temporal porque el logging es por warning)
+        from app.services.cloudinary_service import eliminar_imagen_temporal
+        for pid in public_ids_permanentes:
+            eliminar_imagen_temporal(pid)
+        raise
+
     return serialize_producto(producto)
 
 
