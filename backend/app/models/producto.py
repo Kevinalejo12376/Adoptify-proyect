@@ -34,3 +34,16 @@ class Producto(Base):
     categoria = relationship("CategoriaProducto", lazy="joined")
     tienda = relationship("Tienda", back_populates="productos")
     resenas = relationship("Resena", lazy="select", cascade="all, delete-orphan")
+    imagenes = relationship("ProductoImagen", lazy="select", cascade="all, delete-orphan", back_populates="producto")
+
+
+class ProductoImagen(Base):
+    __tablename__ = "producto_imagenes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    producto_id = Column(Integer, ForeignKey("productos.id", ondelete="CASCADE"), nullable=False)
+    url = Column(Text, nullable=False)
+    etiqueta = Column(String(80))
+    orden = Column(Integer, nullable=False, default=0)
+
+    producto = relationship("Producto", back_populates="imagenes")

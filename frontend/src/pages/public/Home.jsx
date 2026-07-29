@@ -6,6 +6,9 @@ import AnimatedSection from "../../components/AnimatedSection";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import { useAuth } from "../../context/AuthContext";
 import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
+import { listarMascotas } from "../../api/mascotas";
+import { listarProductos } from "../../api/productos";
+import { listarPosts } from "../../api/foro";
 import mascotaImg from "../../assets/Mascotas.jpg";
 import daycareImg from "../../assets/daycare.png";
 
@@ -15,12 +18,6 @@ import carrusel2 from "../../assets/assets extras/images.jpg";
 import carrusel3 from "../../assets/assets extras/Perro-sosteniendo-un-plano-y-un-gato-sonriendo.jpg";
 
 const carruselImages = [carrusel1, carrusel2, carrusel3];
-import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
-import { listarMascotas } from "../../api/mascotas";
-import { listarProductos } from "../../api/productos";
-import { listarPosts } from "../../api/foro";
-import mascotaImg from "../../assets/Mascotas.jpg";
-import daycareImg from "../../assets/daycare.png";
 
 function tiempoRelativo(iso) {
   if (!iso) return "";
@@ -36,9 +33,29 @@ export default function Home() {
   const [activeSection, setActiveSection] = useState("");
   // Estadisticas reales de la plataforma
   const [stats, setStats] = useState(null);
+  const [pets, setPets] = useState([]);
+  const [refugios, setRefugios] = useState([]);
+  const [productos, setProductos] = useState([]);
+  const [postsTotal, setPostsTotal] = useState(0);
+  const [topics, setTopics] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     estadisticasPublicas().then(setStats).catch(() => setStats(null));
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      listarMascotas().then(data => setPets(Array.isArray(data) ? data.slice(0, 4) : [])).catch(() => setPets([])),
+      listarRefugios().then(data => setRefugios(Array.isArray(data) ? data.slice(0, 3) : [])).catch(() => setRefugios([])),
+      listarProductos().then(data => setProductos(Array.isArray(data) ? data.slice(0, 3) : [])).catch(() => setProductos([])),
+      listarPosts().then(data => {
+        if (Array.isArray(data)) {
+          setTopics(data.slice(0, 3));
+          setPostsTotal(data.length);
+        }
+      }).catch(() => { setTopics([]); setPostsTotal(0); }),
+    ]).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {

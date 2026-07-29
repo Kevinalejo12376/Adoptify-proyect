@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { misProductosTienda, actualizarMiProducto, eliminarMiProducto } from "../../api/tienda";
 import { getCategoriasProducto } from "../../api/catalogos";
+import ProductSelectionModal from "../../components/ProductSelectionModal";
 
 // Normaliza un producto del backend a la forma que usa esta vista.
 const mapProducto = (p) => ({
@@ -53,6 +54,7 @@ export default function StoreProducts() {
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
 
   const cargar = async () => {
     try {
@@ -102,13 +104,13 @@ export default function StoreProducts() {
             Gestiona el catálogo de productos de tu tienda.
           </p>
         </div>
-        <Link
-          to="/tienda/productos/nuevo"
+        <button
+          onClick={() => setShowModal(true)}
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all"
         >
           <PlusCircle size={16} />
           Nuevo Producto
-        </Link>
+        </button>
       </div>
 
       {/* Filters */}
@@ -270,6 +272,12 @@ export default function StoreProducts() {
           <p className="text-sm text-gray-500 mt-1">Crea tu primer producto para empezar a vender.</p>
         </div>
       )}
+
+      {/* Modal de selección */}
+      <ProductSelectionModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+      />
     </div>
   );
 }
