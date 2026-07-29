@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, PawPrint, Heart, Eye, EyeOff, CheckCircle, XCircle,
-  Sparkles, Mail, Lock, Building2, AlertCircle
+  Sparkles, Mail, Lock, Building2, AlertCircle, KeyRound, Loader2,
+  ArrowRight, Send
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import AutoFadingImage from "../../components/AutoFadingImage";
@@ -10,6 +11,11 @@ import logo from "../../assets/logo.png";
 import loginDog from "../../assets/loginDog.jpg";
 import mascotasImg from "../../assets/Mascotas.jpg";
 import daycareImg from "../../assets/daycare.png";
+import {
+  forgotPasswordRequest,
+  resetPasswordRequest,
+  sendVerificationCode,
+} from "../../api/auth";
 
 const authCarouselImages = [loginDog, mascotasImg, daycareImg];
 
@@ -33,13 +39,34 @@ export default function Login() {
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // ─── Estados para "Olvidé mi contraseña" ────────────────────────
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [fpStep, setFpStep] = useState("email"); // 'email' | 'code' | 'success'
+  const [fpEmail, setFpEmail] = useState("");
+  const [fpNewPassword, setFpNewPassword] = useState("");
+  const [fpConfirmPassword, setFpConfirmPassword] = useState("");
+  const [fpShowPassword, setFpShowPassword] = useState(false);
+  const [fpCode, setFpCode] = useState(["", "", "", "", "", ""]);
+  const [fpCodeError, setFpCodeError] = useState("");
+  const [fpCountdown, setFpCountdown] = useState(0);
+  const [fpLoading, setFpLoading] = useState(false);
+  const codeInputsRef = useRef([]);
+
+  // Timer para reenvío de código
+  useEffect(() => {
+    if (fpCountdown > 0) {
+      const timer = setTimeout(() => setFpCountdown(fpCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [fpCountdown]);
+
   // Validar formato de email
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
-  // Validar contraseña (mayúscula, minúscula, número, especial)
+  // Validar contraseña
   const validatePassword = (password) => {
     const hasUppercase = /[A-Z]/.test(password);
     const hasLowercase = /[a-z]/.test(password);
@@ -212,6 +239,173 @@ export default function Login() {
     }
   }, [googleLoaded]);
 
+  // ═══════════════════════════════════════════════════════════════
+  //  FUNCIONES PARA "OLVIDÉ MI CONTRASEÑA"
+  // ═══════════════════════════════════════════════════════════════
+
+  const handleOpenForgotPassword = (e) => {
+    e.preventDefault();
+    setFpEmail(email || "");
+    setFpStep("email");
+    setFpCodeError("");
+    setFpCode(["", "", "", "", "", ""]);
+    setFpNewPassword("");
+    setFpConfirmPassword("");
+    setShowForgotPassword(true);
+  };
+
+  const handleCloseForgotPassword = () => {
+    setShowForgotPassword(false);
+    setFpStep("email");
+    setFpCodeError("");
+    setFpCode(["", "", "", "", "", ""]);
+  };
+
+  // Paso 1: Enviar código de recuperación
+  const handleSendResetCode = async () => {
+    if (!fpEmail.trim()) {
+      setFpCodeError("Ingresa tu correo electrónico");
+      return;
+    }
+    if (!validateEmail(fpEmail)) {
+      setFpCodeError("Formato de correo inválido");
+      return;
+    }
+
+    setFpLoading(true);
+    setFpCodeError("");
+
+    try {
+      const result = await forgotPasswordRequest(fpEmail);
+      setFpLoading(false);
+
+      // Verificar si el correo realmente se envió
+      if (result && result.enviado === false) {
+        setFpCodeError(
+          "El código se generó pero no se pudo enviar el correo. " +
+          "Verifica la configuración SMTP del servidor o contacta al administrador."
+        );
+        return;
+      }
+
+      setFpStep("code");
+      setFpCountdown(60);
+      setTimeout(() => {
+        if (codeInputsRef.current[0]) {
+          codeInputsRef.current[0].focus();
+        }
+      }, 100);
+    } catch (err) {
+      setFpLoading(false);
+      // Mostrar errores claros del backend
+      const msg = err?.message || "No se pudo enviar el código";
+      if (msg.includes("No existe una cuenta")) {
+        setFpCodeError("No existe una cuenta con este correo electrónico");
+      } else {
+        setFpCodeError(msg);
+      }
+    }
+  };
+
+  // Manejar entrada del código
+  const handleFpCodeChange = (index, value) => {
+    if (value.length > 1) {
+      const digits = value.replace(/\D/g, "").slice(0, 6);
+      const newCode = [...fpCode];
+      digits.split("").forEach((d, i) => {
+        if (i < 6) newCode[i] = d;
+      });
+      setFpCode(newCode);
+      const lastFilled = Math.min(digits.length, 5);
+      if (codeInputsRef.current[lastFilled]) {
+        codeInputsRef.current[lastFilled].focus();
+      }
+      return;
+    }
+
+    const digit = value.replace(/\D/g, "");
+    const newCode = [...fpCode];
+    newCode[index] = digit;
+    setFpCode(newCode);
+
+    if (digit && index < 5 && codeInputsRef.current[index + 1]) {
+      codeInputsRef.current[index + 1].focus();
+    }
+  };
+
+  const handleFpCodeKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !fpCode[index] && index > 0) {
+      if (codeInputsRef.current[index - 1]) {
+        codeInputsRef.current[index - 1].focus();
+      }
+    }
+  };
+
+  const handleFpCodePaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const newCode = [...fpCode];
+    pasted.split("").forEach((d, i) => {
+      if (i < 6) newCode[i] = d;
+    });
+    setFpCode(newCode);
+    const lastFilled = Math.min(pasted.length - 1, 5);
+    if (codeInputsRef.current[lastFilled >= 0 ? lastFilled : 0]) {
+      codeInputsRef.current[lastFilled >= 0 ? lastFilled : 0].focus();
+    }
+  };
+
+  // Reenviar código
+  const handleResendFpCode = async () => {
+    if (fpCountdown > 0) return;
+    setFpLoading(true);
+    try {
+      await forgotPasswordRequest(fpEmail);
+      setFpCountdown(60);
+      setFpCodeError("");
+    } catch (err) {
+      setFpCodeError(err?.message || "No se pudo reenviar el código");
+    }
+    setFpLoading(false);
+  };
+
+  // Paso 2: Restablecer contraseña
+  const handleResetPassword = async () => {
+    const code = fpCode.join("");
+    if (code.length !== 6) {
+      setFpCodeError("Ingresa el código completo de 6 dígitos");
+      return;
+    }
+    if (!fpNewPassword) {
+      setFpCodeError("Ingresa una nueva contraseña");
+      return;
+    }
+    if (!validatePassword(fpNewPassword)) {
+      setFpCodeError("Debe tener mayúscula, minúscula, número y carácter especial");
+      return;
+    }
+    if (fpNewPassword !== fpConfirmPassword) {
+      setFpCodeError("Las contraseñas no coinciden");
+      return;
+    }
+
+    setFpLoading(true);
+    setFpCodeError("");
+
+    try {
+      await resetPasswordRequest(fpEmail, code, fpNewPassword);
+      setFpLoading(false);
+      setFpStep("success");
+    } catch (err) {
+      setFpLoading(false);
+      setFpCodeError(err?.message || "Error al restablecer la contraseña");
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  //  RENDER
+  // ═══════════════════════════════════════════════════════════════
+
   return (
     <div className="auth-page">
       {/* Animated Background Elements */}
@@ -223,6 +417,220 @@ export default function Login() {
         <div className="auth-bg-circle auth-bg-circle-5" />
         <div className="auth-bg-circle auth-bg-circle-6" />
       </div>
+
+      {/* ═══ MODAL: Olvidé mi contraseña ═══ */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-modal-overlay">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-modal-content">
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={handleCloseForgotPassword}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <XCircle className="w-6 h-6" />
+            </button>
+
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Lock className="w-8 h-8 text-[#ea580c]" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 font-display">
+                {fpStep === "success" ? "¡Contraseña restablecida!" : "Recuperar contraseña"}
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {fpStep === "email" && "Te enviaremos un código de 6 dígitos a tu correo"}
+                {fpStep === "code" && `Ingresa el código enviado a ${fpEmail}`}
+                {fpStep === "success" && "Tu contraseña ha sido cambiada exitosamente"}
+              </p>
+            </div>
+
+            {/* Step: Email */}
+            {fpStep === "email" && (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="auth-label">Correo electrónico</label>
+                  <div className="auth-input-wrapper">
+                    <Mail className="auth-input-icon" />
+                    <input
+                      type="email"
+                      placeholder="ejemplo@correo.com"
+                      value={fpEmail}
+                      onChange={(e) => setFpEmail(e.target.value)}
+                      className="auth-input"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {fpCodeError && (
+                  <p className="text-sm text-red-500 flex items-center gap-1.5">
+                    <XCircle className="w-4 h-4" />
+                    {fpCodeError}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSendResetCode}
+                  disabled={fpLoading}
+                  className="auth-primary-btn w-full"
+                >
+                  <div className="auth-btn-shimmer" />
+                  {fpLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Enviando código...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-5 h-5" />
+                      <span>Enviar código</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Step: Code + New Password */}
+            {fpStep === "code" && (
+              <div className="space-y-4">
+                {/* 6-digit code inputs */}
+                <div className="flex justify-center gap-2">
+                  {fpCode.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => (codeInputsRef.current[index] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleFpCodeChange(index, e.target.value)}
+                      onKeyDown={(e) => handleFpCodeKeyDown(index, e)}
+                      onPaste={index === 0 ? handleFpCodePaste : undefined}
+                      className={`w-11 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold rounded-xl border-2 transition-all duration-200 outline-none
+                        ${fpCodeError
+                          ? "border-red-400 bg-red-50 text-red-600"
+                          : digit
+                            ? "border-[#FF8C00] bg-orange-50 text-[#ea580c]"
+                            : "border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300"
+                        }
+                        focus:border-[#FF8C00] focus:ring-2 focus:ring-[#FF8C00]/20`}
+                      aria-label={`Digito ${index + 1}`}
+                    />
+                  ))}
+                </div>
+
+                {/* New Password */}
+                <div className="space-y-1.5">
+                  <label className="auth-label">Nueva contraseña</label>
+                  <div className="auth-input-wrapper">
+                    <Lock className="auth-input-icon" />
+                    <input
+                      type={fpShowPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={fpNewPassword}
+                      onChange={(e) => setFpNewPassword(e.target.value)}
+                      className="auth-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFpShowPassword(!fpShowPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 auth-eye-btn"
+                    >
+                      {fpShowPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password */}
+                <div className="space-y-1.5">
+                  <label className="auth-label">Confirmar contraseña</label>
+                  <div className="auth-input-wrapper">
+                    <Lock className="auth-input-icon" />
+                    <input
+                      type={fpShowPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={fpConfirmPassword}
+                      onChange={(e) => setFpConfirmPassword(e.target.value)}
+                      className="auth-input"
+                    />
+                  </div>
+                </div>
+
+                {fpCodeError && (
+                  <p className="text-sm text-red-500 flex items-center gap-1.5">
+                    <XCircle className="w-4 h-4" />
+                    {fpCodeError}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={fpLoading || fpCode.join("").length !== 6 || !fpNewPassword}
+                  className="auth-primary-btn w-full"
+                >
+                  <div className="auth-btn-shimmer" />
+                  {fpLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Restableciendo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-5 h-5" />
+                      <span>Restablecer contraseña</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Resend code */}
+                <div className="text-center">
+                  <p className="text-sm text-gray-500">
+                    ¿No recibiste el código?{" "}
+                    {fpCountdown > 0 ? (
+                      <span className="text-gray-400">
+                        Reenviar en {fpCountdown}s
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResendFpCode}
+                        disabled={fpLoading}
+                        className="auth-link font-semibold hover:underline"
+                      >
+                        Reenviar código
+                      </button>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Step: Success */}
+            {fpStep === "success" && (
+              <div className="text-center space-y-4">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle className="w-10 h-10 text-green-500" />
+                </div>
+                <p className="text-gray-600 text-sm">
+                  Ahora puedes iniciar sesión con tu nueva contraseña.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCloseForgotPassword}
+                  className="auth-primary-btn w-full"
+                >
+                  <ArrowRight className="w-5 h-5" />
+                  <span>Volver al inicio de sesión</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Success Modal */}
       {success && (
@@ -441,9 +849,13 @@ export default function Login() {
                   </div>
                   <span className="text-sm text-gray-500 group-hover:text-gray-700 transition-colors font-medium">Recordarme</span>
                 </label>
-                <a href="#" className="auth-link text-sm">
+                <button
+                  type="button"
+                  onClick={handleOpenForgotPassword}
+                  className="auth-link text-sm"
+                >
                   ¿Olvidaste tu contraseña?
-                </a>
+                </button>
               </div>
 
               {/* Submit Button */}

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Shield, Eye, EyeOff, Globe, Moon, Sun, Save, ChevronRight, LogOut, Trash2, HelpCircle, Mail, X, Send, FileText, Scale, Cookie, CheckCircle, Loader2 } from "lucide-react";
+import { Bell, Shield, Eye, EyeOff, Globe, Moon, Sun, Save, ChevronRight, LogOut, Trash2, HelpCircle, Mail, X, Send, FileText, Scale, Cookie, CheckCircle, Loader2, KeyRound, Lock } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useI18n } from "../../context/I18nContext";
+import { useAuth } from "../../context/AuthContext";
 import { obtenerConfiguracion, actualizarConfiguracion } from "../../api/configuraciones";
+import { forgotPasswordRequest, resetPasswordRequest } from "../../api/auth";
 
 // Mapea las claves del frontend con los campos del backend de configuraciones.
 const NOTIF_MAP = {
@@ -74,6 +76,28 @@ export default function Settings() {
     allowMessages: true
   });
 
+  // ─── Estados para "Cambiar Contraseña" ─────────────────────────
+  const { user } = useAuth();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passStep, setPassStep] = useState("code"); // 'code' | 'success'
+  const [passCode, setPassCode] = useState(["", "", "", "", "", ""]);
+  const [passCodeError, setPassCodeError] = useState("");
+  const [passNewPassword, setPassNewPassword] = useState("");
+  const [passConfirmPassword, setPassConfirmPassword] = useState("");
+  const [passShowPassword, setPassShowPassword] = useState(false);
+  const [passCountdown, setPassCountdown] = useState(0);
+  const [passLoading, setPassLoading] = useState(false);
+  const codeInputsRef = useRef([]);
+  const [codeSent, setCodeSent] = useState(false);
+
+  // Timer para reenvío de código
+  useEffect(() => {
+    if (passCountdown > 0) {
+      const timer = setTimeout(() => setPassCountdown(passCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [passCountdown]);
+
   // Contact Support Modal State
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactForm, setContactForm] = useState({
@@ -107,6 +131,138 @@ export default function Settings() {
       setShowContactModal(false);
       setContactForm({ name: "", email: "", subject: "", message: "" });
     }, 2000);
+  };
+
+  // ─── Funciones para "Cambiar Contraseña" ──────────────────────
+
+  const validatePassword = (password) => {
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasLowercase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    return hasUppercase && hasLowercase && hasNumber && hasSpecial;
+  };
+
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const handleOpenPasswordModal = () => {
+    setPassStep("code");
+    setPassCode(["", "", "", "", "", ""]);
+    setPassCodeError("");
+    setPassNewPassword("");
+    setPassConfirmPassword("");
+    setCodeSent(false);
+    setShowPasswordModal(true);
+    // Enviar código automáticamente al abrir
+    setTimeout(() => handleSendPassCode(), 300);
+  };
+
+  const handleSendPassCode = async () => {
+    const email = user?.email;
+    if (!email) {
+      setPassCodeError("No se pudo obtener tu correo electrónico");
+      return;
+    }
+
+    setPassLoading(true);
+    setPassCodeError("");
+
+    try {
+      const result = await forgotPasswordRequest(email);
+      setPassLoading(false);
+      setCodeSent(true);
+      setPassCountdown(60);
+      if (result && result.enviado === false) {
+        setPassCodeError("No se pudo enviar el código. Verifica la configuración SMTP.");
+        return;
+      }
+      setTimeout(() => {
+        if (codeInputsRef.current[0]) codeInputsRef.current[0].focus();
+      }, 100);
+    } catch (err) {
+      setPassLoading(false);
+      setPassCodeError(err?.message || "No se pudo enviar el código");
+    }
+  };
+
+  const handlePassCodeChange = (index, value) => {
+    if (value.length > 1) {
+      const digits = value.replace(/\D/g, "").slice(0, 6);
+      const newCode = [...passCode];
+      digits.split("").forEach((d, i) => { if (i < 6) newCode[i] = d; });
+      setPassCode(newCode);
+      const lastFilled = Math.min(digits.length, 5);
+      if (codeInputsRef.current[lastFilled]) codeInputsRef.current[lastFilled].focus();
+      return;
+    }
+    const digit = value.replace(/\D/g, "");
+    const newCode = [...passCode];
+    newCode[index] = digit;
+    setPassCode(newCode);
+    if (digit && index < 5 && codeInputsRef.current[index + 1]) {
+      codeInputsRef.current[index + 1].focus();
+    }
+  };
+
+  const handlePassCodeKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !passCode[index] && index > 0) {
+      if (codeInputsRef.current[index - 1]) codeInputsRef.current[index - 1].focus();
+    }
+  };
+
+  const handlePassCodePaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const newCode = [...passCode];
+    pasted.split("").forEach((d, i) => { if (i < 6) newCode[i] = d; });
+    setPassCode(newCode);
+    const idx = Math.min(pasted.length - 1, 5);
+    if (codeInputsRef.current[idx >= 0 ? idx : 0]) codeInputsRef.current[idx >= 0 ? idx : 0].focus();
+  };
+
+  const handleResendPassCode = async () => {
+    if (passCountdown > 0) return;
+    setPassLoading(true);
+    try {
+      const result = await forgotPasswordRequest(user?.email);
+      setPassCountdown(60);
+      setPassCodeError("");
+    } catch (err) {
+      setPassCodeError(err?.message || "No se pudo reenviar el código");
+    }
+    setPassLoading(false);
+  };
+
+  const handleChangePassword = async () => {
+    const code = passCode.join("");
+    if (code.length !== 6) {
+      setPassCodeError("Ingresa el código completo de 6 dígitos");
+      return;
+    }
+    if (!passNewPassword) {
+      setPassCodeError("Ingresa una nueva contraseña");
+      return;
+    }
+    if (!validatePassword(passNewPassword)) {
+      setPassCodeError("Debe tener mayúscula, minúscula, número y carácter especial");
+      return;
+    }
+    if (passNewPassword !== passConfirmPassword) {
+      setPassCodeError("Las contraseñas no coinciden");
+      return;
+    }
+
+    setPassLoading(true);
+    setPassCodeError("");
+
+    try {
+      await resetPasswordRequest(user?.email, code, passNewPassword);
+      setPassLoading(false);
+      setPassStep("success");
+    } catch (err) {
+      setPassLoading(false);
+      setPassCodeError(err?.message || "Error al cambiar la contraseña");
+    }
   };
 
   const legalContent = {
@@ -394,13 +550,16 @@ export default function Settings() {
           <h3 className="text-xl font-bold text-gray-900 mb-6 font-display">{t("settings.account_actions")}</h3>
 
           <div className="space-y-3">
-            <Link to="/profile" className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-rose-50 transition-all group">
+            <button
+              onClick={handleOpenPasswordModal}
+              className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-rose-50 transition-all group"
+            >
               <div className="flex items-center gap-3">
                 <Shield className="w-5 h-5 text-gray-600" />
                 <span className="font-medium text-gray-900 group-hover:text-rose-600">{t("settings.change_password")}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-rose-500" />
-            </Link>
+            </button>
 
             <Link to="/profile" className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-rose-50 transition-all group">
               <div className="flex items-center gap-3">
@@ -715,6 +874,184 @@ export default function Settings() {
                 {t("help.close")}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL: Cambiar Contraseña ═══ */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-modal-overlay">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowPasswordModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-modal-content">
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setShowPasswordModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                {passStep === "success" ? (
+                  <CheckCircle className="w-8 h-8 text-green-500" />
+                ) : (
+                  <Lock className="w-8 h-8 text-[#ea580c]" />
+                )}
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 font-display">
+                {passStep === "success" ? "¡Contraseña cambiada!" : "Cambiar contraseña"}
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {passStep === "code" && !codeSent && "Enviando código de verificación..."}
+                {passStep === "code" && codeSent && (
+                  <>Ingresa el código enviado a <strong>{user?.email}</strong></>
+                )}
+                {passStep === "success" && "Tu contraseña ha sido cambiada exitosamente"}
+              </p>
+            </div>
+
+            {/* Step: Code + New Password */}
+            {passStep === "code" && (
+              <div className="space-y-4">
+                {passLoading && !codeSent && (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#ea580c]" />
+                  </div>
+                )}
+
+                {codeSent && (
+                  <>
+                    {/* 6-digit code inputs */}
+                    <div className="flex justify-center gap-2">
+                      {passCode.map((digit, index) => (
+                        <input
+                          key={index}
+                          ref={(el) => (codeInputsRef.current[index] = el)}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={digit}
+                          onChange={(e) => handlePassCodeChange(index, e.target.value)}
+                          onKeyDown={(e) => handlePassCodeKeyDown(index, e)}
+                          onPaste={index === 0 ? handlePassCodePaste : undefined}
+                          className={`w-11 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold rounded-xl border-2 transition-all duration-200 outline-none
+                            ${passCodeError
+                              ? "border-red-400 bg-red-50 text-red-600"
+                              : digit
+                                ? "border-[#FF8C00] bg-orange-50 text-[#ea580c]"
+                                : "border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300"
+                            }
+                            focus:border-[#FF8C00] focus:ring-2 focus:ring-[#FF8C00]/20`}
+                          aria-label={`Digito ${index + 1}`}
+                        />
+                      ))}
+                    </div>
+
+                    {/* New Password */}
+                    <div className="space-y-1.5">
+                      <label className="auth-label">Nueva contraseña</label>
+                      <div className="auth-input-wrapper">
+                        <Lock className="auth-input-icon" />
+                        <input
+                          type={passShowPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          value={passNewPassword}
+                          onChange={(e) => setPassNewPassword(e.target.value)}
+                          className="auth-input"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPassShowPassword(!passShowPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 auth-eye-btn"
+                        >
+                          {passShowPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Confirm Password */}
+                    <div className="space-y-1.5">
+                      <label className="auth-label">Confirmar contraseña</label>
+                      <div className="auth-input-wrapper">
+                        <Lock className="auth-input-icon" />
+                        <input
+                          type={passShowPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          value={passConfirmPassword}
+                          onChange={(e) => setPassConfirmPassword(e.target.value)}
+                          className="auth-input"
+                        />
+                      </div>
+                    </div>
+
+                    {passCodeError && (
+                      <p className="text-sm text-red-500 flex items-center gap-1.5">
+                        <XCircle className="w-4 h-4" />
+                        {passCodeError}
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleChangePassword}
+                      disabled={passLoading || passCode.join("").length !== 6 || !passNewPassword}
+                      className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {passLoading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Cambiando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <KeyRound className="w-5 h-5" />
+                          <span>Cambiar contraseña</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Resend code */}
+                    <div className="text-center">
+                      <p className="text-sm text-gray-500">
+                        ¿No recibiste el código?{" "}
+                        {passCountdown > 0 ? (
+                          <span className="text-gray-400">Reenviar en {passCountdown}s</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleResendPassCode}
+                            disabled={passLoading}
+                            className="auth-link font-semibold hover:underline"
+                          >
+                            Reenviar código
+                          </button>
+                        )}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Step: Success */}
+            {passStep === "success" && (
+              <div className="text-center space-y-4">
+                <p className="text-gray-600 text-sm">
+                  Tu contraseña ha sido actualizada correctamente.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Cerrar</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
