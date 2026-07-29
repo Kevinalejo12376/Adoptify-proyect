@@ -1,19 +1,67 @@
-import React, { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Save, X, Plus, Loader2 } from "lucide-react";
-import { obtenerMiProducto, crearMiProducto, actualizarMiProducto } from "../../api/tienda";
+import React, { useState, useEffect, useCallback } from "react";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
+import { ArrowLeft, Save, X, Plus, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { obtenerMiProducto, crearMiProducto, crearMiProductoConImagenes, actualizarMiProducto } from "../../api/tienda";
 import { getCategoriasProducto } from "../../api/catalogos";
 
 const defaultForm = {
   nombre: "", descripcion: "", descripcion_larga: "", precio: "", categoria: "",
-  marca: "", material: "", calidad: "", stock: "", tallas: [], colores: [], activo: true,
+  marca: "", material: "", calidad: "", stock: "", tallas: [], colores: [],
+  ingredientes: "", ingredientes_activos: "", aroma: "", instrucciones_cuidado: "",
+  tipo_mascota: "", edad_recomendada: "", peso: "", fabricante: "",
+  registro_sanitario: "", advertencias: "", informacion_adicional: "",
+  activo: true,
 };
 
 const inputCls = "w-full px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all";
 
+// Modal de confirmación moderno
+function ConfirmDialog({ isOpen, onClose, onConfirm, saving }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in p-6">
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle size={32} className="text-amber-500" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text font-display">
+            ¿Deseas publicar este producto en tu tienda?
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-2">
+            Se guardarán las imágenes capturadas, la información detectada por la Inteligencia
+            Artificial y los datos ingresados por el vendedor. El producto quedará registrado
+            en la base de datos y asociado automáticamente a tu tienda.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 py-2.5 text-sm font-semibold text-gray-600 dark:text-dark-text-secondary bg-gray-50 dark:bg-dark-border rounded-xl hover:bg-gray-100 dark:hover:bg-dark-border/80 transition-colors disabled:opacity-60"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={saving}
+            className="flex-1 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-bold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all disabled:opacity-60 inline-flex items-center justify-center gap-2"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+            {saving ? "Publicando..." : "Sí, publicar producto"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function StoreEditProduct() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const isNew = !id || id === "nuevo";
 
   const [form, setForm] = useState(defaultForm);
@@ -23,6 +71,51 @@ export default function StoreEditProduct() {
   const [saving, setSaving] = useState(false);
   const [nuevaTalla, setNuevaTalla] = useState("");
   const [nuevoColor, setNuevoColor] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [aiImages, setAiImages] = useState([]);
+
+  // Cargar datos de IA si vienen del análisis
+  useEffect(() => {
+    if (!isNew) return;
+
+    const state = location.state;
+    const sessionData = sessionStorage.getItem("adoptify_ai_analysis");
+
+    let datosIA = null;
+    let fotosIA = [];
+
+    if (state?.fromAI && state?.resultadoIA) {
+      datosIA = state.resultadoIA?.datos || state.resultadoIA;
+      fotosIA = state.fotos || [];
+    } else if (sessionData) {
+      try {
+        const parsed = JSON.parse(sessionData);
+        datosIA = parsed.resultadoIA?.datos || parsed.resultadoIA;
+        fotosIA = parsed.fotos || [];
+      } catch (e) { /* ignorar */ }
+    }
+
+    if (datosIA) {
+      setAiImages(fotosIA);
+      setForm((prev) => ({
+        ...prev,
+        nombre: datosIA.nombre || "",
+        descripcion: datosIA.descripcion || "",
+        descripcion_larga: datosIA.descripcion_larga || "",
+        marca: datosIA.marca || "",
+        categoria: datosIA.categoria || "",
+        material: datosIA.material || "",
+        calidad: datosIA.calidad || "",
+        ingredientes: datosIA.ingredientes || "",
+        ingredientes_activos: datosIA.ingredientes_activos || "",
+        aroma: datosIA.aroma || "",
+        instrucciones_cuidado: datosIA.instrucciones_cuidado || "",
+        tallas: datosIA.tallas ? String(datosIA.tallas).split(",").map((s) => s.trim()).filter(Boolean) : [],
+        colores: datosIA.colores ? String(datosIA.colores).split(",").map((s) => s.trim()).filter(Boolean) : [],
+      }));
+    }
+  }, [isNew, location.state]);
 
   useEffect(() => {
     getCategoriasProducto().then(setCategorias).catch(() => setCategorias([]));
@@ -45,6 +138,17 @@ export default function StoreEditProduct() {
           stock: p.stock != null ? String(p.stock) : "",
           tallas: p.tallas ? String(p.tallas).split(",").map((s) => s.trim()).filter(Boolean) : [],
           colores: p.colores ? String(p.colores).split(",").map((s) => s.trim()).filter(Boolean) : [],
+          ingredientes: p.ingredientes || "",
+          ingredientes_activos: p.ingredientes_activos || "",
+          aroma: p.aroma || "",
+          instrucciones_cuidado: p.instrucciones_cuidado || "",
+          tipo_mascota: "",
+          edad_recomendada: "",
+          peso: "",
+          fabricante: "",
+          registro_sanitario: "",
+          advertencias: "",
+          informacion_adicional: "",
           activo: p.activo,
         });
       } catch (e) { /* producto no encontrado */ }
@@ -79,6 +183,10 @@ export default function StoreEditProduct() {
     material: form.material,
     tallas: form.tallas.join(","),
     colores: form.colores.join(","),
+    ingredientes: form.ingredientes,
+    ingredientes_activos: form.ingredientes_activos,
+    aroma: form.aroma,
+    instrucciones_cuidado: form.instrucciones_cuidado,
     activo: form.activo,
   });
 
@@ -88,13 +196,51 @@ export default function StoreEditProduct() {
     setSaving(true);
     try {
       if (isNew) {
-        await crearMiProducto(buildPayload());
+        // Si hay imágenes de IA, usar el endpoint con imágenes
+        if (aiImages.length > 0) {
+          await crearMiProductoConImagenes({
+            ...buildPayload(),
+            imagenes: aiImages,
+          });
+        } else {
+          await crearMiProducto(buildPayload());
+        }
       } else {
         await actualizarMiProducto(id, buildPayload());
       }
-      navigate("/tienda/productos");
+      // Limpiar datos de IA de sessionStorage
+      sessionStorage.removeItem("adoptify_ai_analysis");
+      setSuccessMsg(isNew ? "Producto creado correctamente" : "Producto actualizado correctamente");
+      setTimeout(() => navigate("/tienda/productos"), 1500);
     } catch (err) {
-      setErrors((prev) => ({ ...prev, general: err?.message || "No se pudo guardar el producto" }));
+      setErrors((prev) => ({
+        ...prev,
+        general: err?.message || "No se pudo guardar el producto. Los datos no se han perdido, puedes intentarlo de nuevo.",
+      }));
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmAndSave = async () => {
+    setShowConfirm(false);
+    setSaving(true);
+    try {
+      if (aiImages.length > 0) {
+        await crearMiProductoConImagenes({
+          ...buildPayload(),
+          imagenes: aiImages,
+        });
+      } else {
+        await crearMiProducto(buildPayload());
+      }
+      sessionStorage.removeItem("adoptify_ai_analysis");
+      setSuccessMsg("✅ Producto creado correctamente");
+      setTimeout(() => navigate("/tienda/productos"), 2000);
+    } catch (err) {
+      setErrors((prev) => ({
+        ...prev,
+        general: err?.message || "Error al guardar. Las imágenes y datos están seguros, intenta de nuevo.",
+      }));
       setSaving(false);
     }
   };
@@ -105,6 +251,13 @@ export default function StoreEditProduct() {
     reset("");
   };
   const removeItem = (field, value) => handleChange(field, form[field].filter((x) => x !== value));
+
+  // Confirmación antes de crear
+  const handleCrearClick = (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setShowConfirm(true);
+  };
 
   if (loading) {
     return (
@@ -128,19 +281,69 @@ export default function StoreEditProduct() {
               {isNew ? "Nuevo Producto" : "Editar Producto"}
             </h1>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              {isNew ? "Completa los datos para registrar un nuevo producto." : "Actualiza la información del producto."}
+              {isNew
+                ? (aiImages.length > 0
+                    ? "Los datos fueron detectados por IA. Solo completa precio, stock y descuento."
+                    : "Completa los datos para registrar un nuevo producto.")
+                : "Actualiza la información del producto."}
             </p>
           </div>
         </div>
-        <button onClick={handleSubmit} disabled={saving}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all disabled:opacity-60">
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          {isNew ? "Crear Producto" : "Guardar Cambios"}
-        </button>
+        {isNew ? (
+          <button onClick={handleCrearClick} disabled={saving}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all disabled:opacity-60">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            Crear Producto
+          </button>
+        ) : (
+          <button onClick={handleSubmit} disabled={saving}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all disabled:opacity-60">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            Guardar Cambios
+          </button>
+        )}
       </div>
 
+      {/* Mensaje de éxito */}
+      {successMsg && (
+        <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-medium flex items-center gap-2">
+          <CheckCircle2 size={18} />
+          {successMsg}
+        </div>
+      )}
+
       {errors.general && (
-        <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm font-medium">{errors.general}</div>
+        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm font-medium flex items-center gap-2">
+          <AlertCircle size={18} />
+          {errors.general}
+        </div>
+      )}
+
+      {/* Banner de datos de IA */}
+      {isNew && aiImages.length > 0 && (
+        <div className="bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-500/5 dark:to-amber-500/5 border border-rose-100 dark:border-rose-500/10 rounded-2xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 size={20} className="text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-900 dark:text-dark-text">
+                Producto analizado por IA
+              </p>
+              <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                {aiImages.length} imágenes capturadas · Datos precargados automáticamente
+              </p>
+            </div>
+          </div>
+          {/* Miniaturas */}
+          <div className="flex gap-2 mt-3">
+            {aiImages.map((img, i) => (
+              <div key={i} className="w-14 h-14 rounded-lg overflow-hidden border border-gray-200 dark:border-dark-border">
+                <img src={img} alt={`Vista ${i + 1}`} className="w-full h-full object-cover" />
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -189,9 +392,16 @@ export default function StoreEditProduct() {
           </div>
         </div>
 
-        {/* Precio y Stock */}
-        <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Precio y Stock</h3>
+        {/* Precio y Stock (únicos campos que debe llenar el vendedor si viene de IA) */}
+        <div className={`bg-white dark:bg-dark-card rounded-2xl border ${aiImages.length > 0 ? "border-rose-200 dark:border-rose-500/20 ring-2 ring-rose-500/10" : "border-gray-100 dark:border-dark-border"} p-6`}>
+          <div className="flex items-center gap-2 mb-4">
+            {aiImages.length > 0 && (
+              <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-bold rounded-full">
+                COMPLETAR
+              </span>
+            )}
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Precio y Stock</h3>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Precio *</label>
@@ -210,6 +420,41 @@ export default function StoreEditProduct() {
             </div>
           </div>
         </div>
+
+        {/* Información adicional detectada por IA */}
+        {(form.ingredientes || form.ingredientes_activos || form.aroma || form.instrucciones_cuidado) && (
+          <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Información del Producto (detectada por IA)</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {form.ingredientes && (
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Ingredientes</label>
+                  <textarea value={form.ingredientes} onChange={(e) => handleChange("ingredientes", e.target.value)}
+                    className={`${inputCls} resize-none`} rows={2} />
+                </div>
+              )}
+              {form.ingredientes_activos && (
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Ingredientes activos</label>
+                  <textarea value={form.ingredientes_activos} onChange={(e) => handleChange("ingredientes_activos", e.target.value)}
+                    className={`${inputCls} resize-none`} rows={2} />
+                </div>
+              )}
+              {form.aroma && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Aroma</label>
+                  <input type="text" value={form.aroma} onChange={(e) => handleChange("aroma", e.target.value)} className={inputCls} />
+                </div>
+              )}
+              {form.instrucciones_cuidado && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Instrucciones de cuidado</label>
+                  <input type="text" value={form.instrucciones_cuidado} onChange={(e) => handleChange("instrucciones_cuidado", e.target.value)} className={inputCls} />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Variantes */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
@@ -265,13 +510,29 @@ export default function StoreEditProduct() {
           <Link to="/tienda/productos" className="px-5 py-2.5 text-sm font-semibold text-gray-600 dark:text-dark-text-secondary bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl hover:bg-gray-50 dark:hover:bg-dark-border transition-all">
             Cancelar
           </Link>
-          <button type="submit" disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all disabled:opacity-60">
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            {isNew ? "Crear Producto" : "Guardar Cambios"}
-          </button>
+          {isNew ? (
+            <button type="button" onClick={handleCrearClick} disabled={saving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all disabled:opacity-60">
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Crear Producto
+            </button>
+          ) : (
+            <button type="submit" disabled={saving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all disabled:opacity-60">
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Guardar Cambios
+            </button>
+          )}
         </div>
       </form>
+
+      {/* Diálogo de confirmación */}
+      <ConfirmDialog
+        isOpen={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={handleConfirmAndSave}
+        saving={saving}
+      />
     </div>
   );
 }

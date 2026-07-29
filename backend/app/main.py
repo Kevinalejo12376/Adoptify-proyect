@@ -1,9 +1,11 @@
 # pyrefly: ignore [missing-import]
+import os
 from contextlib import asynccontextmanager
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.db.database import Base, engine
 # Importa todos los modelos para registrarlos en Base.metadata
@@ -22,11 +24,37 @@ async def lifespan(app: FastAPI):
     # En Supabase las tablas ya existen via supabase_schema.sql.
     try:
         Base.metadata.create_all(bind=engine)
+        # Migracion: agrega columnas faltantes en Supabase si es necesario
+        _run_migrations()
         seed_catalogos()
     except Exception as exc:
         print(f"[lifespan] Advertencia: no se pudieron crear/sembrar tablas: {exc}")
         print("[lifespan] En Supabase las tablas ya existen; el servidor igual puede funcionar.")
     yield
+
+
+def _run_migrations():
+    """Ejecuta migraciones para sincronizar el schema de Supabase con los modelos."""
+    from app.db.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        # Verifica si la columna 'perfil_completo' existe en usuarios
+        result = db.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name='usuarios' AND column_name='perfil_completo'"
+        )).fetchone()
+        if not result:
+            print("[migracion] Agregando columna 'perfil_completo' a usuarios...")
+            db.execute(text(
+                "ALTER TABLE usuarios ADD COLUMN perfil_completo BOOLEAN NOT NULL DEFAULT false"
+            ))
+            db.commit()
+            print("[migracion] Columna 'perfil_completo' agregada correctamente.")
+    except Exception as e:
+        print(f"[migracion] Error ejecutando migraciones: {e}")
+    finally:
+        db.close()
 
 
 app = FastAPI(title="Adoptify API", lifespan=lifespan)
@@ -39,6 +67,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Servir archivos estáticos (uploads de imágenes)
+uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 # Routers (endpoints)
 app.include_router(catalogos.router, prefix="/api/catalogos", tags=["Catalogos"])
