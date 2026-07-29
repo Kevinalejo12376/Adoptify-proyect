@@ -5,7 +5,14 @@ identifican por tienda_id. No existe (aun) modelo de items de pedido ni de
 reseñas, por eso pedidos/reseñas se entregan vacios de forma honesta.
 """
 # pyrefly: ignore [missing-import]
-from fastapi import APIRouter, Depends, HTTPException, status
+import base64
+import io
+import json
+import uuid
+import os
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
@@ -18,15 +25,20 @@ from app.core.security import get_current_tienda, verify_password, get_password_
 from app.core.lookups import id_por_codigo
 from app.models.usuario import Usuario
 from app.models.tienda import Tienda
-from app.models.producto import Producto
+from app.models.producto import Producto, ProductoImagen
 from app.models.pedido import Pedido, PedidoItem
 from app.models.catalogos import CategoriaProducto, EstadoPedido
-from app.schemas.producto import ProductoCreate, ProductoUpdate
+from app.schemas.producto import ProductoCreate, ProductoUpdate, ProductoCreateConImagenes, AnalisisRequest
 from app.schemas.tienda_self import TiendaPerfilUpdate, PasswordUpdate
 from app.schemas.pedido import EstadoPedidoUpdate
 from app.schemas.serializers import serialize_producto, serialize_pedido
+from app.services.gemini import analizar_producto
 
 router = APIRouter()
+
+# Directorio para guardar imágenes subidas
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def _mi_tienda(current_user: Usuario, db: Session) -> Tienda:
@@ -62,29 +74,9 @@ def _serialize_tienda(t: Tienda, u: Usuario) -> dict:
     }
 
 
-@router.get("/mi-perfil")
-def mi_perfil(current_user: Usuario = Depends(get_current_tienda), db: Session = Depends(get_db)):
-    tienda = _mi_tienda(current_user, db)
-    return _serialize_tienda(tienda, current_user)
-
-
-@router.put("/mi-perfil")
-def actualizar_mi_perfil(
-    payload: TiendaPerfilUpdate,
-    current_user: Usuario = Depends(get_current_tienda),
-    db: Session = Depends(get_db),
-):
-    tienda = _mi_tienda(current_user, db)
-    datos = payload.model_dump(exclude_unset=True)
-    if "ciudad" in datos:
-        tienda.ubicacion = datos["ciudad"]
-    for campo, valor in datos.items():
-        setattr(tienda, campo, valor)
-    db.commit()
-    db.refresh(tienda)
-    return _serialize_tienda(tienda, current_user)
-
-
+# ============================================================
+# ENDPOINT: Listar productos de mi tienda
+# ============================================================
 @router.get("/productos")
 def mis_productos(current_user: Usuario = Depends(get_current_tienda), db: Session = Depends(get_db)):
     tienda = _mi_tienda(current_user, db)
@@ -97,6 +89,74 @@ def mis_productos(current_user: Usuario = Depends(get_current_tienda), db: Sessi
     return [serialize_producto(p) for p in productos]
 
 
+def _guardar_imagen_base64(base64_str: str, etiqueta: str = None) -> str:
+    """Guarda una imagen en base64 en el disco y devuelve la URL/ruta."""
+    try:
+        # Eliminar el prefijo data:image/...;base64,
+        if "," in base64_str:
+            header, data = base64_str.split(",", 1)
+        else:
+            data = base64_str
+
+        missing_padding = len(data) % 4
+        if missing_padding:
+            data += "=" * (4 - missing_padding)
+
+        image_bytes = base64.b64decode(data)
+        ext = "png"
+        filename = f"prod_{uuid.uuid4().hex}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+        filepath = os.path.join(UPLOAD_DIR, filename)
+        with open(filepath, "wb") as f:
+            f.write(image_bytes)
+        # Devolver la ruta relativa para servirla
+        return f"/uploads/{filename}"
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Error al procesar imagen: {str(exc)}")
+
+
+# ============================================================
+# ENDPOINT: Analizar producto con IA
+# ============================================================
+@router.post("/productos/analizar-ia")
+async def analizar_producto_con_ia(
+    payload: AnalisisRequest,
+    current_user: Usuario = Depends(get_current_tienda),
+    db: Session = Depends(get_db),
+):
+    """Recibe imágenes base64 del producto, las envía a Gemini API y devuelve datos estructurados."""
+    if not payload.imagenes or len(payload.imagenes) == 0:
+        raise HTTPException(status_code=400, detail="Se requiere al menos una imagen del producto")
+
+    try:
+        # Llamar a Gemini API para analizar las imágenes
+        datos_ia = await analizar_producto(payload.imagenes)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error inesperado al analizar con IA: {str(e)}")
+
+    # Guardar las imágenes temporalmente y agregar sus URLs
+    etiquetas = ["frontal", "trasera", "izquierda", "derecha"]
+    imagenes_urls = []
+    for i, img_base64 in enumerate(payload.imagenes):
+        etiqueta = etiquetas[i] if i < len(etiquetas) else f"vista_{i+1}"
+        url = _guardar_imagen_base64(img_base64, etiqueta)
+        imagenes_urls.append({"url": url, "etiqueta": etiqueta})
+
+    return {
+        "status": "success",
+        "mensaje": "Producto analizado correctamente por inteligencia artificial",
+        "imagenes_capturadas": len(payload.imagenes),
+        "datos": {
+            **datos_ia,
+            "imagenes_urls": imagenes_urls,
+        },
+    }
+
+
+# ============================================================
+# ENDPOINT: Crear producto con imágenes
+# ============================================================
 @router.post("/productos", status_code=status.HTTP_201_CREATED)
 def crear_producto(
     payload: ProductoCreate,
@@ -116,10 +176,63 @@ def crear_producto(
         material=payload.material,
         tallas=payload.tallas,
         colores=payload.colores,
+        ingredientes=payload.ingredientes,
+        ingredientes_activos=payload.ingredientes_activos,
+        aroma=payload.aroma,
+        instrucciones_cuidado=payload.instrucciones_cuidado,
         refugio_id=None,
         tienda_id=tienda.id,
     )
     db.add(producto)
+    db.commit()
+    db.refresh(producto)
+    return serialize_producto(producto)
+
+
+@router.post("/productos/con-imagenes", status_code=status.HTTP_201_CREATED)
+def crear_producto_con_imagenes(
+    payload: ProductoCreateConImagenes,
+    current_user: Usuario = Depends(get_current_tienda),
+    db: Session = Depends(get_db),
+):
+    """Crea un producto con sus imágenes (base64)."""
+    tienda = _mi_tienda(current_user, db)
+
+    producto = Producto(
+        nombre=payload.nombre,
+        categoria_id=id_por_codigo(db, CategoriaProducto, payload.categoria),
+        precio=payload.precio,
+        descripcion=payload.descripcion,
+        descripcion_larga=payload.descripcion_larga,
+        calidad=payload.calidad,
+        stock=payload.stock,
+        marca=payload.marca,
+        material=payload.material,
+        tallas=payload.tallas,
+        colores=payload.colores,
+        ingredientes=payload.ingredientes,
+        ingredientes_activos=payload.ingredientes_activos,
+        aroma=payload.aroma,
+        instrucciones_cuidado=payload.instrucciones_cuidado,
+        refugio_id=None,
+        tienda_id=tienda.id,
+    )
+    db.add(producto)
+    db.flush()  # Obtener ID sin commit final
+
+    # Guardar imágenes
+    etiquetas = ["frontal", "trasera", "izquierda", "derecha"]
+    for i, img_base64 in enumerate(payload.imagenes):
+        etiqueta = etiquetas[i] if i < len(etiquetas) else f"vista_{i+1}"
+        url = _guardar_imagen_base64(img_base64, etiqueta)
+        imagen = ProductoImagen(
+            producto_id=producto.id,
+            url=url,
+            etiqueta=etiqueta,
+            orden=i,
+        )
+        db.add(imagen)
+
     db.commit()
     db.refresh(producto)
     return serialize_producto(producto)
@@ -182,7 +295,6 @@ def estadisticas(current_user: Usuario = Depends(get_current_tienda), db: Sessio
     rating_promedio = round(sum(ratings) / len(ratings), 1) if ratings else 0
     top = sorted(productos, key=lambda p: (p.ventas or 0), reverse=True)[:5]
 
-    # Pedidos e ingresos reales (por items de mi tienda)
     ids_pedidos = _ids_pedidos_de_tienda(tienda.id, db)
     total_pedidos = len(ids_pedidos)
     ingresos = (
@@ -226,7 +338,6 @@ def _ids_pedidos_de_tienda(tienda_id: int, db: Session):
 
 @router.get("/pedidos")
 def mis_pedidos(current_user: Usuario = Depends(get_current_tienda), db: Session = Depends(get_db)):
-    """Pedidos que contienen productos de mi tienda (con solo mis items)."""
     tienda = _mi_tienda(current_user, db)
     ids = _ids_pedidos_de_tienda(tienda.id, db)
     if not ids:

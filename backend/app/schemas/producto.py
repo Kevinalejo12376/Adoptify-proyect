@@ -1,7 +1,7 @@
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 # pyrefly: ignore [missing-import]
-from typing import Optional
+from typing import Optional, List
 
 
 class ProductoCreate(BaseModel):
@@ -17,6 +17,28 @@ class ProductoCreate(BaseModel):
     material: Optional[str] = None
     tallas: Optional[str] = None
     colores: Optional[str] = None
+    # Nuevos campos para datos detectados por IA
+    ingredientes: Optional[str] = None
+    ingredientes_activos: Optional[str] = None
+    aroma: Optional[str] = None
+    instrucciones_cuidado: Optional[str] = None
+    tipo_mascota: Optional[str] = None
+    edad_recomendada: Optional[str] = None
+    peso: Optional[str] = None
+    fabricante: Optional[str] = None
+    registro_sanitario: Optional[str] = None
+    advertencias: Optional[str] = None
+    informacion_adicional: Optional[str] = None
+
+
+class AnalisisRequest(BaseModel):
+    """Schema para solicitar análisis de producto con IA. Solo necesita imágenes."""
+    imagenes: List[str] = []  # Lista de strings base64 de las imágenes
+
+
+class ProductoCreateConImagenes(ProductoCreate):
+    """Extiende ProductoCreate para incluir imágenes en base64."""
+    imagenes: List[str] = []  # Lista de strings base64 de las imágenes
 
 
 class ResenaCreate(BaseModel):
@@ -37,6 +59,10 @@ class ProductoUpdate(BaseModel):
     tallas: Optional[str] = None
     colores: Optional[str] = None
     activo: Optional[bool] = None
+    ingredientes: Optional[str] = None
+    ingredientes_activos: Optional[str] = None
+    aroma: Optional[str] = None
+    instrucciones_cuidado: Optional[str] = None
 
 
 class ProductoResponse(BaseModel):

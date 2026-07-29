@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     CORS_ORIGINS: Union[str, List[str]] = ["*"]
+    GEMINI_API_KEY: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
@@ -25,8 +26,6 @@ class Settings(BaseSettings):
 
     @property
     def allow_credentials(self) -> bool:
-        # El estandar CORS prohibe combinar credenciales con el origen comodin "*".
-        # Si se usa "*", desactivamos las credenciales para evitar un middleware invalido.
         return "*" not in self.get_cors_origins
 
 

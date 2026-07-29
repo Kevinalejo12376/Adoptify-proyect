@@ -63,6 +63,7 @@ import StoreProfile from "./pages/Tienda/StoreProfile";
 import StoreStatistics from "./pages/Tienda/StoreStatistics";
 import StoreNotifications from "./pages/Tienda/StoreNotifications";
 import StoreSettings from "./pages/Tienda/StoreSettings";
+import ProductAnalysisView from "./pages/Tienda/ProductAnalysisView";
 
 // Otras importaciones existentes
 import Animals from "./pages/animals/Animals";
@@ -183,6 +184,16 @@ function AppContent() {
             <Route path="notificaciones" element={<StoreNotifications />} />
             <Route path="configuracion" element={<StoreSettings />} />
           </Route>
+
+          {/* Ruta de análisis con IA (fuera del layout de tienda para máxima atención) */}
+          <Route
+            path="/tienda/productos/analizar"
+            element={
+              <StoreRoute>
+                <ProductAnalysisView />
+              </StoreRoute>
+            }
+          />
 
           {/* Rutas existentes */}
           <Route path="/animals" element={<ProtectedRoute><Animals /></ProtectedRoute>} />
