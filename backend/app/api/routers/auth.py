@@ -1,7 +1,7 @@
 # pyrefly: ignore [missing-import]
 import logging
 # pyrefly: ignore [missing-import]
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status
 # pyrefly: ignore [missing-import]
@@ -27,11 +27,24 @@ from app.core.security import (
 )
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import notificar_admins, registrar_auditoria
-from app.core.email import enviar_correo_bienvenida
+from app.core.email import (
+    enviar_correo_bienvenida,
+    enviar_codigo_verificacion,
+)
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.catalogos import Rol, TipoDocumento
-from app.schemas.usuario import UsuarioCreate, UsuarioResponse, ProfileUpdate, ProfileResponse
+from app.models.verificacion import CodigoVerificacion
+from app.schemas.usuario import (
+    UsuarioCreate,
+    UsuarioResponse,
+    ProfileUpdate,
+    ProfileResponse,
+    EnviarCodigoRequest,
+    VerificarCodigoRequest,
+    RegistrarConCodigoRequest,
+    ResetPasswordRequest,
+)
 from app.schemas.token import Token
 from app.schemas.serializers import serialize_usuario
 
@@ -49,20 +62,18 @@ def _slugify(texto: str) -> str:
     return base or "refugio"
 
 
-@router.post("/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
-    existing = db.query(Usuario).filter(Usuario.email == payload.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="El correo ya esta registrado")
+# ─── Helper: crear usuario en BD (reutilizado por register y verify-register) ───
 
+def _crear_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
+    """Crea un usuario (y refugio si aplica) en la base de datos.
+    No hace commit — la transacción debe ser manejada por el llamador.
+    """
     # Resuelve el rol (por codigo o nombre); por defecto 'usuario'.
     rol_obj = (
         db.query(Rol)
         .filter((Rol.codigo == payload.rol) | (Rol.nombre.ilike(payload.rol)))
         .first()
     )
-    # El registro PUBLICO solo permite 'usuario' o 'refugio'.
-    # Los administradores/tiendas se crean desde el panel de administracion.
     if rol_obj is None or rol_obj.codigo not in ("usuario", "refugio"):
         rol_obj = db.query(Rol).filter(Rol.codigo == "usuario").first()
     if rol_obj is None:
@@ -98,8 +109,8 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
             ubicacion=payload.ubicacion,
         ))
 
-    db.commit()
-    db.refresh(user)
+    db.flush()
+
     # Notifica a los admins del nuevo registro
     tipo_notif = "nuevo_refugio" if rol_obj.codigo == "refugio" else "nuevo_usuario"
     etiqueta = "refugio" if rol_obj.codigo == "refugio" else "usuario"
@@ -110,7 +121,128 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
         enlace=f"/admin/{etiqueta}s",
     )
     registrar_auditoria(db, user.id, "registro", "usuarios", user.id, f"Registro como {etiqueta}")
+
+    return user
+
+
+# ─── Endpoint: Enviar código de verificación ─────────────────────────────────
+
+@router.post("/send-code", status_code=status.HTTP_200_OK)
+def enviar_codigo(payload: EnviarCodigoRequest, db: Session = Depends(get_db)):
+    """Envía un código de verificación de 6 dígitos al correo electrónico.
+
+    Para tipo 'registro': verifica que el email no esté ya registrado.
+    Para tipo 'reset_password': verifica que el email SÍ exista en la BD.
+    """
+    email = payload.email.strip().lower()
+    tipo = payload.tipo
+
+    if tipo not in ("registro", "reset_password"):
+        raise HTTPException(status_code=400, detail="Tipo de código inválido. Usa 'registro' o 'reset_password'")
+
+    # Validar existencia del usuario según el tipo
+    usuario_existente = db.query(Usuario).filter(Usuario.email == email).first()
+
+    if tipo == "registro" and usuario_existente:
+        raise HTTPException(status_code=400, detail="El correo ya está registrado")
+
+    if tipo == "reset_password" and not usuario_existente:
+        raise HTTPException(status_code=404, detail="No existe una cuenta con este correo electrónico")
+
+    # Invalidar códigos anteriores no usados del mismo email y tipo
+    # Así cada email tiene solo 1 código vigente a la vez
+    now = datetime.now(timezone.utc)
+    db.query(CodigoVerificacion).filter(
+        CodigoVerificacion.email == email,
+        CodigoVerificacion.tipo == tipo,
+        CodigoVerificacion.usado == False,
+        CodigoVerificacion.expira_en > now,
+    ).update({"usado": True})
+    db.flush()
+
+    # Generar código de 6 dígitos
+    import random
+    codigo = "".join(random.choices("0123456789", k=6))
+
+    # Guardar en BD (expira en 10 minutos)
+    expiracion = datetime.now(timezone.utc) + timedelta(minutes=10)
+    verif = CodigoVerificacion(
+        email=email,
+        codigo=codigo,
+        tipo=tipo,
+        usado=False,
+        expira_en=expiracion,
+    )
+    db.add(verif)
     db.commit()
+
+    # Enviar correo
+    nombre_usuario = payload.nombre or (usuario_existente.nombre if usuario_existente else "")
+    ok = enviar_codigo_verificacion(
+        email_destino=email,
+        codigo=codigo,
+        tipo=tipo,
+        nombre=nombre_usuario,
+    )
+
+    if not ok:
+        logger.warning("Código generado pero NO se pudo enviar el correo a %s (SMTP no configurado?)", email)
+        # Aún así devolvemos éxito, pero el frontend puede mostrar advertencia
+        return {
+            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración SMTP.",
+            "enviado": False,
+            "debug_codigo": codigo if not settings.SMTP_HOST else None,
+        }
+
+    return {
+        "mensaje": f"Código de verificación enviado a {email}",
+        "enviado": True,
+    }
+
+
+# ─── Endpoint: Verificar código (genérico) ───────────────────────────────────
+
+@router.post("/verify-code", status_code=status.HTTP_200_OK)
+def verificar_codigo(payload: VerificarCodigoRequest, db: Session = Depends(get_db)):
+    """Verifica si un código de 6 dígitos es válido para el email dado.
+    No consume el código (solo valida). El código se consume al registrar o resetear.
+    """
+    email = payload.email.strip().lower()
+    codigo = payload.codigo.strip()
+
+    now = datetime.now(timezone.utc)
+    registro = (
+        db.query(CodigoVerificacion)
+        .filter(
+            CodigoVerificacion.email == email,
+            CodigoVerificacion.codigo == codigo,
+            CodigoVerificacion.usado == False,
+            CodigoVerificacion.expira_en > now,
+        )
+        .order_by(CodigoVerificacion.creado_en.desc())
+        .first()
+    )
+
+    if not registro:
+        raise HTTPException(status_code=400, detail="Código inválido o expirado")
+
+    return {"valido": True, "mensaje": "Código válido"}
+
+
+# ─── Endpoint: Registrar con código de verificación ──────────────────────────
+
+@router.post("/register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
+def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
+    """Registro directo (sin verificación de código).
+    Se mantiene por compatibilidad. Para registro con verificación, usar /verify-register.
+    """
+    existing = db.query(Usuario).filter(Usuario.email == payload.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="El correo ya esta registrado")
+
+    user = _crear_usuario(db, payload)
+    db.commit()
+    db.refresh(user)
 
     # Envia correo de bienvenida al usuario
     try:
@@ -128,6 +260,221 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
 
     return serialize_usuario(user)
 
+
+# ─── Endpoint: Registrar con verificación de código ──────────────────────────
+
+@router.post("/verify-register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
+def verify_register(payload: RegistrarConCodigoRequest, db: Session = Depends(get_db)):
+    """Registra un nuevo usuario después de verificar el código de 6 dígitos enviado al email."""
+    email = payload.email.strip().lower()
+    codigo = payload.codigo_verificacion.strip()
+
+    # 1. Verificar que el email no esté ya registrado
+    existing = db.query(Usuario).filter(Usuario.email == email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="El correo ya esta registrado")
+
+    # 2. Validar el código de verificación
+    now = datetime.now(timezone.utc)
+    registro_codigo = (
+        db.query(CodigoVerificacion)
+        .filter(
+            CodigoVerificacion.email == email,
+            CodigoVerificacion.codigo == codigo,
+            CodigoVerificacion.tipo == "registro",
+            CodigoVerificacion.usado == False,
+            CodigoVerificacion.expira_en > now,
+        )
+        .order_by(CodigoVerificacion.creado_en.desc())
+        .first()
+    )
+
+    if not registro_codigo:
+        raise HTTPException(
+            status_code=400,
+            detail="Código de verificación inválido o expirado. Solicita uno nuevo.",
+        )
+
+    # 3. Marcar código como usado
+    registro_codigo.usado = True
+
+    # 4. Crear el usuario
+    user_payload = UsuarioCreate(
+        nombre=payload.nombre,
+        apellido=payload.apellido,
+        email=email,
+        password=payload.password,
+        telefono=payload.telefono,
+        tipo_documento=payload.tipo_documento,
+        numero_documento=payload.numero_documento,
+        rol=payload.rol,
+        ubicacion=payload.ubicacion,
+        nombre_refugio=payload.nombre_refugio,
+    )
+    user = _crear_usuario(db, user_payload)
+    db.commit()
+    db.refresh(user)
+
+    # 5. Enviar correo de bienvenida
+    try:
+        ok = enviar_correo_bienvenida(
+            email_destino=user.email,
+            nombre=payload.nombre,
+            apellido=payload.apellido,
+        )
+        if ok:
+            logger.info("Correo de bienvenida ENVIADO a %s", user.email)
+        else:
+            logger.warning("Correo de bienvenida NO enviado a %s (SMTP no configurado?)", user.email)
+    except Exception as exc:
+        logger.error("Error al enviar correo de bienvenida a %s: %s", user.email, exc)
+
+    return serialize_usuario(user)
+
+
+# ─── Endpoint: Olvidé mi contraseña ──────────────────────────────────────────
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+def forgot_password(payload: EnviarCodigoRequest, db: Session = Depends(get_db)):
+    """Envía un código de 6 dígitos al correo para restablecer la contraseña.
+    Es un alias de /send-code con tipo='reset_password'.
+    """
+    email = payload.email.strip().lower()
+
+    # Validar que el usuario existe
+    usuario_existente = db.query(Usuario).filter(Usuario.email == email).first()
+    if not usuario_existente:
+        raise HTTPException(status_code=404, detail="No existe una cuenta con este correo electrónico")
+
+    # Invalidar códigos anteriores no usados del mismo email
+    now = datetime.now(timezone.utc)
+    db.query(CodigoVerificacion).filter(
+        CodigoVerificacion.email == email,
+        CodigoVerificacion.tipo == "reset_password",
+        CodigoVerificacion.usado == False,
+        CodigoVerificacion.expira_en > now,
+    ).update({"usado": True})
+    db.flush()
+
+    # Generar código de 6 dígitos
+    import random
+    codigo = "".join(random.choices("0123456789", k=6))
+
+    # Guardar en BD (expira en 10 minutos)
+    expiracion = datetime.now(timezone.utc) + timedelta(minutes=10)
+    verif = CodigoVerificacion(
+        email=email,
+        codigo=codigo,
+        tipo="reset_password",
+        usado=False,
+        expira_en=expiracion,
+    )
+    db.add(verif)
+    db.commit()
+
+    logger.info("Código de recuperación generado para %s: %s", email, codigo)
+
+    # Enviar correo
+    ok = enviar_codigo_verificacion(
+        email_destino=email,
+        codigo=codigo,
+        tipo="reset_password",
+        nombre=usuario_existente.nombre,
+    )
+
+    if not ok:
+        logger.error("Código generado pero FALLÓ el envío del correo a %s", email)
+        return {
+            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración SMTP.",
+            "enviado": False,
+        }
+
+    logger.info("Correo de recuperación ENVIADO exitosamente a %s", email)
+    return {
+        "mensaje": f"Código de verificación enviado a {email}",
+        "enviado": True,
+    }
+
+
+# ─── Endpoint: Restablecer contraseña con código ─────────────────────────────
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Restablece la contraseña usando un código de verificación de 6 dígitos."""
+    email = payload.email.strip().lower()
+    codigo = payload.codigo.strip()
+    new_password = payload.new_password
+
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
+
+    # 1. Buscar usuario
+    user = db.query(Usuario).filter(Usuario.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No existe una cuenta con este correo electrónico")
+
+    # 2. Validar el código
+    now = datetime.now(timezone.utc)
+    registro_codigo = (
+        db.query(CodigoVerificacion)
+        .filter(
+            CodigoVerificacion.email == email,
+            CodigoVerificacion.codigo == codigo,
+            CodigoVerificacion.tipo == "reset_password",
+            CodigoVerificacion.usado == False,
+            CodigoVerificacion.expira_en > now,
+        )
+        .order_by(CodigoVerificacion.creado_en.desc())
+        .first()
+    )
+
+    if not registro_codigo:
+        raise HTTPException(
+            status_code=400,
+            detail="Código de verificación inválido o expirado. Solicita uno nuevo.",
+        )
+
+    # 3. Marcar código como usado
+    registro_codigo.usado = True
+
+    # 4. Actualizar contraseña
+    user.hashed_password = get_password_hash(new_password)
+    db.commit()
+
+    logger.info("Contraseña restablecida exitosamente para %s", email)
+    return {"mensaje": "Contraseña restablecida exitosamente"}
+
+
+# ─── Endpoint: Cambiar contraseña (estando autenticado) ──────────────────────
+
+class CambiarPasswordRequest(BaseModel):
+    password_actual: str
+    password_nueva: str
+
+
+@router.post("/change-password", status_code=status.HTTP_200_OK)
+def change_password(
+    payload: CambiarPasswordRequest,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Cambia la contraseña del usuario autenticado.
+    Requiere la contraseña actual para verificar la identidad.
+    """
+    if not verify_password(payload.password_actual, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="La contraseña actual no es correcta")
+
+    if len(payload.password_nueva) < 6:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 6 caracteres")
+
+    current_user.hashed_password = get_password_hash(payload.password_nueva)
+    db.commit()
+
+    logger.info("Contraseña cambiada exitosamente para usuario %s", current_user.email)
+    return {"mensaje": "Contraseña cambiada exitosamente"}
+
+
+# ─── Endpoints existentes (login, me, profile, google) ───────────────────────
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):

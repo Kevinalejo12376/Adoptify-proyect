@@ -1,11 +1,17 @@
 """Servicio de envio de correos electronicos via SMTP (Gmail)."""
 import smtplib
 import logging
+import random
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _generar_codigo(longitud: int = 6) -> str:
+    """Genera un código numérico aleatorio de la longitud especificada."""
+    return "".join(random.choices("0123456789", k=longitud))
 
 
 def _build_welcome_html(nombre: str, apellido: str | None = None) -> str:
@@ -100,6 +106,26 @@ def _build_welcome_html(nombre: str, apellido: str | None = None) -> str:
             font-size: 14px;
             color: #555555;
         }}
+        .codigo-box {{
+            background: linear-gradient(135deg, #fff7ed, #fffbeb);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+            text-align: center;
+            border: 2px dashed #FF8C00;
+        }}
+        .codigo-box .codigo {{
+            font-size: 36px;
+            font-weight: 800;
+            color: #ea580c;
+            letter-spacing: 8px;
+            font-family: 'Courier New', monospace;
+        }}
+        .codigo-box .validez {{
+            font-size: 13px;
+            color: #888;
+            margin-top: 12px;
+        }}
         .footer {{
             background-color: #f4f4f4;
             padding: 25px 30px;
@@ -180,6 +206,203 @@ def _build_welcome_html(nombre: str, apellido: str | None = None) -> str:
 </html>"""
 
 
+def _build_codigo_html(codigo: str, tipo: str, nombre: str = "") -> str:
+    """Construye el HTML para un correo con código de verificación."""
+    es_registro = tipo == "registro"
+    titulo = "Verifica tu correo electrónico" if es_registro else "Recuperación de contraseña"
+    mensaje_principal = (
+        "Has solicitado crear una cuenta en <strong>Adoptify</strong>. "
+        "Para confirmar que este correo te pertenece, ingresa el siguiente código:"
+        if es_registro else
+        "Has solicitado restablecer tu contraseña en <strong>Adoptify</strong>. "
+        "Ingresa el siguiente código para continuar:"
+    )
+    nombre_saludo = f"{nombre}, " if nombre else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }}
+        .header {{
+            background: linear-gradient(135deg, #FF8C00, #ea580c);
+            padding: 30px 30px 25px;
+            text-align: center;
+        }}
+        .header-logo {{
+            font-size: 42px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 2px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }}
+        .header h1 {{
+            color: #ffffff;
+            margin: 12px 0 0;
+            font-size: 24px;
+            font-weight: 700;
+        }}
+        .content {{
+            padding: 40px 30px;
+            color: #333333;
+        }}
+        .content h2 {{
+            color: #ea580c;
+            font-size: 20px;
+            margin-top: 0;
+        }}
+        .content p {{
+            line-height: 1.8;
+            font-size: 15px;
+            margin: 16px 0;
+        }}
+        .codigo-box {{
+            background: linear-gradient(135deg, #fff7ed, #fffbeb);
+            border-radius: 12px;
+            padding: 28px 24px;
+            margin: 24px 0;
+            text-align: center;
+            border: 2px dashed #FF8C00;
+        }}
+        .codigo-box .codigo {{
+            font-size: 40px;
+            font-weight: 800;
+            color: #ea580c;
+            letter-spacing: 10px;
+            font-family: 'Courier New', monospace;
+            user-select: all;
+        }}
+        .codigo-box .validez {{
+            font-size: 13px;
+            color: #888888;
+            margin-top: 14px;
+        }}
+        .aviso {{
+            background-color: #fef3c7;
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-size: 13px;
+            color: #92400e;
+            margin: 20px 0;
+        }}
+        .footer {{
+            background-color: #f4f4f4;
+            padding: 25px 30px;
+            text-align: center;
+            color: #888888;
+            font-size: 13px;
+        }}
+        .footer a {{
+            color: #ea580c;
+            text-decoration: none;
+        }}
+        @media only screen and (max-width: 480px) {{
+            .header {{ padding: 25px 20px; }}
+            .header h1 {{ font-size: 20px; }}
+            .content {{ padding: 30px 20px; }}
+            .codigo-box .codigo {{ font-size: 32px; letter-spacing: 6px; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-logo">🐾 ADOPTIFY</div>
+            <h1>{titulo}</h1>
+        </div>
+
+        <div class="content">
+            <h2>&iexcl;Hola{', ' + nombre_saludo if nombre_saludo else '!'} 👋</h2>
+
+            <p>{mensaje_principal}</p>
+
+            <div class="codigo-box">
+                <div class="codigo">{codigo}</div>
+                <div class="validez">Este código es válido por 10 minutos</div>
+            </div>
+
+            <div class="aviso">
+                ⚠️ Si no solicitaste este código, ignora este mensaje. 
+                Nunca compartas este código con nadie.
+            </div>
+
+            <p>
+                Si tienes alguna pregunta, no dudes en contactarnos.
+            </p>
+
+            <p>Con cari&ntilde;o,<br><strong>El equipo de Adoptify</strong></p>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2026 Adoptify. Todos los derechos reservados.</p>
+            <p>
+                <a href="{settings.FRONTEND_URL}/privacy">Pol&iacute;tica de privacidad</a> &bull;
+                <a href="{settings.FRONTEND_URL}/terms">T&eacute;rminos de servicio</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+
+def _enviar_correo(email_destino: str, asunto: str, html: str) -> bool:
+    """Función interna para enviar un correo SMTP con HTML."""
+    if not settings.SMTP_HOST or not settings.SMTP_PASSWORD:
+        logger.warning("SMTP no configurado — no se envió correo a %s", email_destino)
+        return False
+
+    logger.info(
+        "Intentando enviar correo a %s — SMTP_HOST=%s, SMTP_PORT=%s, SMTP_USER=%s, SMTP_FROM=%s",
+        email_destino,
+        settings.SMTP_HOST,
+        settings.SMTP_PORT,
+        settings.SMTP_USER,
+        settings.SMTP_FROM,
+    )
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["From"] = settings.SMTP_FROM
+        msg["To"] = email_destino
+        msg["Subject"] = asunto
+
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.set_debuglevel(1)  # ← Muestra la conversación SMTP en los logs
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.sendmail(settings.SMTP_FROM, email_destino, msg.as_string())
+
+        logger.info("✓ Correo enviado EXITOSAMENTE a %s — Asunto: %s", email_destino, asunto)
+        return True
+
+    except smtplib.SMTPAuthenticationError:
+        logger.error("✗ Error de AUTENTICACION SMTP — verifica usuario/contraseña de aplicación para %s", settings.SMTP_USER)
+        return False
+    except smtplib.SMTPException as exc:
+        logger.error("✗ Error SMTP al enviar correo a %s: %s", email_destino, exc)
+        return False
+    except Exception as exc:
+        logger.error("✗ Error inesperado al enviar correo a %s: %s", email_destino, exc)
+        return False
+
+
 def enviar_correo_bienvenida(email_destino: str, nombre: str, apellido: str | None = None) -> bool:
     """Envía el correo de bienvenida al usuario recién registrado.
 
@@ -191,33 +414,31 @@ def enviar_correo_bienvenida(email_destino: str, nombre: str, apellido: str | No
     Returns:
         True si se envió correctamente, False en caso contrario.
     """
-    if not settings.SMTP_HOST or not settings.SMTP_PASSWORD:
-        logger.warning("SMTP no configurado — no se envió correo de bienvenida a %s", email_destino)
-        return False
+    html = _build_welcome_html(nombre, apellido)
+    asunto = "🐾 ¡Bienvenido a Adoptify! Estamos felices de tenerte"
+    return _enviar_correo(email_destino, asunto, html)
 
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["From"] = settings.SMTP_FROM
-        msg["To"] = email_destino
-        msg["Subject"] = "🐾 ¡Bienvenido a Adoptify! Estamos felices de tenerte"
 
-        html = _build_welcome_html(nombre, apellido)
-        msg.attach(MIMEText(html, "html"))
+def enviar_codigo_verificacion(
+    email_destino: str,
+    codigo: str,
+    tipo: str,
+    nombre: str = "",
+) -> bool:
+    """Envía un código de verificación de 6 dígitos al correo del usuario.
 
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.SMTP_FROM, email_destino, msg.as_string())
+    Args:
+        email_destino: Dirección de correo del destinatario.
+        codigo: Código de 6 dígitos a enviar.
+        tipo: 'registro' para verificación de registro, 'reset_password' para recuperación.
+        nombre: Nombre del usuario (opcional, para personalizar el saludo).
 
-        logger.info("Correo de bienvenida enviado a %s", email_destino)
-        return True
-
-    except smtplib.SMTPAuthenticationError:
-        logger.error("Error de autenticacion SMTP — verifica usuario/contraseña de aplicacion")
-        return False
-    except smtplib.SMTPException as exc:
-        logger.error("Error SMTP al enviar correo a %s: %s", email_destino, exc)
-        return False
-    except Exception as exc:
-        logger.error("Error inesperado al enviar correo a %s: %s", email_destino, exc)
-        return False
+    Returns:
+        True si se envió correctamente, False en caso contrario.
+    """
+    html = _build_codigo_html(codigo, tipo, nombre)
+    if tipo == "registro":
+        asunto = f"🔐 Verifica tu correo — Código: {codigo}"
+    else:
+        asunto = f"🔑 Recupera tu contraseña — Código: {codigo}"
+    return _enviar_correo(email_destino, asunto, html)
