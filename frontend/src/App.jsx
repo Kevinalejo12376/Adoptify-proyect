@@ -57,6 +57,7 @@ import StoreDashboard from "./pages/Tienda/StoreDashboard";
 import StoreProducts from "./pages/Tienda/StoreProducts";
 import StoreProductDetail from "./pages/Tienda/StoreProductDetail";
 import StoreEditProduct from "./pages/Tienda/StoreEditProduct";
+import BarcodeScanner from "./pages/Tienda/BarcodeScanner";
 import StoreOrders from "./pages/Tienda/StoreOrders";
 import StoreOrderDetail from "./pages/Tienda/StoreOrderDetail";
 import StoreProfile from "./pages/Tienda/StoreProfile";
@@ -191,6 +192,16 @@ function AppContent() {
             element={
               <StoreRoute>
                 <ProductAnalysisView />
+              </StoreRoute>
+            }
+          />
+
+          {/* Ruta de escaneo de código de barras */}
+          <Route
+            path="/tienda/productos/escanear"
+            element={
+              <StoreRoute>
+                <BarcodeScanner />
               </StoreRoute>
             }
           />

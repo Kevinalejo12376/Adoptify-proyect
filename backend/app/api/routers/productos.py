@@ -82,6 +82,28 @@ def mis_productos(
     return [serialize_producto(p) for p in productos]
 
 
+@router.get("/barcode/{barcode}")
+async def buscar_por_barcode(
+    barcode: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Busca un producto por su código de barras.
+    Endpoint público (no requiere autenticación).
+
+    Flujo de búsqueda:
+    1. Consulta OpenFoodFacts (API pública).
+    2. Si no encuentra, consulta UPCitemDB.
+    3. Unifica y normaliza la respuesta.
+
+    Retorna un JSON con los datos del producto si fue encontrado,
+    o con encontrado=False si no existe en ninguna base de datos.
+    """
+    from app.services.barcode_service import buscar_por_codigo_barras
+    resultado = await buscar_por_codigo_barras(barcode)
+    return resultado
+
+
 @router.get("/{producto_id}", response_model=ProductoResponse)
 def obtener_producto(producto_id: int, db: Session = Depends(get_db)):
     producto = db.query(Producto).filter(Producto.id == producto_id).first()

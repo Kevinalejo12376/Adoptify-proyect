@@ -174,13 +174,16 @@ export default function ProductAnalysisView() {
     return () => {
       detenerCamara();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (estado === "completado" && resultadoIA) {
+      // Detener la cámara al mostrar el resumen para liberar recursos
+      detenerCamara();
       setMostrarResumen(true);
     }
-  }, [estado, resultadoIA]);
+  }, [estado, resultadoIA, detenerCamara]);
 
   const handleContinuar = async () => {
     await limpiar();

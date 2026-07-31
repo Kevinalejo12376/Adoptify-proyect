@@ -9,13 +9,14 @@ import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
 import { listarMascotas } from "../../api/mascotas";
 import { listarProductos } from "../../api/productos";
 import { listarPosts } from "../../api/foro";
-import mascotaImg from "../../assets/Mascotas.jpg";
-import daycareImg from "../../assets/daycare.png";
+// Imágenes estáticas servidas desde Cloudinary
+const mascotaImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015/frontend-assets/mascotas/mascotas.jpg";
+const daycareImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347013/frontend-assets/daycare/daycare.jpg";
 
-// Imágenes del carrusel automático (assets extras)
-import carrusel1 from "../../assets/assets extras/collaje-mascotas-muy-bonito-aislado_23-2150007407.avif";
-import carrusel2 from "../../assets/assets extras/images.jpg";
-import carrusel3 from "../../assets/assets extras/Perro-sosteniendo-un-plano-y-un-gato-sonriendo.jpg";
+// Imágenes del carrusel automático (Cloudinary)
+const carrusel1 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347016/frontend-assets/carrusel/carrusel1.jpg";
+const carrusel2 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347017/frontend-assets/carrusel/carrusel2.jpg";
+const carrusel3 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347018/frontend-assets/carrusel/carrusel3.jpg";
 
 const carruselImages = [carrusel1, carrusel2, carrusel3];
 

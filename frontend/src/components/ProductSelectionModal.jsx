@@ -19,6 +19,16 @@ export default function ProductSelectionModal({ isOpen, onClose }) {
     onClose();
   };
 
+  const handleBarcodeScan = () => {
+    navigate("/tienda/productos/escanear");
+    onClose();
+  };
+
+  const handleManualAdd = () => {
+    navigate("/tienda/productos/editar/nuevo");
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
@@ -90,53 +100,72 @@ export default function ProductSelectionModal({ isOpen, onClose }) {
             </div>
           </button>
 
-          {/* Opción 2: Escanear código de barras (Próximamente) */}
-          <div className="relative opacity-50 cursor-not-allowed">
-            <div className="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-2xl p-5">
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-dark-border flex items-center justify-center flex-shrink-0">
-                  <Barcode size={28} className="text-gray-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
-                      Escanear código de barras
-                    </h3>
-                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-dark-border text-gray-500 text-[10px] font-bold rounded-full">
-                      PRÓXIMAMENTE
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-                    Escanea el código de barras del producto para obtener su información automáticamente.
-                  </p>
+          {/* Opción 2: Escanear código de barras */}
+          <button
+            onClick={handleBarcodeScan}
+            className="w-full text-left group relative overflow-hidden bg-white dark:bg-dark-card border-2 border-gray-200 dark:border-dark-border rounded-2xl p-5 hover:border-rose-300 dark:hover:border-rose-500/30 hover:shadow-lg transition-all"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Barcode size={28} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
+                  Escanear código de barras
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-dark-text-secondary mt-1">
+                  Escanea o escribe el código de barras del producto para obtener su información
+                  automáticamente desde bases de datos mundiales.
+                </p>
+                <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  <li className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary">
+                    <span className="w-1 h-1 rounded-full bg-rose-500 flex-shrink-0" />
+                    Escanea con la cámara
+                  </li>
+                  <li className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary">
+                    <span className="w-1 h-1 rounded-full bg-rose-500 flex-shrink-0" />
+                    Escribe el código manualmente
+                  </li>
+                  <li className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary">
+                    <span className="w-1 h-1 rounded-full bg-rose-500 flex-shrink-0" />
+                    Compatible con lectores USB
+                  </li>
+                  <li className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary">
+                    <span className="w-1 h-1 rounded-full bg-rose-500 flex-shrink-0" />
+                    Autocompleta el formulario
+                  </li>
+                </ul>
+                <div className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-rose-600 dark:text-rose-400 group-hover:gap-2 transition-all">
+                  Escanear ahora
+                  <Barcode size={14} />
                 </div>
               </div>
             </div>
-          </div>
+          </button>
 
-          {/* Opción 3: Agregar manualmente (Próximamente) */}
-          <div className="relative opacity-50 cursor-not-allowed">
-            <div className="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-2xl p-5">
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-dark-border flex items-center justify-center flex-shrink-0">
-                  <Edit3 size={28} className="text-gray-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
-                      Agregar manualmente
-                    </h3>
-                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-dark-border text-gray-500 text-[10px] font-bold rounded-full">
-                      PRÓXIMAMENTE
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-                    Completa tú mismo todos los datos del producto en el formulario de creación.
-                  </p>
+          {/* Opción 3: Agregar manualmente */}
+          <button
+            onClick={handleManualAdd}
+            className="w-full text-left group bg-white dark:bg-dark-card border-2 border-gray-200 dark:border-dark-border rounded-2xl p-5 hover:border-rose-300 dark:hover:border-rose-500/30 hover:shadow-lg transition-all"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Edit3 size={28} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
+                  Agregar manualmente
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-dark-text-secondary mt-1">
+                  Completa tú mismo todos los datos del producto en el formulario de creación.
+                </p>
+                <div className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-rose-600 dark:text-rose-400 group-hover:gap-2 transition-all">
+                  Ir al formulario
+                  <ArrowRight size={14} />
                 </div>
               </div>
             </div>
-          </div>
+          </button>
         </div>
       </div>
     </div>
