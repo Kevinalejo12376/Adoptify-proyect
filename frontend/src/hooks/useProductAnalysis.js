@@ -33,42 +33,67 @@ export default function useProductAnalysis() {
   const fotosRef = useRef([null, null, null, null]);
   const posicionRef = useRef(0);
   const intervaloMsgRef = useRef(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       detenerTodo();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const detenerTodo = () => {
+  const detenerTodo = useCallback(() => {
     if (intervaloMsgRef.current) { clearInterval(intervaloMsgRef.current); intervaloMsgRef.current = null; }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
-    if (videoRef.current && videoRef.current.parentNode) {
-      try { videoRef.current.parentNode.removeChild(videoRef.current); } catch (e) {}
+    // Solo remover el video si existe y sigue en el DOM
+    const video = videoRef.current;
+    if (video) {
+      try {
+        // Pausar antes de remover para evitar el error "play() interrupted"
+        video.pause();
+        video.srcObject = null;
+        if (video.parentNode) {
+          video.parentNode.removeChild(video);
+        }
+      } catch (e) { /* ignorar errores de DOM */ }
     }
     videoRef.current = null;
     setCamaraActiva(false);
-  };
+  }, []);
 
   const iniciarCamara = useCallback(async () => {
     try {
+      // Detener cámara previa si existe
       detenerTodo();
+
+      // Pequeña pausa para asegurar que el DOM se estabilice
+      // (crítico en React StrictMode donde el componente se monta dos veces)
+      await new Promise((r) => setTimeout(r, 50));
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
       });
+
+      // Si el componente fue desmontado mientras obteníamos la cámara, liberar y salir
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
       streamRef.current = stream;
 
       const container = document.getElementById(CAMERA_ID);
       if (!container) {
+        stream.getTracks().forEach((t) => t.stop());
         throw new Error("Contenedor de cámara no encontrado");
       }
 
-      container.innerHTML = "";
+      // Crear video y asignar stream
       const video = document.createElement("video");
       video.srcObject = stream;
       video.setAttribute("playsinline", "true");
@@ -77,11 +102,52 @@ export default function useProductAnalysis() {
       video.style.width = "100%";
       video.style.height = "100%";
       video.style.objectFit = "cover";
+
+      // Limpiar contenedor y agregar el video
+      container.innerHTML = "";
       container.appendChild(video);
 
-      await video.play();
-      videoRef.current = video;
+      // Intentar reproducir con manejo de error DOM
+      try {
+        await video.play();
+      } catch (playErr) {
+        // Si falla play() (ej. StrictMode desmontó el DOM), liberar recursos
+        console.warn("[useProductAnalysis] video.play() falló, reintentando...", playErr);
+        stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        container.innerHTML = "";
+        if (!mountedRef.current) return;
+        // Reintentar una vez más
+        const stream2 = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        if (!mountedRef.current) { stream2.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream2;
+        const video2 = document.createElement("video");
+        video2.srcObject = stream2;
+        video2.setAttribute("playsinline", "true");
+        video2.setAttribute("autoplay", "true");
+        video2.muted = true;
+        video2.style.width = "100%";
+        video2.style.height = "100%";
+        video2.style.objectFit = "cover";
+        container.appendChild(video2);
+        await video2.play();
+        videoRef.current = video2;
+        setCamaraActiva(true);
+        setEstado("capturando");
+        // Mensaje inicial
+        if (intervaloMsgRef.current) clearInterval(intervaloMsgRef.current);
+        let idx = 0;
+        intervaloMsgRef.current = setInterval(() => {
+          idx = (idx + 1) % MENSAJES_DINAMICOS.length;
+          setMensajeActual(MENSAJES_DINAMICOS[idx]);
+        }, 3000);
+        setMensajeActual(`Posición ${posicionRef.current + 1}: ${POSICIONES[posicionRef.current].instruccion}`);
+        return;
+      }
 
+      videoRef.current = video;
       setCamaraActiva(true);
       setEstado("capturando");
 
@@ -97,18 +163,19 @@ export default function useProductAnalysis() {
       // NO auto-captura: el usuario presiona el botón manualmente
       setMensajeActual(`Posición ${posicionRef.current + 1}: ${POSICIONES[posicionRef.current].instruccion}`);
     } catch (err) {
+      // Si el componente ya no está montado, no actualizar estado
+      if (!mountedRef.current) return;
       console.error("Error cámara:", err);
       setError(err.message || "No se pudo acceder a la cámara. Verifica los permisos.");
       setEstado("error");
     }
-  }, []);
+  }, [detenerTodo]);
 
   const capturarFrame = (calidad = 0.6) => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return null;
     try {
       const canvas = document.createElement("canvas");
-      // Reducir resolución para enviar menos datos a Gemini
       const MAX_W = 640;
       const MAX_H = 480;
       let w = video.videoWidth;
@@ -122,7 +189,6 @@ export default function useProductAnalysis() {
       canvas.height = h;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, w, h);
-      // Usar JPEG con calidad 0.6 en vez de PNG (mucho más pequeño)
       return canvas.toDataURL("image/jpeg", calidad);
     } catch (e) {
       return null;
@@ -206,15 +272,15 @@ export default function useProductAnalysis() {
   const reiniciar = useCallback(async () => {
     detenerTodo();
     await iniciar();
-  }, [iniciar]);
+  }, [iniciar, detenerTodo]);
 
   const limpiar = useCallback(async () => {
     detenerTodo();
-  }, []);
+  }, [detenerTodo]);
 
   const detenerCamara = useCallback(async () => {
     detenerTodo();
-  }, []);
+  }, [detenerTodo]);
 
   return {
     estado, fotos, posicionActual, fotoPendiente,

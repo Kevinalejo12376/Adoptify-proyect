@@ -45,3 +45,7 @@ export const actualizarResena = (productoId, resenaId, payload) =>
 /** Elimina una reseña propia. */
 export const eliminarResena = (productoId, resenaId) =>
   apiFetch(`${base}/${productoId}/resenas/${resenaId}`, { method: "DELETE" });
+
+/** Busca un producto por código de barras (OpenFoodFacts → UPCitemDB). */
+export const buscarPorCodigoBarras = (barcode) =>
+  apiFetch(`${base}/barcode/${encodeURIComponent(barcode)}`, { auth: false });

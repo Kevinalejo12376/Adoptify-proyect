@@ -1,9 +1,14 @@
 # pyrefly: ignore [missing-import]
+import logging
 from contextlib import asynccontextmanager
 # pyrefly: ignore [missing-import]
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
+# pyrefly: ignore [missing-import]
+from fastapi.responses import JSONResponse
+# pyrefly: ignore [missing-import]
+from sqlalchemy.exc import SQLAlchemyError
 from app.core.config import settings
 from app.db.database import Base, engine
 # Importa todos los modelos para registrarlos en Base.metadata
@@ -15,6 +20,8 @@ from app.api.routers import (
     tienda, pedidos,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,9 +32,18 @@ async def lifespan(app: FastAPI):
         # Migracion: agrega columnas faltantes en Supabase si es necesario
         _run_migrations()
         seed_catalogos()
+        logger.info("[lifespan] Conexion a base de datos OK (tablas listas).")
     except Exception as exc:
-        print(f"[lifespan] Advertencia: no se pudieron crear/sembrar tablas: {exc}")
-        print("[lifespan] En Supabase las tablas ya existen; el servidor igual puede funcionar.")
+        # No bloquea el arranque: en Supabase las tablas ya existen.
+        logger.warning(
+            "[lifespan] No se pudieron crear/sembrar tablas (afecta solo a SQLite local). "
+            "En Supabase las tablas ya existen, el servidor igual arranca. Detalle: %s",
+            exc,
+        )
+        logger.warning(
+            "[lifespan] Si ves 'could not translate host name' o 'timeout expired', "
+            "revisa tu conexion de red/DNS (VPN o firewall) hacia Supabase."
+        )
     yield
 
 
@@ -56,6 +72,23 @@ def _run_migrations():
 
 
 app = FastAPI(title="Adoptify API", lifespan=lifespan)
+
+
+# Maneja errores de base de datos (conexion caida, DNS no resuelve, timeout)
+# devolviendo un JSON 503 limpio en lugar de un stack trace gigante en consola.
+@app.exception_handler(SQLAlchemyError)
+async def _db_error_handler(request: Request, exc: SQLAlchemyError):
+    logger.error("Error de base de datos en %s: %s", request.url.path, exc)
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": (
+                "La base de datos no esta disponible en este momento. "
+                "Revisa tu conexion de red/DNS hacia Supabase e intentalo de nuevo."
+            )
+        },
+    )
+
 
 # CORS para permitir que el frontend de React se comunique con la API.
 app.add_middleware(
