@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
 
+    # --- UPCitemDB (búsqueda por código de barras) ---
+    # Opcional. Si no se configura, solo se usará OpenFoodFacts.
+    # Obtener API Key en: https://upcitemdb.com/
+    UPCITEMDB_API_KEY: str = ""
+
     # --- Correo SMTP (Gmail) ---
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587

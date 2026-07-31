@@ -74,6 +74,7 @@ export default function StoreEditProduct() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [aiImages, setAiImages] = useState([]);
+  const fromBarcode = location.state?.fromBarcode;
 
   // Cargar datos de IA si vienen del análisis
   useEffect(() => {
@@ -114,6 +115,27 @@ export default function StoreEditProduct() {
         tallas: datosIA.tallas ? String(datosIA.tallas).split(",").map((s) => s.trim()).filter(Boolean) : [],
         colores: datosIA.colores ? String(datosIA.colores).split(",").map((s) => s.trim()).filter(Boolean) : [],
       }));
+    }
+
+    // Cargar datos desde el escáner de código de barras
+    if (state?.fromBarcode && state?.barcodeData) {
+      const bd = state.barcodeData;
+      setForm((prev) => ({
+        ...prev,
+        nombre: bd.nombre || "",
+        marca: bd.marca || "",
+        categoria: bd.categoria || "",
+        descripcion: bd.descripcion || bd.presentacion || "",
+        descripcion_larga: bd.descripcion || "",
+        ingredientes: bd.ingredientes || "",
+        fabricante: bd.fabricante || "",
+        peso: bd.peso || "",
+        // Guardar el código de barras e imagen en sessionStorage para referencia
+      }));
+      // Guardar imagen si viene del escáner
+      if (bd.imagen_url) {
+        setAiImages([bd.imagen_url]);
+      }
     }
   }, [isNew, location.state]);
 
@@ -282,9 +304,11 @@ export default function StoreEditProduct() {
             </h1>
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
               {isNew
-                ? (aiImages.length > 0
-                    ? "Los datos fueron detectados por IA. Solo completa precio, stock y descuento."
-                    : "Completa los datos para registrar un nuevo producto.")
+                ? (fromBarcode
+                    ? "Datos obtenidos desde el código de barras. Revisa y completa la información."
+                    : aiImages.length > 0
+                      ? "Los datos fueron detectados por IA. Solo completa precio, stock y descuento."
+                      : "Completa los datos para registrar un nuevo producto.")
                 : "Actualiza la información del producto."}
             </p>
           </div>

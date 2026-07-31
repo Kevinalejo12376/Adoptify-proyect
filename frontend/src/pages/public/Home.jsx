@@ -14,7 +14,7 @@ const mascotaImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015
 const daycareImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347013/frontend-assets/daycare/daycare.jpg";
 
 // Imágenes del carrusel automático (Cloudinary)
-const carrusel1 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347016/frontend-assets/carrusel/carrusel1.avif";
+const carrusel1 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347016/frontend-assets/carrusel/carrusel1.jpg";
 const carrusel2 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347017/frontend-assets/carrusel/carrusel2.jpg";
 const carrusel3 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347018/frontend-assets/carrusel/carrusel3.jpg";
 

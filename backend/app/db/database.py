@@ -17,12 +17,17 @@ else:
     #   caida por inactividad del pooler haga que la consulta se "quede cargando").
     # - pool_recycle: recicla conexiones cada 5 min para no reutilizar sockets muertos.
     # - connect_timeout: falla rapido si no puede conectar (en vez de colgarse).
+    #   NOTA: este timeout NO cubre la fase de resolucion DNS; si tu DNS local
+    #   es lento/inestable veras "could not translate host name" o quedara colgado.
+    # - pool_timeout: si todas las conexiones del pool estan ocupadas, espera como
+    #   maximo este tiempo antes de lanzar error (evita que la API se cuelgue).
     engine = create_engine(
         settings.DATABASE_URL,
         pool_pre_ping=True,
         pool_recycle=300,
         pool_size=5,
         max_overflow=10,
+        pool_timeout=10,
         connect_args={"connect_timeout": 10},
     )
 
