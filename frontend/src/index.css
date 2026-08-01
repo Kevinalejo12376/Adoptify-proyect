@@ -1901,3 +1901,23 @@ body {
 .animate-ping-slow {
   animation: ping-slow 2s ease-in-out infinite;
 }
+
+/* Transición elegante al fijar una publicación: desliza hacia el inicio del feed */
+@keyframes pinned-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.97);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(4px) scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-pinned-in {
+  animation: pinned-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}

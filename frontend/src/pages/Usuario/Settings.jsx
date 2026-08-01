@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Shield, Eye, EyeOff, Globe, Moon, Sun, Save, ChevronRight, LogOut, Trash2, HelpCircle, Mail, X, Send, FileText, Scale, Cookie, CheckCircle, Loader2, KeyRound, Lock } from "lucide-react";
+import { Bell, Shield, Eye, EyeOff, Globe, Moon, Sun, ChevronRight, LogOut, Trash2, HelpCircle, Mail, X, Send, FileText, Scale, Cookie, CheckCircle, Loader2, KeyRound, Lock } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useI18n } from "../../context/I18nContext";
 import { useAuth } from "../../context/AuthContext";
@@ -28,7 +28,6 @@ export default function Settings() {
     newAnimals: true
   });
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   // Carga la configuracion real del usuario autenticado.
   useEffect(() => {
@@ -51,33 +50,35 @@ export default function Settings() {
     return () => { activo = false; };
   }, []);
 
-  // Guarda las notificaciones (y el tema/idioma actuales) en el backend.
-  const handleSaveSettings = async () => {
+  // Guarda la configuracion en el backend de forma automatica.
+  // `overrides` permite enviar el valor recien cambiado sin depender del
+  // estado de React (que aun no se ha actualizado al momento del cambio).
+  const persistirConfiguracion = async (overrides = {}) => {
+    const payload = {
+      tema: overrides.tema ?? theme,
+      idioma: overrides.idioma ?? language,
+      notif_email: overrides.email ?? notifications.email,
+      notif_push: overrides.push ?? notifications.push,
+      notif_adopciones: overrides.adoptionUpdates ?? notifications.adoptionUpdates,
+      notif_respuestas_foro: overrides.forumReplies ?? notifications.forumReplies,
+      notif_nuevos_animales: overrides.newAnimals ?? notifications.newAnimals,
+    };
     setSaving(true);
-    setSaved(false);
     try {
-      const payload = { tema: theme, idioma: language };
-      for (const [k, campo] of Object.entries(NOTIF_MAP)) {
-        payload[campo] = notifications[k];
-      }
       await actualizarConfiguracion(payload);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
     } catch (e) {
-      // el error deja el boton listo para reintentar
+      // error silencioso: los cambios locales permanecen aplicados
     } finally {
       setSaving(false);
     }
   };
 
   const [privacy, setPrivacy] = useState({
-    showProfile: true,
-    showAdoptionHistory: false,
-    allowMessages: true
+    showAdoptionHistory: false
   });
 
   // ─── Estados para "Cambiar Contraseña" ─────────────────────────
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passStep, setPassStep] = useState("code"); // 'code' | 'success'
   const [passCode, setPassCode] = useState(["", "", "", "", "", ""]);
@@ -116,10 +117,13 @@ export default function Settings() {
   const [activeLegalTab, setActiveLegalTab] = useState("privacy");
 
   const toggleNotification = (key) => {
-    setNotifications({ ...notifications, [key]: !notifications[key] });
+    const next = { ...notifications, [key]: !notifications[key] };
+    setNotifications(next);
+    persistirConfiguracion({ [key]: next[key] });
   };
 
   const togglePrivacy = (key) => {
+    // La privacidad se aplica de inmediato en la interfaz.
     setPrivacy({ ...privacy, [key]: !privacy[key] });
   };
 
@@ -315,6 +319,12 @@ export default function Settings() {
           <p className="text-xl text-gray-600">
             {t("settings.subtitle")}
           </p>
+          {saving && (
+            <p className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 text-sm font-medium text-rose-600 bg-rose-50 rounded-xl">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Guardando cambios...
+            </p>
+          )}
         </div>
 
         {/* Notifications */}
@@ -371,9 +381,7 @@ export default function Settings() {
 
           <div className="space-y-4">
             {[
-              { key: "showProfile", label: t("settings.privacy_profile"), icon: Eye },
-              { key: "showAdoptionHistory", label: t("settings.privacy_history"), icon: Eye },
-              { key: "allowMessages", label: t("settings.privacy_messages"), icon: Mail }
+              { key: "showAdoptionHistory", label: t("settings.privacy_history"), icon: Eye }
             ].map((item) => (
               <div key={item.key} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div className="flex items-center gap-3">
@@ -416,7 +424,11 @@ export default function Settings() {
               </div>
               <select
                 value={language}
-                onChange={(e) => setLanguage(e.target.value)}
+                onChange={(e) => {
+                  const nuevoIdioma = e.target.value;
+                  setLanguage(nuevoIdioma);
+                  persistirConfiguracion({ idioma: nuevoIdioma });
+                }}
                 className="px-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
               >
                 <option value="es">Español</option>
@@ -436,7 +448,10 @@ export default function Settings() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setTheme("light")}
+                  onClick={() => {
+                    setTheme("light");
+                    persistirConfiguracion({ tema: "light" });
+                  }}
                   className={`p-2 rounded-xl transition-all ${
                     theme === "light" ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white" : "bg-white border border-gray-200"
                   }`}
@@ -445,7 +460,10 @@ export default function Settings() {
                   <Sun className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => setTheme("dark")}
+                  onClick={() => {
+                    setTheme("dark");
+                    persistirConfiguracion({ tema: "dark" });
+                  }}
                   className={`p-2 rounded-xl transition-all ${
                     theme === "dark" ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white" : "bg-white border border-gray-200"
                   }`}
@@ -581,29 +599,15 @@ export default function Settings() {
 
         {/* Logout */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
-          <Link to="/login" className="flex items-center justify-center gap-3 w-full p-4 bg-red-50 rounded-xl hover:bg-red-100 transition-all group">
+          <button
+            onClick={logout}
+            className="flex items-center justify-center gap-3 w-full p-4 bg-red-50 rounded-xl hover:bg-red-100 transition-all group"
+          >
             <LogOut className="w-5 h-5 text-red-500" />
             <span className="font-semibold text-red-600">{t("settings.logout")}</span>
-          </Link>
-        </div>
-
-        {/* Save Button */}
-        <div className="mt-6">
-          <button
-            onClick={handleSaveSettings}
-            disabled={saving}
-            className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {saving ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : saved ? (
-              <CheckCircle className="w-5 h-5" />
-            ) : (
-              <Save className="w-5 h-5" />
-            )}
-            {saving ? "Guardando..." : saved ? "¡Guardado!" : t("settings.save")}
           </button>
         </div>
+
       </div>
 
       {/* Contact Support Modal */}

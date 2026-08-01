@@ -27,3 +27,23 @@ export const reaccionar = (postId, tipo = "like") =>
 /** Alterna el "me gusta" de un comentario (toggle). Devuelve { activo, likes }. */
 export const reaccionarComentario = (comentarioId) =>
   apiFetch(`${base}/comentarios/${comentarioId}/like`, { method: "POST" });
+
+/** Elimina una publicacion del foro (solo su autor o un administrador). */
+export const eliminarPost = (postId) =>
+  apiFetch(`${base}/posts/${postId}`, { method: "DELETE" });
+
+/** Edita una publicacion del foro (solo su autor o un administrador). */
+export const actualizarPost = (postId, payload) =>
+  apiFetch(`${base}/posts/${postId}`, { method: "PUT", body: payload });
+
+/** Guarda o desguarda una publicacion del foro (toggle). Devuelve { activo }. */
+export const guardarPost = (postId) =>
+  apiFetch(`${base}/posts/${postId}/guardar`, { method: "POST" });
+
+/** Fija o desfija una publicacion (solo su autor o admin). Devuelve { fijado }. */
+export const fijarPost = (postId) =>
+  apiFetch(`${base}/posts/${postId}/fijar`, { method: "POST" });
+
+/** Lista las publicaciones guardadas por el usuario autenticado. */
+export const listarPostsGuardados = () =>
+  apiFetch(`${base}/posts/guardados`, { method: "GET" });

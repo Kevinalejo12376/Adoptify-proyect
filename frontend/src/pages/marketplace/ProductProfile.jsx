@@ -158,6 +158,8 @@ export default function ProductProfile() {
   const [isImageExpanded, setIsImageExpanded] = useState(false);
   const [isHoveringGallery, setIsHoveringGallery] = useState(false);
   const [addedToWishlist, setAddedToWishlist] = useState(false);
+  // Estado del envío de reseñas: null | "loading" | "success" | "error"
+  const [reviewStatus, setReviewStatus] = useState(null);
 
   const galleryRef = useRef(null);
 
@@ -287,13 +289,20 @@ export default function ProductProfile() {
 
   const handleSubmitComment = async (e) => {
     e.preventDefault();
-    if (!newComment.trim()) return;
+    // Evita envíos duplicados si el usuario presiona el botón varias veces.
+    if (!newComment.trim() || reviewStatus === "loading") return;
+    setReviewStatus("loading");
     try {
       await crearResena(product.id, { calificacion: newRating, comentario: newComment.trim() });
       await recargarResenas();
       setNewComment("");
       setNewRating(5);
-    } catch (e2) { /* noop */ }
+      setReviewStatus("success");
+      setTimeout(() => setReviewStatus(null), 1800);
+    } catch (e2) {
+      setReviewStatus("error");
+      setTimeout(() => setReviewStatus(null), 2500);
+    }
   };
 
   const handleDeleteComment = async (commentId) => {
@@ -735,11 +744,20 @@ export default function ProductProfile() {
                     </p>
                     <button
                       type="submit"
-                      disabled={!newComment.trim()}
+                      disabled={!newComment.trim() || reviewStatus === "loading"}
                       className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-bold rounded-2xl hover:from-rose-600 hover:to-amber-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-rose-200/40 dark:shadow-rose-500/20 hover:shadow-2xl hover:-translate-y-0.5 active:scale-[0.98]"
                     >
-                      <Send className="w-4 h-4" />
-                      Publicar
+                      {reviewStatus === "loading" ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Publicando...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          Publicar
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -1336,6 +1354,49 @@ export default function ProductProfile() {
           </div>
         </div>
       </div>
+
+      {/* ─── Modal de publicación de reseña ─── */}
+      {reviewStatus && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="relative bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center animate-modal-content">
+            {reviewStatus === "loading" ? (
+              <>
+                <Loader2 className="w-12 h-12 text-rose-500 animate-spin mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-1.5 font-display">
+                  Publicando tu comentario...
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-5">
+                  Esto puede tomar unos segundos
+                </p>
+                <div className="h-2 bg-gray-100 dark:bg-dark-border rounded-full overflow-hidden">
+                  <div className="h-full w-3/4 bg-gradient-to-r from-rose-500 to-amber-500 rounded-full animate-pulse" />
+                </div>
+              </>
+            ) : reviewStatus === "success" ? (
+              <>
+                <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-1.5 font-display">
+                  ¡Comentario publicado!
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+                  Gracias por compartir tu opinión
+                </p>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-1.5 font-display">
+                  No se pudo publicar
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+                  Inténtalo de nuevo en unos momentos
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ─── CSS for floating animation ─── */}
       <style>{`
