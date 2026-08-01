@@ -20,6 +20,9 @@ import {
   Calendar,
   MessageSquare,
   Clock,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
 
@@ -338,7 +341,7 @@ function DraftsListModal({ isOpen, onClose, onSelectDraft, onDeleteDraft, drafts
 // CreatePostModal principal
 // ============================================================
 
-export default function CreatePostModal({ isOpen, onClose, onCreate }) {
+export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost, onUpdate }) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const isDark = theme === "dark";
@@ -363,6 +366,8 @@ export default function CreatePostModal({ isOpen, onClose, onCreate }) {
   const [drafts, setDrafts] = useState([]);
   const [showDraftsModal, setShowDraftsModal] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState(false);
+  // Estado del envío de la publicación: null | "loading" | "success" | "error"
+  const [publishingStatus, setPublishingStatus] = useState(null);
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: "",
@@ -381,6 +386,18 @@ export default function CreatePostModal({ isOpen, onClose, onCreate }) {
       setSaveFeedback(false);
     }
   }, [isOpen, userId]);
+
+  // En modo edicion, precargar los datos de la publicacion.
+  useEffect(() => {
+    if (isOpen && editingPost) {
+      setTitle(editingPost.title || "");
+      setContent(editingPost.content || "");
+      setCategory(editingPost.category && editingPost.category !== "General" ? editingPost.category : "");
+      setTags(editingPost.tags || []);
+      setPublishingStatus(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, editingPost]);
 
   const refreshDrafts = useCallback(() => {
     setDrafts(loadDraftsFromStorage(userId));
@@ -593,16 +610,26 @@ export default function CreatePostModal({ isOpen, onClose, onCreate }) {
   };
 
   const handlePublish = async () => {
-    if (!title || !content || !category) return;
+    // Evita publicaciones duplicadas si el usuario presiona el botón varias veces.
+    // El contenido debe tener mas de 10 caracteres para publicar.
+    if (!title.trim() || content.trim().length < 10 || !category || publishingStatus === "loading") return;
+    setPublishingStatus("loading");
+    const payload = {
+      titulo: title.trim(),
+      contenido: content.trim(),
+      categoria: category,
+      tags: tags.join(","),
+    };
     try {
-      await onCreate?.({
-        titulo: title,
-        contenido: content,
-        categoria: category,
-        tags: tags.join(","),
-      });
+      if (editingPost) {
+        await onUpdate?.(editingPost.id, payload);
+      } else {
+        await onCreate?.(payload);
+      }
     } catch (e) {
       // si falla la creacion, se mantiene el formulario
+      setPublishingStatus("error");
+      setTimeout(() => setPublishingStatus(null), 2500);
       return;
     }
     if (currentDraftId) {
@@ -611,8 +638,12 @@ export default function CreatePostModal({ isOpen, onClose, onCreate }) {
       saveDraftsToStorage(userId, updated);
       setDrafts(updated);
     }
-    resetForm();
-    onClose();
+    setPublishingStatus("success");
+    setTimeout(() => {
+      setPublishingStatus(null);
+      resetForm();
+      onClose();
+    }, 1200);
   };
 
   const handleCancel = () => {
@@ -635,7 +666,8 @@ export default function CreatePostModal({ isOpen, onClose, onCreate }) {
     }
   };
 
-  const canPublish = title && content && category;
+  // El contenido debe tener mas de 10 caracteres para poder publicar.
+  const canPublish = title.trim() && content.trim().length > 10 && category;
 
   return (
     <>
@@ -673,7 +705,7 @@ export default function CreatePostModal({ isOpen, onClose, onCreate }) {
                     isDark ? "text-dark-text" : "text-gray-900"
                   }`}
                 >
-                  Crear Publicación
+                  {editingPost ? "Editar Publicación" : "Crear Publicación"}
                 </h2>
                 <p
                   className={`text-xs mt-0.5 ${
@@ -886,6 +918,16 @@ export default function CreatePostModal({ isOpen, onClose, onCreate }) {
                     : "bg-gray-50 border border-gray-200 text-gray-700 placeholder-gray-400"
                 }`}
               />
+              {content.length > 0 && content.trim().length < 10 && (
+                <p
+                  className={`mt-2 text-xs font-medium flex items-center gap-1.5 ${
+                    isDark ? "text-red-400" : "text-red-500"
+                  }`}
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  El contenido debe tener al menos 10 caracteres.
+                </p>
+              )}
               {content.length > 50 && (
                 <div
                   className={`mt-2 p-3 rounded-xl ${
@@ -1423,15 +1465,24 @@ export default function CreatePostModal({ isOpen, onClose, onCreate }) {
               {/* Publicar */}
               <button
                 onClick={handlePublish}
-                disabled={!canPublish}
+                disabled={!canPublish || publishingStatus === "loading"}
                 className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shadow-lg ${
-                  canPublish
+                  canPublish && publishingStatus !== "loading"
                     ? "bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 active:scale-95"
                     : "bg-gray-300 cursor-not-allowed dark:bg-dark-border"
                 }`}
               >
-                <Send className="w-4 h-4" />
-                Publicar
+                {publishingStatus === "loading" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {editingPost ? "Guardando..." : "Publicando..."}
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    {editingPost ? "Guardar cambios" : "Publicar"}
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -1458,6 +1509,53 @@ export default function CreatePostModal({ isOpen, onClose, onCreate }) {
         confirmText={confirmModal.confirmText}
         type={confirmModal.type}
       />
+
+      {/* Modal de publicación con barra de carga */}
+      {publishingStatus && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className={`relative w-full max-w-sm p-8 text-center rounded-2xl shadow-2xl animate-modal-content ${
+              isDark ? "bg-dark-card border border-dark-border" : "bg-white"
+            }`}
+          >
+            {publishingStatus === "loading" ? (
+              <>
+                <Loader2 className="w-12 h-12 text-rose-500 animate-spin mx-auto mb-4" />
+                <h3 className={`text-lg font-bold font-display mb-1.5 ${isDark ? "text-dark-text" : "text-gray-900"}`}>
+                  Publicando tu publicación...
+                </h3>
+                <p className={`text-sm mb-5 ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
+                  Esto puede tomar unos segundos
+                </p>
+                <div className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-dark-border" : "bg-gray-100"}`}>
+                  <div className="h-full w-3/4 bg-gradient-to-r from-rose-500 to-amber-500 rounded-full animate-pulse" />
+                </div>
+              </>
+            ) : publishingStatus === "success" ? (
+              <>
+                <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
+                <h3 className={`text-lg font-bold font-display mb-1.5 ${isDark ? "text-dark-text" : "text-gray-900"}`}>
+                  ¡Publicación creada!
+                </h3>
+                <p className={`text-sm ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
+                  Gracias por compartir con la comunidad
+                </p>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                <h3 className={`text-lg font-bold font-display mb-1.5 ${isDark ? "text-dark-text" : "text-gray-900"}`}>
+                  No se pudo publicar
+                </h3>
+                <p className={`text-sm ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
+                  Inténtalo de nuevo en unos momentos
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

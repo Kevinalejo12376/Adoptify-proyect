@@ -74,6 +74,16 @@ class ForoComentarioLike(Base):
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class ForoGuardado(Base):
+    """Publicacion del foro guardada por un usuario (marcadores)."""
+    __tablename__ = "foro_guardados"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    post_id = Column(Integer, ForeignKey("foro_posts.id", ondelete="CASCADE"), nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class Resena(Base):
     """Reseña/valoración de un producto hecha por un usuario."""
     __tablename__ = "resenas"

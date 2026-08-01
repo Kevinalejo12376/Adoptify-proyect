@@ -21,7 +21,7 @@
 DROP TABLE IF EXISTS
     auditoria, reportes, pqrs,
     notificaciones, actividades, campanas, eventos,
-    foro_comentario_likes, foro_reacciones, foro_comentarios, foro_post_imagenes, foro_posts,
+    foro_guardados, foro_comentario_likes, foro_reacciones, foro_comentarios, foro_post_imagenes, foro_posts,
     historial_estados_pedido, pedido_items, pedidos, codigos_promocion, carrito_items,
     favoritos_productos, favoritos_mascotas,
     resenas_refugio, resenas, producto_caracteristicas, producto_imagenes, productos,
@@ -551,6 +551,16 @@ CREATE TABLE foro_comentario_likes (
     UNIQUE (comentario_id, usuario_id)
 );
 
+CREATE TABLE foro_guardados (
+    id             BIGSERIAL PRIMARY KEY,
+    usuario_id     BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    post_id        BIGINT NOT NULL REFERENCES foro_posts(id) ON DELETE CASCADE,
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (usuario_id, post_id)
+);
+CREATE INDEX idx_foro_guardados_usuario ON foro_guardados(usuario_id);
+CREATE INDEX idx_foro_guardados_post   ON foro_guardados(post_id);
+
 -- ============================================================
 -- 6. EVENTOS Y CAMPAÑAS
 -- ============================================================
@@ -692,6 +702,7 @@ ALTER TABLE foro_posts               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE foro_post_imagenes       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE foro_comentarios         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE foro_reacciones          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE foro_guardados           ENABLE ROW LEVEL SECURITY;
 
 -- Eventos, campañas, actividad y notificaciones
 ALTER TABLE eventos                  ENABLE ROW LEVEL SECURITY;

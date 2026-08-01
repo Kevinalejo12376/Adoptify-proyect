@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
 import ScrollToTop from "../../components/ScrollToTop";
 import {
   MessageSquare,
@@ -17,12 +18,14 @@ import {
   Shield,
   Zap,
   Loader2,
+  Bookmark,
+  PawPrint,
 } from "lucide-react";
 import ForumRightPanel from "./components/ForumRightPanel";
 import ForumPostCard from "./components/ForumPostCard";
 import CreatePostModal from "./components/CreatePostModal";
 import PostDetailModal from "./components/PostDetailModal";
-import { listarPosts, obtenerPost, crearPost, comentar, reaccionar } from "../../api/foro";
+import { listarPosts, obtenerPost, crearPost, comentar, reaccionar, eliminarPost, guardarPost, fijarPost, listarPostsGuardados, actualizarPost } from "../../api/foro";
 import { estadisticasPublicas } from "../../api/refugios";
 
 const EMPTY_REACCIONES = { like: 0, love: 0, celebrate: 0, support: 0, funny: 0 };
@@ -44,6 +47,8 @@ function tiempoRelativo(iso) {
 function mapPost(p) {
   return {
     id: p.id,
+    autorId: p.autor_id,
+    createdAt: p.creado_en,
     title: p.titulo,
     author: p.autor,
     accountType: p.autor_rol === "refugio" ? "shelter" : "user",
@@ -77,12 +82,18 @@ function mapComentario(c) {
 
 export default function Forum() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const isDark = theme === "dark";
 
   // Datos reales
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refugiosCount, setRefugiosCount] = useState(0);
+  const [savedIds, setSavedIds] = useState([]);
+  const [savedFilter, setSavedFilter] = useState(false);
+  const [myPostsFilter, setMyPostsFilter] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [pinnedAnimId, setPinnedAnimId] = useState(null);
 
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -110,16 +121,28 @@ export default function Forum() {
     }
   }, []);
 
+  const cargarGuardados = useCallback(async () => {
+    try {
+      const data = await listarPostsGuardados();
+      setSavedIds((data || []).map((p) => p.id));
+    } catch (e) {
+      setSavedIds([]);
+    }
+  }, []);
+
   useEffect(() => {
     cargarPosts();
+    cargarGuardados();
     estadisticasPublicas()
       .then((est) => setRefugiosCount(est?.refugios ?? 0))
       .catch(() => {});
-  }, [cargarPosts]);
+  }, [cargarPosts, cargarGuardados]);
 
   // Filter and sort posts
   const filteredPosts = posts
     .filter((post) => {
+      if (savedFilter && !savedIds.includes(post.id)) return false;
+      if (myPostsFilter && post.autorId !== user?.id) return false;
       const matchesSearch =
         post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         post.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -139,10 +162,15 @@ export default function Forum() {
         }
         case "commented":
           return (b.commentsCount || 0) - (a.commentsCount || 0);
-        default:
-          return 0;
+        default: {
+          const ta = Date.parse(a.createdAt) || 0;
+          const tb = Date.parse(b.createdAt) || 0;
+          return tb - ta;
+        }
       }
     });
+
+  const pinnedCount = posts.filter((p) => p.isPinned).length;
 
   const handlePostClick = async (post) => {
     setSelectedPost(post);
@@ -164,7 +192,71 @@ export default function Forum() {
 
   const handleCreatePost = async (payload) => {
     await crearPost(payload);
+    setEditingPost(null);
     await cargarPosts();
+  };
+
+  const handleEditPost = (post) => {
+    setEditingPost(post);
+    setShowCreatePost(true);
+  };
+
+  const handleUpdatePost = async (postId, payload) => {
+    await actualizarPost(postId, payload);
+    await cargarPosts();
+  };
+
+  const handleDeletePost = async (postId) => {
+    try {
+      await eliminarPost(postId);
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      if (selectedPost?.id === postId) setShowPostDetail(false);
+    } catch (e) {
+      // noop: si falla se mantiene la publicacion en el feed
+    }
+  };
+
+  const handleToggleSave = async (postId) => {
+    const estabaGuardado = savedIds.includes(postId);
+    setSavedIds((prev) =>
+      estabaGuardado ? prev.filter((id) => id !== postId) : [...prev, postId]
+    );
+    try {
+      await guardarPost(postId);
+    } catch (e) {
+      setSavedIds((prev) =>
+        estabaGuardado ? [...prev, postId] : prev.filter((id) => id !== postId)
+      );
+    }
+  };
+
+  const handleTogglePin = async (postId) => {
+    // Actualizacion optimista: al fijar, la publicacion sube de inmediato al
+    // inicio del feed y permanece ahi hasta que se desfije.
+    const post = posts.find((p) => p.id === postId);
+    const seFija = post && !post.isPinned;
+    setPosts((prev) => {
+      const actualizado = prev.map((p) =>
+        p.id === postId ? { ...p, isPinned: !p.isPinned } : p
+      );
+      if (seFija) {
+        const fijado = actualizado.find((p) => p.id === postId);
+        return [fijado, ...actualizado.filter((p) => p.id !== postId)];
+      }
+      return actualizado;
+    });
+    if (seFija) {
+      setPinnedAnimId(postId);
+      setTimeout(() => setPinnedAnimId(null), 800);
+    }
+    try {
+      await fijarPost(postId);
+    } catch (e) {
+      // Revertir si el backend rechaza la operacion.
+      setPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, isPinned: !p.isPinned } : p))
+      );
+    }
   };
 
   const handleAddComment = async (postId, text) => {
@@ -225,7 +317,7 @@ export default function Forum() {
             <div className="flex items-center gap-2">
               {/* Create Post Button */}
               <button
-                onClick={() => setShowCreatePost(true)}
+                onClick={() => { setEditingPost(null); setShowCreatePost(true); }}
                 className="relative inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg hover:shadow-xl active:scale-95"
               >
                 <Plus className="w-5 h-5" />
@@ -478,6 +570,18 @@ export default function Forum() {
               Para ti
             </button>
             <button
+              onClick={() => setSavedFilter(!savedFilter)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                savedFilter
+                  ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-md"
+                  : isDark
+                  ? "bg-white/5 text-dark-text-secondary hover:bg-white/10"
+                  : "bg-white text-gray-600 hover:bg-gray-50 shadow-sm"
+              }`}
+            >
+              🔖 Guardadas
+            </button>
+            <button
               onClick={() => setSelectedCategory("Historias")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
                 selectedCategory === "Historias"
@@ -578,6 +682,44 @@ export default function Forum() {
               </div>
               <div className="flex items-center gap-1">
                 <button
+                  onClick={() => {
+                    const activar = !savedFilter;
+                    setSavedFilter(activar);
+                    setMyPostsFilter(false);
+                    if (activar) setSelectedCategory("all");
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    savedFilter
+                      ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-md"
+                      : isDark
+                      ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/10"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  }`}
+                  title={savedFilter ? "Ver todas las publicaciones" : "Ver tus publicaciones guardadas"}
+                >
+                  <Bookmark className={`w-4 h-4 ${savedFilter ? "fill-white" : ""}`} />
+                  <span className="hidden sm:inline">{savedFilter ? "Ver todas" : "Ver guardados"}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const activar = !myPostsFilter;
+                    setMyPostsFilter(activar);
+                    setSavedFilter(false);
+                    if (activar) setSelectedCategory("all");
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    myPostsFilter
+                      ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-md"
+                      : isDark
+                      ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/10"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  }`}
+                  title={myPostsFilter ? "Ver todas las publicaciones" : "Ver tus publicaciones"}
+                >
+                  <PawPrint className={`w-4 h-4 ${myPostsFilter ? "fill-white" : ""}`} />
+                  <span className="hidden sm:inline">{myPostsFilter ? "Ver todas" : "Mis publicaciones"}</span>
+                </button>
+                <button
                   onClick={() => setViewMode("feed")}
                   className={`p-2 rounded-lg transition-all ${
                     viewMode === "feed"
@@ -608,6 +750,70 @@ export default function Forum() {
               </div>
             </div>
 
+            {/* Encabezado de guardadas */}
+            {savedFilter && (
+              <div className={`mb-4 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                isDark ? "bg-amber-500/10 border border-amber-500/20" : "bg-amber-50 border border-amber-200"
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isDark ? "bg-amber-500/20" : "bg-amber-100"
+                  }`}>
+                    <Bookmark className={`w-5 h-5 ${isDark ? "text-amber-300" : "text-amber-600"}`} />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-bold ${isDark ? "text-dark-text" : "text-gray-900"}`}>
+                      Tus publicaciones guardadas
+                    </h3>
+                    <p className={`text-xs ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
+                      {savedIds.length} {savedIds.length === 1 ? "publicación guardada" : "publicaciones guardadas"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSavedFilter(false)}
+                  className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    isDark ? "bg-white/10 text-dark-text hover:bg-white/15" : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
+                  }`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Ver todas
+                </button>
+              </div>
+            )}
+
+            {/* Encabezado de mis publicaciones */}
+            {myPostsFilter && (
+              <div className={`mb-4 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                isDark ? "bg-rose-500/10 border border-rose-500/20" : "bg-rose-50 border border-rose-200"
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isDark ? "bg-rose-500/20" : "bg-rose-100"
+                  }`}>
+                    <PawPrint className={`w-5 h-5 ${isDark ? "text-rose-300" : "text-rose-600"}`} />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-bold ${isDark ? "text-dark-text" : "text-gray-900"}`}>
+                      Mis publicaciones
+                    </h3>
+                    <p className={`text-xs ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
+                      Administra aquí las publicaciones que creaste (editar o eliminar)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setMyPostsFilter(false)}
+                  className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    isDark ? "bg-white/10 text-dark-text hover:bg-white/15" : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
+                  }`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Ver todas
+                </button>
+              </div>
+            )}
+
             {/* Loading */}
             {loading && (
               <div className="flex flex-col items-center justify-center py-20 text-gray-500 dark:text-dark-text-secondary">
@@ -625,6 +831,13 @@ export default function Forum() {
                     post={post}
                     onPostClick={handlePostClick}
                     onReactionChange={handleReactionChange}
+                    onDeletePost={handleDeletePost}
+                    isSaved={savedIds.includes(post.id)}
+                    onToggleSave={handleToggleSave}
+                    onTogglePin={handleTogglePin}
+                    pinnedCount={pinnedCount}
+                    onEditPost={handleEditPost}
+                    isPinnedAnim={post.id === pinnedAnimId}
                   />
                 ))}
               </div>
@@ -637,6 +850,13 @@ export default function Forum() {
                     post={post}
                     onPostClick={handlePostClick}
                     onReactionChange={handleReactionChange}
+                    onDeletePost={handleDeletePost}
+                    isSaved={savedIds.includes(post.id)}
+                    onToggleSave={handleToggleSave}
+                    onTogglePin={handleTogglePin}
+                    pinnedCount={pinnedCount}
+                    onEditPost={handleEditPost}
+                    isPinnedAnim={post.id === pinnedAnimId}
                   />
                 ))}
               </div>
@@ -653,14 +873,37 @@ export default function Forum() {
                 <h3 className={`text-xl font-semibold mb-2 ${
                   isDark ? "text-dark-text" : "text-gray-900"
                 }`}>
-                  No hay publicaciones aún
+                  {myPostsFilter
+                    ? "No has publicado nada aún"
+                    : savedFilter
+                    ? "No tienes publicaciones guardadas"
+                    : "No hay publicaciones aún"}
                 </h3>
                 <p className={`text-sm mb-6 ${
                   isDark ? "text-dark-text-secondary" : "text-gray-600"
                 }`}>
-                  Sé el primero en compartir algo con la comunidad
+                  {myPostsFilter
+                    ? "Crea tu primera publicación para que aparezca aquí"
+                    : savedFilter
+                    ? "Guarda publicaciones con el botón de marcador para verlas aquí"
+                    : "Sé el primero en compartir algo con la comunidad"}
                 </p>
                 <div className="flex items-center justify-center gap-3">
+                  {myPostsFilter ? (
+                    <button
+                      onClick={() => setMyPostsFilter(false)}
+                      className="px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg"
+                    >
+                      Ver todas las publicaciones
+                    </button>
+                  ) : savedFilter ? (
+                    <button
+                      onClick={() => setSavedFilter(false)}
+                      className="px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg"
+                    >
+                      Ver todas las publicaciones
+                    </button>
+                  ) : (
                   <button
                     onClick={() => {
                       setSearchTerm("");
@@ -672,8 +915,9 @@ export default function Forum() {
                   >
                     Limpiar filtros
                   </button>
+                  )}
                   <button
-                    onClick={() => setShowCreatePost(true)}
+                    onClick={() => { setEditingPost(null); setShowCreatePost(true); }}
                     className={`px-6 py-3 rounded-xl font-semibold transition-all ${
                       isDark
                         ? "bg-white/5 text-dark-text hover:bg-white/10"
@@ -694,11 +938,16 @@ export default function Forum() {
         </div>
       </div>
 
-      {/* ===== Create Post Modal ===== */}
+      {/* ===== Create / Edit Post Modal ===== */}
       <CreatePostModal
         isOpen={showCreatePost}
-        onClose={() => setShowCreatePost(false)}
+        onClose={() => {
+          setShowCreatePost(false);
+          setEditingPost(null);
+        }}
         onCreate={handleCreatePost}
+        editingPost={editingPost}
+        onUpdate={handleUpdatePost}
       />
 
       {/* ===== Post Detail Modal ===== */}

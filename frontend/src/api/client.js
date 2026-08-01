@@ -1,7 +1,13 @@
 // Cliente HTTP central para comunicarse con el backend FastAPI.
-// La URL base se configura en frontend/.env (VITE_API_URL).
+// La URL base se configura automáticamente según el entorno:
+// - Desarrollo local: usa VITE_API_URL del .env o fallback a localhost
+// - Producción (Vercel): usa VITE_API_URL si está configurada en Vercel Dashboard,
+//   o automáticamente apunta al backend de producción
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD
+    ? "https://adoptify-backend.vercel.app"
+    : "http://127.0.0.1:8000");
 
 const TOKEN_KEY = "adoptify_token";
 

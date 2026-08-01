@@ -157,49 +157,49 @@ export default function Animals() {
           </p>
         </div>
 
-        {/* Search & Filters */}
-        <div className="mb-8 space-y-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por nombre o raza..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-36 py-4 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent shadow-sm dark:text-dark-text dark:placeholder-dark-text-secondary"
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+        {/* Search & Filters (en la parte superior) */}
+        <div className="mb-8">
+          {/* Buscador + Botón de filtros al lado */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre o raza..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-28 py-4 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent shadow-sm dark:text-dark-text dark:placeholder-dark-text-secondary"
+              />
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary hover:text-rose-600 dark:hover:text-rose-400 bg-gray-100 dark:bg-dark-border rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-all"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary hover:text-rose-600 dark:hover:text-rose-400 bg-gray-100 dark:bg-dark-border rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-all"
                   title="Limpiar filtros"
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span className="hidden sm:inline">Limpiar</span>
                 </button>
               )}
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
-                  showFilters
-                    ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-200/40 dark:shadow-rose-500/20"
-                    : "bg-white dark:bg-dark-card text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-700 hover:text-rose-600 dark:hover:text-rose-400"
-                }`}
-              >
-                <SlidersHorizontal className="w-4 h-4" />
-                <span className="hidden sm:inline">Filtros</span>
-                <ChevronDown
-                  className={`w-4 h-4 transition-transform duration-200 ${
-                    showFilters ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
             </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center justify-center gap-2 px-6 py-4 rounded-2xl transition-all whitespace-nowrap shadow-sm ${
+                showFilters
+                  ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-200/40 dark:shadow-rose-500/20"
+                  : "bg-white dark:bg-dark-card text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-700 hover:text-rose-600 dark:hover:text-rose-400"
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              <span>Ver filtros</span>
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  showFilters ? "rotate-180" : ""
+                }`}
+              />
+            </button>
           </div>
 
-          {/* Filters Panel */}
+          {/* Panel de filtros desplegable, acomodado en columnas */}
           {showFilters && (
             <div className="bg-white dark:bg-dark-card rounded-2xl shadow-lg dark:shadow-dark-border/20 border border-gray-100 dark:border-dark-border overflow-hidden">
               {/* Filters Header */}
@@ -226,7 +226,7 @@ export default function Animals() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-6">
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* ─── TYPE ─── */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
@@ -333,22 +333,22 @@ export default function Animals() {
               </div>
             </div>
           )}
+        </div>
 
-          {/* Results info */}
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-              Mostrando{" "}
-              <span className="font-semibold text-gray-900 dark:text-dark-text">
-                {filteredAnimals.length}
-              </span>{" "}
-              {filteredAnimals.length === 1 ? "mascota" : "mascotas"}
-              {hasActiveFilters && (
-                <span className="text-gray-400 dark:text-dark-text-secondary">
-                  {" "}(con filtros aplicados)
-                </span>
-              )}
-            </p>
-          </div>
+        {/* Results info */}
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+          <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
+            Mostrando{" "}
+            <span className="font-semibold text-gray-900 dark:text-dark-text">
+              {filteredAnimals.length}
+            </span>{" "}
+            {filteredAnimals.length === 1 ? "mascota" : "mascotas"}
+            {hasActiveFilters && (
+              <span className="text-gray-400 dark:text-dark-text-secondary">
+                {" "}(con filtros aplicados)
+              </span>
+            )}
+          </p>
         </div>
 
         {/* Animals Grid */}

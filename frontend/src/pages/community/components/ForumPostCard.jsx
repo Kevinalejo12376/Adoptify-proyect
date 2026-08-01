@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useTheme } from "../../../context/ThemeContext";
+import { useAuth } from "../../../context/AuthContext";
+import ConfirmModal from "../../../components/ConfirmModal";
 import {
   Heart,
   MessageCircle,
@@ -17,6 +19,8 @@ import {
   ShieldCheck,
   Award,
   Pin,
+  Trash2,
+  Edit3,
 } from "lucide-react";
 
 const accountTypes = {
@@ -215,7 +219,8 @@ function CommentInput({ onSend }) {
       />
       <button
         onClick={handleSend}
-        className={`p-3 rounded-xl transition-all ${
+        disabled={!text.trim()}
+        className={`p-3 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
           isDark
             ? "text-dark-text-secondary hover:text-rose-400 hover:bg-white/5"
             : "text-gray-500 hover:text-rose-500 hover:bg-rose-50"
@@ -227,12 +232,17 @@ function CommentInput({ onSend }) {
   );
 }
 
-export default function ForumPostCard({ post, onPostClick, onReactionChange }) {
+export default function ForumPostCard({ post, onPostClick, onReactionChange, onDeletePost, isSaved, onToggleSave, onTogglePin, pinnedCount = 0, onEditPost, isPinnedAnim }) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const isDark = theme === "dark";
-  const [isSaved, setIsSaved] = useState(post.isSaved || false);
   const [showOptions, setShowOptions] = useState(false);
   const [expandedImage, setExpandedImage] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pinToast, setPinToast] = useState(null);
+
+  // Solo el autor de la publicacion puede eliminarla o fijarla.
+  const isOwnPost = post.autorId != null && user != null && post.autorId === user?.id;
 
   const isShelter = post.accountType === "shelter";
   const accountInfo = isShelter ? accountTypes.shelter : accountTypes.user;
@@ -266,14 +276,22 @@ export default function ForumPostCard({ post, onPostClick, onReactionChange }) {
         isDark
           ? "bg-dark-card border border-dark-border"
           : "bg-white shadow-md shadow-gray-100/50"
-      } ${post.isPinned ? (isDark ? "ring-1 ring-amber-500/30" : "ring-1 ring-amber-300") : ""}`}
+      } ${
+        post.isPinned
+          ? isDark
+            ? "border border-amber-500/30 bg-gradient-to-b from-amber-500/10 to-transparent shadow-lg shadow-amber-900/20"
+            : "border border-amber-300/60 bg-gradient-to-b from-amber-50/70 to-white shadow-lg shadow-amber-100/40"
+          : ""
+      } ${isPinnedAnim ? "animate-pinned-in" : ""}`}
     >
       {/* Pinned Indicator */}
       {post.isPinned && (
-        <div className={`flex items-center gap-2 px-7 py-3 text-sm font-medium ${
-          isDark ? "bg-amber-500/10 text-amber-300" : "bg-amber-50 text-amber-700"
+        <div className={`flex items-center gap-2 px-7 py-3 text-sm font-semibold border-b ${
+          isDark
+            ? "bg-amber-500/10 text-amber-300 border-amber-500/20"
+            : "bg-gradient-to-r from-amber-50 to-amber-100/60 text-amber-700 border-amber-200"
         }`}>
-          <Pin className="w-4 h-4" />
+          <Pin className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-amber-500"}`} />
           Publicación destacada
         </div>
       )}
@@ -360,60 +378,89 @@ export default function ForumPostCard({ post, onPostClick, onReactionChange }) {
             </div>
           </div>
 
-          {/* Options Menu */}
+          {/* Options / Edit / Delete */}
           <div className="relative">
-            <button
-              onClick={() => setShowOptions(!showOptions)}
-              className={`p-2 rounded-lg transition-all ${
-                isDark
-                  ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
-                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              <MoreHorizontal className="w-6 h-6" />
-            </button>
-            {showOptions && (
+            {isOwnPost ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => onEditPost?.(post)}
+                  className={`p-2 rounded-lg transition-all ${
+                    isDark
+                      ? "text-dark-text-secondary hover:text-rose-400 hover:bg-white/5"
+                      : "text-gray-400 hover:text-rose-500 hover:bg-rose-50"
+                  }`}
+                  title="Editar publicación"
+                >
+                  <Edit3 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className={`p-2 rounded-lg transition-all ${
+                    isDark
+                      ? "text-dark-text-secondary hover:text-red-400 hover:bg-red-500/10"
+                      : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+                  }`}
+                  title="Eliminar publicación"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowOptions(false)}></div>
-                <div className={`absolute right-0 top-full mt-1 w-52 py-2 rounded-2xl shadow-xl z-20 ${
-                  isDark
-                    ? "bg-dark-card border border-dark-border"
-                    : "bg-white border border-gray-100"
-                }`}>
-                  <button
-                    onClick={() => { setIsSaved(!isSaved); setShowOptions(false); }}
-                    className={`flex items-center gap-3 px-4 py-3 text-sm w-full transition-colors ${
+                <button
+                  onClick={() => setShowOptions(!showOptions)}
+                  className={`p-2 rounded-lg transition-all ${
+                    isDark
+                      ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
+                      : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <MoreHorizontal className="w-6 h-6" />
+                </button>
+                {showOptions && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowOptions(false)}></div>
+                    <div className={`absolute right-0 top-full mt-1 w-52 py-2 rounded-2xl shadow-xl z-20 ${
                       isDark
-                        ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
-                    <Bookmark className={`w-4 h-4 ${isSaved ? "fill-amber-500 text-amber-500" : ""}`} />
-                    {isSaved ? "Guardado" : "Guardar"}
-                  </button>
-                  <button
-                    onClick={() => { setShowOptions(false); navigator.clipboard?.writeText(window.location.href); }}
-                    className={`flex items-center gap-3 px-4 py-3 text-sm w-full transition-colors ${
-                      isDark
-                        ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
-                    <Share2 className="w-4 h-4" />
-                    Compartir
-                  </button>
-                  <button
-                    onClick={() => setShowOptions(false)}
-                    className={`flex items-center gap-3 px-4 py-3 text-sm w-full transition-colors ${
-                      isDark
-                        ? "text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                        : "text-red-600 hover:bg-red-50"
-                    }`}
-                  >
-                    <Flag className="w-4 h-4" />
-                    Reportar
-                  </button>
-                </div>
+                        ? "bg-dark-card border border-dark-border"
+                        : "bg-white border border-gray-100"
+                    }`}>
+                      <button
+                        onClick={() => { onToggleSave?.(post.id); setShowOptions(false); }}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm w-full transition-colors ${
+                          isDark
+                            ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        }`}
+                      >
+                        <Bookmark className={`w-4 h-4 ${isSaved ? "fill-amber-500 text-amber-500" : ""}`} />
+                        {isSaved ? "Guardado" : "Guardar"}
+                      </button>
+                      <button
+                        onClick={() => { setShowOptions(false); navigator.clipboard?.writeText(window.location.href); }}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm w-full transition-colors ${
+                          isDark
+                            ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        }`}
+                      >
+                        <Share2 className="w-4 h-4" />
+                        Compartir
+                      </button>
+                      <button
+                        onClick={() => setShowOptions(false)}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm w-full transition-colors ${
+                          isDark
+                            ? "text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            : "text-red-600 hover:bg-red-50"
+                        }`}
+                      >
+                        <Flag className="w-4 h-4" />
+                        Reportar
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -514,7 +561,7 @@ export default function ForumPostCard({ post, onPostClick, onReactionChange }) {
           <div className="flex items-center gap-2">
             {/* Save - BIGGER */}
             <button
-              onClick={() => setIsSaved(!isSaved)}
+              onClick={() => onToggleSave?.(post.id)}
               className={`p-2 rounded-xl transition-all ${
                 isSaved
                   ? "text-amber-500 bg-amber-100 dark:bg-amber-500/15"
@@ -522,9 +569,38 @@ export default function ForumPostCard({ post, onPostClick, onReactionChange }) {
                   ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
                   : "text-gray-400 hover:text-amber-500 hover:bg-amber-50"
               }`}
+              title={isSaved ? "Quitar de guardadas" : "Guardar publicación"}
             >
               <Bookmark className={`w-5 h-5 ${isSaved ? "fill-amber-500" : ""}`} />
             </button>
+
+            {/* Pin - solo disponible en publicaciones de OTROS usuarios (maximo 3 fijadas) */}
+            {!isOwnPost && (
+              <button
+                onClick={() => {
+                  // Límite de 3 publicaciones fijadas a la vez.
+                  if (!post.isPinned && pinnedCount >= 3) {
+                    setPinToast("Máximo 3 publicaciones fijadas");
+                    setTimeout(() => setPinToast(null), 2500);
+                    return;
+                  }
+                  const nuevoEstado = !post.isPinned;
+                  setPinToast(nuevoEstado ? "Publicación fijada" : "Publicación desfijada");
+                  setTimeout(() => setPinToast(null), 2500);
+                  onTogglePin?.(post.id);
+                }}
+                className={`p-2 rounded-xl transition-all ${
+                  post.isPinned
+                    ? "text-amber-500 bg-amber-100 dark:bg-amber-500/15"
+                    : isDark
+                    ? "text-dark-text-secondary hover:text-amber-400 hover:bg-white/5"
+                    : "text-gray-400 hover:text-amber-500 hover:bg-amber-50"
+                }`}
+                title={post.isPinned ? "Desfijar publicación" : "Fijar publicación"}
+              >
+                <Pin className={`w-5 h-5 ${post.isPinned ? "fill-amber-500" : ""}`} />
+              </button>
+            )}
 
             {/* Share - BIGGER */}
             <button
@@ -577,6 +653,31 @@ export default function ForumPostCard({ post, onPostClick, onReactionChange }) {
           </button>
         </div>
       )}
+
+      {/* Toast de fijado */}
+      {pinToast && (
+        <div className={`fixed bottom-6 right-6 z-[60] flex items-center gap-2 px-4 py-3 rounded-xl shadow-2xl text-sm font-semibold animate-scale-in ${
+          isDark ? "bg-dark-card border border-dark-border text-dark-text" : "bg-white text-gray-900"
+        }`}>
+          <Pin className="w-4 h-4 text-amber-500" />
+          {pinToast}
+        </div>
+      )}
+
+      {/* Confirmar eliminacion de la publicacion */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDeletePost?.(post.id);
+        }}
+        title="¿Estás seguro de eliminar esta publicación?"
+        message="Esta publicación se eliminará permanentemente y no podrás recuperarla. Sus comentarios y reacciones también se borrarán."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        type="danger"
+      />
     </article>
   );
 }

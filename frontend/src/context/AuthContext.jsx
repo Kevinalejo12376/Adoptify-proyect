@@ -36,13 +36,25 @@ export const AuthProvider = ({ children }) => {
       const isComplete = profile.perfil_completo === true;
       setProfileCompleted(isComplete);
 
-      // Solo mostrar modal automaticamente a usuarios con JWT real
-      // que NO tengan el perfil completo y que NO sean admin/store mock
+      // Solo mostrar el modal automaticamente a usuarios con JWT real que
+      // NO tengan el perfil completo, que NO sean admin/store mock y SOLO
+      // la primera vez (bandera por usuario guardada en localStorage).
+      // Si el usuario cierra el modal sin completar el perfil, no vuelve a
+      // aparecer automaticamente; puede abrirlo desde su perfil manualmente.
       if (!isComplete && getToken()) {
         const role = user?.role || user?.rol;
         // Solo para usuarios normales y refugios
         if (role === "usuario" || role === "refugio") {
-          setShowProfileModal(true);
+          const userKey = user?.email || user?.id || "default";
+          let shown = {};
+          try {
+            shown = JSON.parse(localStorage.getItem("adoptify_profile_modal_shown") || "{}") || {};
+          } catch { /* localStorage corrupto, se ignora */ }
+          if (!shown[userKey]) {
+            setShowProfileModal(true);
+            shown[userKey] = true;
+            localStorage.setItem("adoptify_profile_modal_shown", JSON.stringify(shown));
+          }
         }
       }
     } catch {
