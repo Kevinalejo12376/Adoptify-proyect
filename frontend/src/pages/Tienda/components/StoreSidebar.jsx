@@ -74,7 +74,7 @@ export default function StoreSidebar({ collapsed, onToggle, storeNombre, onLogou
                   ${
                     active
                       ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
-                      : "text-gray-500 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-700 dark:hover:text-dark-text"
+                      : "text-gray-500 dark:text-dark-text-secondary hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:text-orange-600 dark:hover:text-orange-400"
                   }
                 `}
                 title={collapsed ? item.label : undefined}
@@ -82,7 +82,7 @@ export default function StoreSidebar({ collapsed, onToggle, storeNombre, onLogou
                 <item.icon
                   size={18}
                   strokeWidth={active ? 2.5 : 1.5}
-                  className={`flex-shrink-0 transition-all ${active ? "text-white" : ""}`}
+                  className={`flex-shrink-0 transition-all ${active ? "text-white" : "group-hover:text-orange-600 dark:group-hover:text-orange-400"}`}
                 />
                 {!collapsed && (
                   <span className={`text-sm font-medium transition-all ${active ? "text-white" : ""}`}>

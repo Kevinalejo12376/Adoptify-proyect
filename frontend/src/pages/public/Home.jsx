@@ -352,7 +352,7 @@ export default function Home() {
             <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
               Registra tu refugio en Adoptify y llega a miles de personas que buscan adoptar y ayudar.
             </p>
-            <Link to="/register" className="inline-flex items-center px-8 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg shadow-rose-200 hover:shadow-xl">
+            <Link to="/registrar-refugio" className="inline-flex items-center px-8 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg shadow-rose-200 hover:shadow-xl">
               Registrar mi refugio
               <ArrowRight className="w-5 h-5 ml-2" />
             </Link>

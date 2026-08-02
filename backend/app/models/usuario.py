@@ -11,6 +11,7 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
     apellido = Column(String(100))
+    username = Column(String(50), unique=True, index=True)
     tipo_documento_id = Column(Integer, ForeignKey("tipos_documento.id"))
     numero_documento = Column(String(30))
     telefono = Column(String(30))

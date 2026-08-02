@@ -442,3 +442,186 @@ def enviar_codigo_verificacion(
     else:
         asunto = f"🔑 Recupera tu contraseña — Código: {codigo}"
     return _enviar_correo(email_destino, asunto, html)
+
+
+# ============================================================
+# Plantillas de correo para el flujo de Solicitudes de Refugios
+# ============================================================
+
+def _build_base_html(titulo: str, contenido_html: str) -> str:
+    """Envuelve un contenido en el diseño base de Adoptify (naranja/rosa)."""
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            margin: 0; padding: 0; background-color: #f4f4f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }}
+        .container {{
+            max-width: 600px; margin: 24px auto; background-color: #ffffff;
+            border-radius: 16px; overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+        }}
+        .header {{
+            background: linear-gradient(135deg, #FF8C00, #f43f5e);
+            padding: 32px 30px 26px; text-align: center;
+        }}
+        .header-logo {{
+            font-size: 40px; font-weight: 800; color: #ffffff;
+            letter-spacing: 2px; text-shadow: 0 2px 6px rgba(0,0,0,0.18);
+            margin-bottom: 6px;
+        }}
+        .header h1 {{
+            color: #ffffff; margin: 10px 0 0; font-size: 24px; font-weight: 700;
+        }}
+        .content {{ padding: 36px 30px; color: #333333; }}
+        .content p {{ line-height: 1.8; font-size: 15px; margin: 14px 0; }}
+        .caja {{
+            background: linear-gradient(135deg, #fff7ed, #fff1f2);
+            border-radius: 12px; padding: 20px 22px; margin: 20px 0;
+            border-left: 4px solid #FF8C00;
+        }}
+        .caja strong {{ color: #ea580c; }}
+        .btn {{
+            display: inline-block; background: linear-gradient(135deg, #FF8C00, #f43f5e);
+            color: #ffffff !important; text-decoration: none; padding: 14px 38px;
+            border-radius: 12px; font-size: 16px; font-weight: 600; margin: 22px 0;
+            box-shadow: 0 6px 18px rgba(244, 63, 94, 0.3);
+        }}
+        .footnote {{ font-size: 13px; color: #888888; line-height: 1.6; }}
+        .footer {{
+            background-color: #fafafa; padding: 24px 30px; text-align: center;
+            color: #999999; font-size: 13px; border-top: 1px solid #f0f0f0;
+        }}
+        .footer a {{ color: #ea580c; text-decoration: none; }}
+        @media only screen and (max-width: 480px) {{
+            .header {{ padding: 24px 18px; }}
+            .header h1 {{ font-size: 20px; }}
+            .content {{ padding: 26px 18px; }}
+            .btn {{ padding: 12px 28px; font-size: 15px; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-logo">🐾 ADOPTIFY</div>
+            <h1>{titulo}</h1>
+        </div>
+        <div class="content">
+            {contenido_html}
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 Adoptify. Todos los derechos reservados.</p>
+            <p>
+                <a href="{settings.FRONTEND_URL}">Ir a Adoptify</a> &bull;
+                <a href="{settings.FRONTEND_URL}/privacy">Privacidad</a>
+            </p>
+            <p style="margin-top:8px; font-size:11px;">
+                Este correo fue enviado automáticamente. Por favor no respondas a este mensaje.
+            </p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+
+def enviar_correo_aprobacion_refugio(
+    email_destino: str,
+    nombre_refugio: str,
+    username: str,
+    enlace_crear_password: str,
+) -> bool:
+    """Correo de aprobación: bienvenida + usuario generado + enlace para crear contraseña."""
+    asunto = f"🎉 ¡Bienvenido a Adoptify, {nombre_refugio}! Tu solicitud fue aprobada"
+    contenido = f"""
+        <p>¡Hola, <strong>{nombre_refugio}</strong>! 🎉</p>
+        <p>¡Excelentes noticias! Tu solicitud de registro ha sido <strong>aprobada</strong>
+        y tu refugio ya forma parte de la comunidad Adoptify.</p>
+
+        <div class="caja">
+            <p style="margin:0 0 6px;">Tu cuenta fue creada con el siguiente <strong>usuario</strong>:</p>
+            <p style="margin:0; font-size:22px; font-weight:800; color:#ea580c; letter-spacing:1px;">{username}</p>
+        </div>
+
+        <p>Para terminar de activar tu cuenta, crea tu contraseña con el siguiente botón.
+        El enlace es <strong>seguro y expira en 24 horas</strong>.</p>
+
+        <p style="text-align:center;">
+            <a href="{enlace_crear_password}" class="btn" target="_blank">Crear mi contraseña</a>
+        </p>
+
+        <p class="footnote">
+            Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+            {enlace_crear_password}
+        </p>
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(email_destino, asunto, _build_base_html("¡Solicitud aprobada!", contenido))
+
+
+def enviar_correo_solicitud_informacion(
+    email_destino: str,
+    nombre_refugio: str,
+    mensaje: str,
+    enlace_completar: str,
+) -> bool:
+    """Correo pidiendo información adicional para la solicitud del refugio."""
+    asunto = f"📋 Información adicional para tu solicitud — {nombre_refugio}"
+    contenido = f"""
+        <p>Hola, <strong>{nombre_refugio}</strong> 👋</p>
+        <p>Para continuar con la revisión de tu solicitud, nuestro equipo necesita
+        <strong>información adicional</strong>:</p>
+
+        <div class="caja">
+            <p style="margin:0;">{mensaje}</p>
+        </div>
+
+        <p>Puedes completar la información solicitada ingresando al siguiente enlace.
+        Solo necesitas adjuntar lo que se pide; no es necesario volver a diligenciar toda la solicitud.</p>
+
+        <p style="text-align:center;">
+            <a href="{enlace_completar}" class="btn" target="_blank">Completar información</a>
+        </p>
+
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(
+        email_destino,
+        asunto,
+        _build_base_html("Necesitamos más información", contenido),
+    )
+
+
+def enviar_correo_rechazo_refugio(
+    email_destino: str,
+    nombre_refugio: str,
+    motivo: str,
+) -> bool:
+    """Correo informando que la solicitud del refugio fue rechazada y el motivo."""
+    asunto = f"💔 Actualización de tu solicitud — {nombre_refugio}"
+    contenido = f"""
+        <p>Hola, <strong>{nombre_refugio}</strong></p>
+        <p>Lamentablemente, después de revisar cuidadosamente tu solicitud, hemos tomado la
+        decisión de <strong>no aprobarla</strong> en esta ocasión.</p>
+
+        <div class="caja">
+            <p style="margin:0 0 6px;"><strong>Motivo del rechazo:</strong></p>
+            <p style="margin:0;">{motivo}</p>
+        </div>
+
+        <p>
+            Si consideras que esta decisión fue un error o deseas aclarar algún punto,
+            no dudes en contactarnos. Estamos aquí para ayudarte a construir una comunidad
+            segura y confiable para las mascotas.
+        </p>
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(
+        email_destino,
+        asunto,
+        _build_base_html("Estado de tu solicitud", contenido),
+    )

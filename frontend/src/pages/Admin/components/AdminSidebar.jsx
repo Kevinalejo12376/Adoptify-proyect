@@ -85,7 +85,7 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, o
             className={`w-full group flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 relative ${
               isActive || subActive
                 ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
-                : "text-gray-500 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-700 dark:hover:text-dark-text"
+                : "text-gray-500 dark:text-dark-text-secondary hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:text-orange-600 dark:hover:text-orange-400"
             }`}
           >
             {isActive && (
@@ -109,7 +109,7 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, o
                     className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                       isSubActive
                         ? "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"
-                        : "text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text hover:bg-gray-50 dark:hover:bg-dark-border"
+                        : "text-gray-500 dark:text-dark-text-secondary hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10"
                     }`}
                   >
                     <sub.icon size={16} strokeWidth={isSubActive ? 2.5 : 1.5} />
@@ -146,7 +146,7 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, o
             ${isExpanded ? "px-3 py-3" : "px-0 py-3 justify-center mx-auto w-[56px]"}
             ${isActive || subActive
               ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
-              : "text-gray-500 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-700 dark:hover:text-dark-text"
+              : "text-gray-500 dark:text-dark-text-secondary hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:text-orange-600 dark:hover:text-orange-400"
             }
           `}
           title={!isExpanded ? item.label : undefined}
@@ -162,7 +162,7 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, o
             size={22}
             strokeWidth={isActive || subActive ? 2.5 : 1.5}
             className={`flex-shrink-0 transition-all duration-200 ${
-              isActive || subActive ? "text-white" : "group-hover:text-gray-700 dark:group-hover:text-dark-text"
+              isActive || subActive ? "text-white" : "group-hover:text-orange-600 dark:group-hover:text-orange-400"
             }`}
           />
           <span className={`
@@ -192,7 +192,7 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, o
                   className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                     isSubActive
                       ? "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"
-                      : "text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text hover:bg-gray-50 dark:hover:bg-dark-border"
+                      : "text-gray-500 dark:text-dark-text-secondary hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10"
                   }`}
                 >
                   <sub.icon size={16} strokeWidth={isSubActive ? 2.5 : 1.5} />
