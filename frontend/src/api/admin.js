@@ -1,4 +1,4 @@
-// Llamadas al panel de administracion (requieren token de admin).
+nito // Llamadas al panel de administracion (requieren token de admin).
 import { apiFetch } from "./client";
 
 const base = "/api/admin";
@@ -74,3 +74,98 @@ export async function eliminarPostAdmin(id) {
 
 // ===== Auditoría =====
 export async function listarAuditoria() { return apiFetch(`${base}/auditoria`); }
+
+// ==================================================================
+// MÓDULO REFUGIOS (registrados + solicitudes de refugios)
+// ==================================================================
+
+// ----- Refugios registrados (aprobados) -----
+
+/** Lista refugios aprobados con conteo de mascotas y datos del usuario. */
+export async function listarRefugiosAdmin({ busqueda, estado, ciudad } = {}) {
+  const params = new URLSearchParams();
+  if (busqueda) params.set("busqueda", busqueda);
+  if (estado) params.set("estado", estado);
+  if (ciudad) params.set("ciudad", ciudad);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch(`${base}/refugios${qs}`);
+}
+
+/** Obtiene un refugio (admin). */
+export async function obtenerRefugioAdmin(id) {
+  return apiFetch(`${base}/refugios/${id}`);
+}
+
+/** Actualiza un refugio (admin). */
+export async function actualizarRefugioAdmin(id, payload) {
+  return apiFetch(`${base}/refugios/${id}`, { method: "PUT", body: payload });
+}
+
+/** Suspende (activo=false) o reactiva (activo=true) un refugio. */
+export async function cambiarEstadoRefugioAdmin(id, activo) {
+  return apiFetch(`${base}/refugios/${id}/estado`, {
+    method: "PATCH",
+    body: { activo },
+  });
+}
+
+/** Elimina un refugio y su usuario asociado. */
+export async function eliminarRefugioAdmin(id) {
+  return apiFetch(`${base}/refugios/${id}`, { method: "DELETE" });
+}
+
+// ----- Solicitudes de refugios -----
+
+/** Estadísticas de solicitudes (contadores por estado). */
+export async function estadisticasSolicitudesRefugio() {
+  return apiFetch(`${base}/solicitudes-refugio/estadisticas`);
+}
+
+/** Lista solicitudes de refugio (opcionalmente filtradas). */
+export async function listarSolicitudesRefugio({ estado, busqueda, ciudad } = {}) {
+  const params = new URLSearchParams();
+  if (estado) params.set("estado", estado);
+  if (busqueda) params.set("busqueda", busqueda);
+  if (ciudad) params.set("ciudad", ciudad);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch(`${base}/solicitudes-refugio${qs}`);
+}
+
+/** Detalle completo de una solicitud (expediente). */
+export async function obtenerSolicitudRefugio(id) {
+  return apiFetch(`${base}/solicitudes-refugio/${id}`);
+}
+
+/** Elimina una solicitud de refugio (p. ej. una ya aprobada o rechazada). */
+export async function eliminarSolicitudRefugio(id) {
+  return apiFetch(`${base}/solicitudes-refugio/${id}`, { method: "DELETE" });
+}
+
+/** Aprueba una solicitud de refugio. */
+export async function aprobarSolicitudRefugio(id) {
+  return apiFetch(`${base}/solicitudes-refugio/${id}/aprobar`, { method: "POST" });
+}
+
+/** Rechaza una solicitud de refugio (motivo obligatorio). */
+export async function rechazarSolicitudRefugio(id, motivo) {
+  return apiFetch(`${base}/solicitudes-refugio/${id}/rechazar`, {
+    method: "POST",
+    body: { motivo },
+  });
+}
+
+/** Solicita información adicional para una solicitud. */
+export async function solicitarInformacionSolicitud(id, mensaje) {
+  return apiFetch(`${base}/solicitudes-refugio/${id}/solicitar-informacion`, {
+    method: "POST",
+    body: { mensaje },
+  });
+}
+
+/** Marca el estado de verificación de un documento. */
+export async function verificarDocumentoSolicitud(documentoId, estadoVerificacion) {
+  return apiFetch(`${base}/solicitudes-refugio/documentos/${documentoId}/verificacion`, {
+    method: "PATCH",
+    body: { estado_verificacion: estadoVerificacion },
+  });
+}

@@ -15,6 +15,8 @@ import { FavoritesProvider } from "./context/FavoritesContext";
 import Home from "./pages/public/Home";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import ShelterRegistration from "./pages/public/ShelterRegistration";
+import CrearPassword from "./pages/auth/CrearPassword";
 
 // ========================================================
 // IMPORTACIONES DE VISTAS DE USUARIO
@@ -97,11 +99,16 @@ import AdminEstadisticas from "./pages/Admin/Estadisticas";
 import AdminAuditoria from "./pages/Admin/Auditoria";
 import AdminConfiguracion from "./pages/Admin/Configuracion";
 import AdminTiendas from "./pages/Admin/GestionTiendas";
+import SolicitudRefugioDetalle from "./pages/Admin/SolicitudRefugioDetalle";
 
 function AppContent() {
   const location = useLocation();
   const { showProfileModal, setShowProfileModal, markProfileCompleted } = useAuth();
-  const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
+  const isAuthPage =
+    location.pathname === "/login" ||
+    location.pathname === "/register" ||
+    location.pathname === "/registrar-refugio" ||
+    location.pathname.startsWith("/crear-password");
   const isAdminPage = location.pathname.startsWith("/admin");
   const isStorePage = location.pathname.startsWith("/tienda");
 
@@ -115,6 +122,8 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/registrar-refugio" element={<ShelterRegistration />} />
+          <Route path="/crear-password/:token" element={<CrearPassword />} />
 
           {/* ================================================ */}
           {/* RUTAS DEL PANEL DE ADMINISTRACIÓN                */}
@@ -124,6 +133,7 @@ function AppContent() {
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="usuarios" element={<AdminUsuarios />} />
             <Route path="refugios" element={<AdminRefugios />} />
+            <Route path="refugios/:id" element={<SolicitudRefugioDetalle />} />
             <Route path="mascotas" element={<AdminMascotas />} />
             <Route path="tiendas" element={<AdminTiendas />} />
             <Route path="marketplace" element={<AdminMarketplace />} />

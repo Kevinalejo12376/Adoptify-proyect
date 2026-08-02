@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS
     resenas_refugio, resenas, producto_caracteristicas, producto_imagenes, productos,
     tienda_imagenes, tiendas,
     solicitudes_adopcion, mascota_imagenes, mascotas,
+    enlaces_creacion_password, solicitudes_refugio_historial, solicitudes_refugio_documentos, solicitudes_refugio,
     refugio_imagenes, configuraciones, refugios, usuarios,
     -- catalogos
     tipos_reaccion, estados_post_foro, tipos_post_foro, foro_categorias,
@@ -201,6 +202,7 @@ CREATE TABLE usuarios (
     id                 BIGSERIAL PRIMARY KEY,
     nombre             VARCHAR(100) NOT NULL,
     apellido           VARCHAR(100),
+    username           VARCHAR(50) UNIQUE,
     tipo_documento_id  BIGINT REFERENCES tipos_documento(id),
     numero_documento   VARCHAR(30),
     telefono           VARCHAR(30),
@@ -237,13 +239,17 @@ CREATE TABLE refugios (
     usuario_id         BIGINT NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
     nombre             VARCHAR(150) NOT NULL,
     slug               VARCHAR(160) UNIQUE,
+    logo_url           TEXT,
     descripcion        TEXT,
     ubicacion          VARCHAR(150),
+    departamento       VARCHAR(150),
+    municipio          VARCHAR(150),
     direccion          VARCHAR(200),
     telefono           VARCHAR(30),
     email              VARCHAR(255),
     facebook           VARCHAR(120),
     instagram          VARCHAR(120),
+    tiktok             VARCHAR(120),
     website            VARCHAR(150),
     anio_fundacion     INT,
     total_rescatados   INT NOT NULL DEFAULT 0,
@@ -276,6 +282,81 @@ CREATE TABLE refugio_imagenes (
     es_portada  BOOLEAN NOT NULL DEFAULT false,
     orden       INT NOT NULL DEFAULT 0
 );
+
+-- ============================================================
+-- 2b. SOLICITUDES DE REGISTRO DE REFUGIOS
+-- ============================================================
+
+CREATE TABLE solicitudes_refugio (
+    id                    BIGSERIAL PRIMARY KEY,
+    nombre_refugio        VARCHAR(150) NOT NULL,
+    logo_url              TEXT,
+    descripcion           TEXT,
+    email_contacto        VARCHAR(255),
+    telefono              VARCHAR(30),
+    departamento          VARCHAR(150),
+    ciudad                VARCHAR(150),
+    municipio             VARCHAR(150),
+    direccion             VARCHAR(200),
+    website               VARCHAR(150),
+    anio_fundacion        INT,
+    facebook              VARCHAR(120),
+    instagram             VARCHAR(120),
+    tiktok                VARCHAR(120),
+    representante_nombre  VARCHAR(100) NOT NULL,
+    representante_apellido VARCHAR(100),
+    representante_email   VARCHAR(255) NOT NULL,
+    representante_telefono VARCHAR(30),
+    acepto_veracidad      VARCHAR(20),
+    autorizo_verificacion VARCHAR(20),
+    estado                VARCHAR(30) NOT NULL DEFAULT 'pendiente',
+    motivo_rechazo        TEXT,
+    mensaje_informacion   TEXT,
+    fecha_revision        TIMESTAMPTZ,
+    administrador_id      BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    usuario_creado_id     BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    refugio_creado_id     BIGINT REFERENCES refugios(id) ON DELETE SET NULL,
+    username_generado     VARCHAR(50),
+    fecha_aprobacion      TIMESTAMPTZ,
+    token_consulta        VARCHAR(64) UNIQUE,
+    creada_en             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actualizada_en        TIMESTAMPTZ
+);
+CREATE INDEX idx_solicitudes_refugio_estado ON solicitudes_refugio(estado);
+CREATE INDEX idx_solicitudes_refugio_rep_email ON solicitudes_refugio(representante_email);
+
+CREATE TABLE solicitudes_refugio_documentos (
+    id                  BIGSERIAL PRIMARY KEY,
+    solicitud_id        BIGINT NOT NULL REFERENCES solicitudes_refugio(id) ON DELETE CASCADE,
+    categoria           VARCHAR(40) NOT NULL,
+    tipo                VARCHAR(20) NOT NULL DEFAULT 'obligatorio',
+    nombre_archivo      VARCHAR(255),
+    url                 TEXT NOT NULL,
+    public_id           VARCHAR(255),
+    estado_verificacion VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+    creado_en           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_sol_refugio_doc_solicitud ON solicitudes_refugio_documentos(solicitud_id);
+
+CREATE TABLE solicitudes_refugio_historial (
+    id               BIGSERIAL PRIMARY KEY,
+    solicitud_id     BIGINT NOT NULL REFERENCES solicitudes_refugio(id) ON DELETE CASCADE,
+    accion           VARCHAR(40) NOT NULL,
+    descripcion      TEXT,
+    administrador_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_sol_refugio_hist_solicitud ON solicitudes_refugio_historial(solicitud_id);
+
+CREATE TABLE enlaces_creacion_password (
+    id         BIGSERIAL PRIMARY KEY,
+    usuario_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    token      VARCHAR(64) NOT NULL UNIQUE,
+    usado      VARCHAR(20) NOT NULL DEFAULT 'activo',
+    expira_en  TIMESTAMPTZ NOT NULL,
+    creado_en  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_enlaces_pass_usuario ON enlaces_creacion_password(usuario_id);
 
 -- ============================================================
 -- 3. MASCOTAS Y ADOPCIONES

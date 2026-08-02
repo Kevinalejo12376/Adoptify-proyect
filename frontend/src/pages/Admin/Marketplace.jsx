@@ -580,23 +580,6 @@ function VistaProductos() {
                   <button onClick={() => setModalProducto(prod)} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" title="Ver detalles">
                     <Eye size={16} />
                   </button>
-                  <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors" title="Editar producto">
-                    <Edit3 size={16} />
-                  </button>
-                  <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-colors" title="Ver perfil del vendedor">
-                    <ExternalLink size={16} />
-                  </button>
-                  <button onClick={() => handleToggleEstado(prod.id)} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors" title={prod.estado === "oculto" ? "Publicar" : "Ocultar"}>
-                    {prod.estado === "oculto" ? <RefreshCw size={16} /> : <EyeOff size={16} />}
-                  </button>
-                  {prod.reportes > 0 && (
-                    <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 rounded-xl flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" title="Revisar reportes">
-                      <Flag size={16} />
-                    </button>
-                  )}
-                  <button onClick={() => handleEliminar(prod.id)} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" title="Eliminar producto">
-                    <Trash2 size={16} />
-                  </button>
                 </div>
               </div>
             ))}

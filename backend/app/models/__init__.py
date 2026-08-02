@@ -18,6 +18,12 @@ from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.mascota import Mascota
 from app.models.solicitud import SolicitudAdopcion
+from app.models.solicitud_refugio import (
+    SolicitudRefugio,
+    SolicitudRefugioDocumento,
+    SolicitudRefugioHistorial,
+    EnlaceCreacionPassword,
+)
 from app.models.tienda import Tienda
 from app.models.producto import Producto, ProductoImagen
 from app.models.soporte import Notificacion, Pqrs, Reporte, Auditoria
@@ -36,4 +42,6 @@ __all__ = [
     "ProductoImagen",
     "Notificacion", "Pqrs", "Reporte", "Auditoria", "Pedido", "PedidoItem", "ForoPost",
     "CodigoVerificacion",
+    "SolicitudRefugio", "SolicitudRefugioDocumento", "SolicitudRefugioHistorial",
+    "EnlaceCreacionPassword",
 ]
